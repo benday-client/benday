@@ -123,7 +123,7 @@ export function TopBar() {
 
         <Button
           variant="ghost"
-          className="b-topbar__icon"
+          className="b-topbar__icon b-topbar__icon--settings"
           onClick={() => {
             openDialog('settings')
           }}
@@ -133,6 +133,7 @@ export function TopBar() {
           <span className="b-topbar__glyph" aria-hidden="true">
             ⚙
           </span>
+          <Kbd>,</Kbd>
         </Button>
       </div>
     </header>
