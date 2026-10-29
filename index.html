@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="void">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="benday — a dithered, tensorpunk reader for the bluesky network"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#07090c" />
+    <link rel="icon" type="image/svg+xml" href="/benday.svg" />
+    <title>benday // bluesky reader</title>
+    <script>
+      try {
+        const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
+        if (stored?.state?.theme === 'bone') document.documentElement.dataset.theme = 'bone'
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
