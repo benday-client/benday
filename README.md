@@ -16,12 +16,12 @@ to bsky.app for liking, replying, following and other writes.
 
 ## appviews
 
-| preset | host | role | search |
-| --- | --- | --- | --- |
-| canonical | `api.bsky.app` | official appview, direct | yes |
-| public | `public.api.bsky.app` | official cached public reads | no, the cache does not expose search |
-| blacksky | `api.blacksky.community` | community appview | no, upstream search is unavailable |
-| custom | any https origin | public reads only | attempted |
+| preset    | host                     | role                         | search                               |
+| --------- | ------------------------ | ---------------------------- | ------------------------------------ |
+| canonical | `api.bsky.app`           | official appview, direct     | yes                                  |
+| public    | `public.api.bsky.app`    | official cached public reads | no, the cache does not expose search |
+| blacksky  | `api.blacksky.community` | community appview            | no, upstream search is unavailable   |
+| custom    | any https origin         | public reads only            | attempted                            |
 
 canonical is the default because it supports search and custom feeds. the public
 cache is still useful for cached reads. blacksky demonstrates a real independent
@@ -29,18 +29,18 @@ appview. a custom host must allow browser CORS. there is no server-side proxy.
 
 ## keys
 
-| key | action |
-| --- | --- |
-| `left` `right` or `h` `l` | scan cards on a wide screen |
-| `up` `down` or `j` `k` | scan cards on a narrow screen |
-| `home` `end` | jump to the deck edges |
-| `enter` | open the focused card's thread |
-| `/` or `ctrl`/`cmd` + `k` | open the jump palette |
-| `a` | switch appview |
-| `t` | toggle the void/bone theme |
-| `f` | cycle flow: auto, horizontal, vertical |
-| `?` | keyboard help |
-| `esc` | close a dialog |
+| key                       | action                                 |
+| ------------------------- | -------------------------------------- |
+| `left` `right` or `h` `l` | scan cards on a wide screen            |
+| `up` `down` or `j` `k`    | scan cards on a narrow screen          |
+| `home` `end`              | jump to the deck edges                 |
+| `enter`                   | open the focused card's thread         |
+| `/` or `ctrl`/`cmd` + `k` | open the jump palette                  |
+| `a`                       | switch appview                         |
+| `t`                       | toggle the void/bone theme             |
+| `f`                       | cycle flow: auto, horizontal, vertical |
+| `?`                       | keyboard help                          |
+| `esc`                     | close a dialog                         |
 
 arrow navigation is global except while typing in a field or while a dialog is
 open. the jump palette accepts `@handle`, post and feed `at://` uris, `#tags`,
