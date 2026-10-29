@@ -11,9 +11,14 @@ function isAbortLike(error: unknown): boolean {
   return error.name === 'AbortError' || error.name === 'TimeoutError'
 }
 
+function displayTitle(raw: string): string {
+  if (raw.length === 0 || raw.toLowerCase() === 'unknown') return 'network error'
+  return raw.replace(/([a-z\d])([A-Z])/g, '$1 $2').toLowerCase()
+}
+
 export function errorInfo(error: unknown): ErrorInfo {
   if (error instanceof XRPCError) {
-    const title = error.error || 'xrpc error'
+    const title = displayTitle(error.error)
     return {
       title,
       detail: error.message,
