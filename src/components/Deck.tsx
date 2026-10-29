@@ -175,8 +175,8 @@ export function Deck<T>({
     if (target === null || typeof target.scrollIntoView !== 'function') return
 
     target.scrollIntoView({
-      block: 'nearest',
-      inline: horizontal ? 'start' : 'center',
+      block: horizontal ? 'nearest' : 'start',
+      inline: horizontal ? 'start' : 'nearest',
       behavior,
     })
   }
