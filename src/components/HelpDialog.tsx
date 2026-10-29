@@ -49,7 +49,7 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: 'q', what: 'quote' },
       { keys: '+', what: 'more like this' },
       { keys: '-', what: 'less like this' },
-      { keys: 'd d', what: 'delete your post' },
+      { keys: 'd d', what: 'delete own post' },
     ],
   },
   {
@@ -86,7 +86,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
     >
       <p className="b-help__note">
         keys apply when no dialog or composer is open. a profile opened from a card gets a temporary
-        tab. sign in to like repost quote and reply, and signed-out feeds show discover only.
+        tab.
       </p>
 
       <div className="b-help__groups">

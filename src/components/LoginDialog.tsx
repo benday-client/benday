@@ -101,7 +101,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                 continue with bluesky
               </Button>
               <p className="b-auth__portal-note">
-                opens the sign-in page for your pds. the password stays there.
+                opens the pds sign-in page. the password stays there.
               </p>
             </div>
             <p className="b-auth__divider">or use a password</p>
@@ -112,7 +112,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
           label="password or app password"
           type="password"
           autoComplete="current-password"
-          hint="prefer an app password when your pds supports it"
+          hint="app passwords are safer where supported"
           value={password}
           onChange={(event) => {
             setPassword(event.target.value)

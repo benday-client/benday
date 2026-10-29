@@ -65,7 +65,7 @@ export function TopBar() {
           <Link
             href={`/profile/${encodeURIComponent(account.handle)}`}
             className="b-topbar__account"
-            aria-label={`your profile @${account.handle}`}
+            aria-label={`profile @${account.handle}`}
             title={account.did}
           >
             @{account.handle}

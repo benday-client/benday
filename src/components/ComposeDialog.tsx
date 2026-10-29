@@ -22,7 +22,7 @@ const MAX_GRAPHEMES = 300
 const EXCERPT_LENGTH = 120
 
 const PLACEHOLDERS: Record<ComposeMode, string> = {
-  post: 'what are you posting',
+  post: 'write a post',
   reply: 'write a reply',
   quote: 'add a comment, optional',
 }

@@ -7,9 +7,7 @@ export function ThemePreview() {
         <span className="b-theme-preview__label mono-label">preview</span>
         <span className="b-theme-preview__meta">@lexa.test · now</span>
       </div>
-      <p className="b-theme-preview__text">
-        a theme is a whole surface. it carries the card the type and the controls.
-      </p>
+      <p className="b-theme-preview__text">this is how a post reads.</p>
       <div className="b-theme-preview__tags">
         <Tag>#design</Tag>
         <Tag>label</Tag>

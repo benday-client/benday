@@ -1,6 +1,6 @@
 import type { AppBskyActorDefs, AtpAgent } from '@atproto/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DISCOVER_FEED_URI, fetchFeedPage, pinnedFeedUris } from './atproto'
+import { DISCOVER_FEED_URI, dedupePinnedFeeds, fetchFeedPage, pinnedFeedUris } from './atproto'
 import { getAuthAgent } from './auth'
 import type { AppViewTarget } from './types'
 
@@ -50,6 +50,18 @@ describe('fetchFeedPage', () => {
       feed: 'at://did:plc:test/app.bsky.feed.generator/for-you',
       limit: 30,
     })
+  })
+})
+
+describe('dedupePinnedFeeds', () => {
+  it('keeps one feed for repeated display names', () => {
+    const feeds = [
+      { uri: 'at://feed/one', name: 'For You', description: '', avatar: null },
+      { uri: 'at://feed/two', name: 'for you', description: '', avatar: null },
+      { uri: 'at://feed/three', name: 'Discover', description: '', avatar: null },
+    ]
+
+    expect(dedupePinnedFeeds(feeds)).toEqual([feeds[0], feeds[2]])
   })
 })
 
