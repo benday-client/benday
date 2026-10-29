@@ -95,14 +95,14 @@ describe('fetchViewerStates', () => {
 
   it('sends more and less feed interactions with feed context', async () => {
     const sendInteractions = vi.fn(async () => ({}))
-    vi.mocked(getAuthAgent).mockReturnValue({
-      app: { bsky: { feed: { sendInteractions } } },
-    } as unknown as AtpAgent)
+    const withProxy = vi.fn(() => ({ app: { bsky: { feed: { sendInteractions } } } }))
+    vi.mocked(getAuthAgent).mockReturnValue({ withProxy } as unknown as AtpAgent)
     const post = { ...postFixture(), feedContext: 'ctx-1', reqId: 'req-1' }
 
     await sendFeedFeedback('at://did:plc:test/app.bsky.feed.generator/one', post, 'more')
     await sendFeedFeedback('at://did:plc:test/app.bsky.feed.generator/one', post, 'less')
 
+    expect(withProxy).toHaveBeenCalledWith('bsky_appview', 'did:web:api.bsky.app')
     expect(sendInteractions).toHaveBeenNthCalledWith(1, {
       feed: 'at://did:plc:test/app.bsky.feed.generator/one',
       interactions: [

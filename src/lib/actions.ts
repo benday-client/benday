@@ -128,7 +128,8 @@ export async function sendFeedFeedback(
   if (post.feedContext !== undefined) interaction.feedContext = post.feedContext
   if (post.reqId !== undefined) interaction.reqId = post.reqId
 
-  await agent.app.bsky.feed.sendInteractions({
+  const appview = agent.withProxy('bsky_appview', 'did:web:api.bsky.app')
+  await appview.app.bsky.feed.sendInteractions({
     feed: feedUri,
     interactions: [interaction],
   })
