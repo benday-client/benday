@@ -60,30 +60,30 @@ where the portal cannot.
 
 ## keys and gestures
 
-| key                       | action                                 |
-| ------------------------- | -------------------------------------- |
-| `left` `right` or `h` `l` | scan cards on a wide screen            |
-| `up` `down` or `j` `k`    | scan cards on a narrow screen          |
-| `ctrl`/`cmd` + `←` `→`    | switch feeds / search / profile tabs   |
-| `g` / `G`                 | first / last card                      |
-| `enter` / `space`         | open the focused card's replies        |
-| `↓` wide · `→` narrow     | open the full post with an animation   |
-| `↑` `↓` in replies        | focus reply rows                       |
-| `esc`                     | close a dialog or back out of replies  |
-| `enter` on a reply        | open that reply's thread               |
-| `f`                       | like the focused card                  |
-| `b`                       | repost the focused card                |
-| `r`                       | reply to the focused card              |
-| `q`                       | quote the focused card                 |
-| `d` `d`                   | delete your focused post               |
-| `/` or `ctrl`/`cmd` + `k` | open the jump palette                  |
-| `s`                       | go to search and focus the query field |
-| `c`                       | compose a post                         |
-| `ctrl`/`cmd` + `enter`    | send from the composer                 |
-| `a`                       | switch appview                         |
-| `t`                       | open the theme menu                    |
-| `v b o p m l d a g h u c` | pick a theme while the menu is open    |
-| `?`                       | keyboard help                          |
+| key                       | action                                        |
+| ------------------------- | --------------------------------------------- |
+| `left` `right` or `h` `l` | scan cards on a wide screen                   |
+| `up` `down` or `j` `k`    | scan cards on a narrow screen                 |
+| `ctrl`/`cmd` + `←` `→`    | switch feeds / search / profile tabs          |
+| `g` / `G`                 | first / last card                             |
+| `enter` / `space`         | open the focused card's replies               |
+| `↓` wide · `→` narrow     | open the full post with an animation          |
+| `↑` `↓` in replies        | focus reply rows                              |
+| `esc`                     | close a dialog or back out of replies/profile |
+| `enter` on a reply        | open that reply's thread                      |
+| `f`                       | like the focused card                         |
+| `b`                       | repost the focused card                       |
+| `r`                       | reply to the focused card                     |
+| `q`                       | quote the focused card                        |
+| `d` `d`                   | delete your focused post                      |
+| `/` or `ctrl`/`cmd` + `k` | open the jump palette                         |
+| `s`                       | go to search and focus the query field        |
+| `c`                       | compose a post                                |
+| `ctrl`/`cmd` + `enter`    | send from the composer                        |
+| `a`                       | switch appview                                |
+| `t`                       | open the theme menu                           |
+| `v b o p m l d a g h u c` | pick a theme while the menu is open           |
+| `?`                       | keyboard help                                 |
 
 the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
 your own posts a two-step `delete` action appears beside them. signed-out clicks

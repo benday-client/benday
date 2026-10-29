@@ -59,6 +59,7 @@ function AppShell() {
   const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
   const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
   const lastViewRef = useRef<string | null>(null)
+  const baseViewRef = useRef<string | null>(null)
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
@@ -75,6 +76,9 @@ function AppShell() {
   useEffect(() => {
     if (!pathname.startsWith('/thread')) {
       lastViewRef.current = `${pathname}${window.location.search}`
+    }
+    if (pathname === '/' || pathname.startsWith('/feed') || pathname.startsWith('/search')) {
+      baseViewRef.current = `${pathname}${window.location.search}`
     }
   }, [pathname])
 
@@ -131,11 +135,15 @@ function AppShell() {
       closeThemeMenu()
       return
     }
+    if (pathname.startsWith('/profile/')) {
+      navigate(baseViewRef.current ?? '/feed')
+      return
+    }
     if (pathname.startsWith('/thread')) {
       if (lastViewRef.current !== null) {
         window.history.back()
       } else {
-        navigate('/')
+        navigate(baseViewRef.current ?? '/feed')
       }
     }
   }

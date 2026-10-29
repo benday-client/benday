@@ -41,13 +41,27 @@ export default function ThreadView() {
     if (focusedReply !== null) return
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.key !== 'ArrowDown' && event.key !== 'j') return
+      if (
+        event.key !== 'ArrowDown' &&
+        event.key !== 'j' &&
+        event.key !== 'ArrowUp' &&
+        event.key !== 'k'
+      ) {
+        return
+      }
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       }
       if (useUiStore.getState().themeMenuOpen) return
       if (document.querySelector('dialog[open]') !== null) return
+
+      if (event.key === 'ArrowUp' || event.key === 'k') {
+        event.preventDefault()
+        window.history.back()
+        return
+      }
+
       const first = replyRefs.current[0]
       if (first === null || first === undefined) return
       event.preventDefault()
