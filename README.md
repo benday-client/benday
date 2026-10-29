@@ -69,6 +69,9 @@ where the portal cannot.
 | `enter` / `space`         | open the focused card's replies               |
 | `↓` wide · `→` narrow     | open the full post with an animation          |
 | `↑` `↓` in replies        | focus reply rows                              |
+| `↑` or `k` in a thread    | close the full post                           |
+| `pgup` / `pgdn`           | scroll the focused post                       |
+| `shift` + `↑` `↓`         | scroll the focused post                       |
 | `esc`                     | close a dialog or back out of replies/profile |
 | `enter` on a reply        | open that reply's thread                      |
 | `f`                       | like the focused card                         |

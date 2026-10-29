@@ -17,6 +17,8 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'enter / space', what: 'open replies' },
   { keys: '↓ wide · → narrow', what: 'open the full post' },
   { keys: '↑ / k', what: 'close the full post' },
+  { keys: 'pgup / pgdn', what: 'scroll the focused post' },
+  { keys: 'shift ↑ ↓', what: 'scroll the focused post' },
   { keys: '↑ ↓ in replies', what: 'focus reply rows' },
   { keys: 'esc', what: 'back out of replies or profile' },
   { keys: '/ or ctrl/cmd+k', what: 'jump' },

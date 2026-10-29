@@ -64,9 +64,7 @@ export default function ProfileView() {
                 <Deck
                   items={posts}
                   getKey={(post) => post.uri}
-                  renderItem={(post, index, focused) => (
-                    <PostCard post={post} index={index} focused={focused} />
-                  )}
+                  renderItem={(post, _index, focused) => <PostCard post={post} focused={focused} />}
                   onActivate={(post) => {
                     openPost(post)
                     navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)

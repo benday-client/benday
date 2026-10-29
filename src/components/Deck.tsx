@@ -2,6 +2,7 @@
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { scrollPostBody } from '../lib/scroll'
 import { useUiStore } from '../lib/ui'
 import { EmptyState } from './ui'
 
@@ -222,6 +223,19 @@ export function Deck<T>({
     if (key === 'g' || key === 'G') {
       event.preventDefault()
       moveTo(key === 'G' ? items.length - 1 : 0)
+      return
+    }
+
+    if (
+      key === 'PageDown' ||
+      key === 'PageUp' ||
+      (event.shiftKey && (key === 'ArrowDown' || key === 'ArrowUp'))
+    ) {
+      const card = scrollerRef.current?.querySelector<HTMLElement>(
+        `[data-deck-index="${focusIndex}"]`,
+      )
+      const direction = key === 'PageUp' || key === 'ArrowUp' ? -1 : 1
+      if (scrollPostBody(card ?? null, direction)) event.preventDefault()
       return
     }
 

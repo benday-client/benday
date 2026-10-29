@@ -8,6 +8,7 @@ import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { useThread } from '../hooks/useBskyQueries'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { errorInfo } from '../lib/errors'
+import { scrollPostBody } from '../lib/scroll'
 import type { ThreadEntry } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 
@@ -38,9 +39,34 @@ export default function ThreadView() {
   )
 
   useEffect(() => {
+    const handleScrollKey = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      const isPage = event.key === 'PageDown' || event.key === 'PageUp'
+      const isShiftArrow = event.shiftKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+      if (!isPage && !isShiftArrow) return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+      if (useUiStore.getState().themeMenuOpen) return
+      if (document.querySelector('dialog[open]') !== null) return
+      const direction = event.key === 'PageUp' || event.key === 'ArrowUp' ? -1 : 1
+      if (scrollPostBody(document.querySelector('.b-thread > .b-post-card'), direction)) {
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', handleScrollKey)
+    return () => {
+      window.removeEventListener('keydown', handleScrollKey)
+    }
+  }, [])
+
+  useEffect(() => {
     if (focusedReply !== null) return
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.shiftKey) return
       if (
         event.key !== 'ArrowDown' &&
         event.key !== 'j' &&
@@ -89,7 +115,7 @@ export default function ThreadView() {
   }
 
   const handleReplyKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
-    if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       focusNextReply(index)
