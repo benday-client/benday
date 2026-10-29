@@ -21,6 +21,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'ctrl/cmd ← →', what: 'switch tabs' },
   { keys: 's', what: 'search' },
   { keys: 'c', what: 'compose' },
+  { keys: 'ctrl/cmd enter', what: 'send from the composer' },
   { keys: 'a', what: 'appviews' },
   { keys: 't', what: 'themes menu' },
   { keys: 'v b o p m l d a g h u', what: 'pick a theme' },

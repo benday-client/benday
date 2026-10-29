@@ -214,6 +214,11 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
             setSuggestOpen(suggestionAt(text, position) !== null)
           }}
           onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+              return
+            }
             if (!showSuggestions) return
 
             const count = suggestions.length

@@ -78,6 +78,7 @@ where the portal cannot.
 | `/` or `ctrl`/`cmd` + `k` | open the jump palette                  |
 | `s`                       | go to search and focus the query field |
 | `c`                       | compose a post                         |
+| `ctrl`/`cmd` + `enter`    | send from the composer                 |
 | `a`                       | switch appview                         |
 | `t`                       | open the theme menu                    |
 | `v b o p m l d a g h u c` | pick a theme while the menu is open    |
@@ -195,7 +196,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 114 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 115 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,

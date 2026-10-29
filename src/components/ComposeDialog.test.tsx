@@ -43,4 +43,26 @@ describe('ComposeDialog', () => {
     })
     expect(invalidate).toHaveBeenCalled()
   })
+
+  it('sends with ctrl+enter', async () => {
+    const post = postFixture()
+    const onClose = vi.fn()
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ComposeDialog open request={{ mode: 'reply', post }} onClose={onClose} />
+      </QueryClientProvider>,
+    )
+
+    const input = screen.getByLabelText('compose post')
+    fireEvent.change(input, { target: { value: 'sent fast' } })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+
+    await vi.waitFor(() => {
+      expect(createReply).toHaveBeenCalledWith('sent fast', post)
+    })
+    await vi.waitFor(() => {
+      expect(onClose).toHaveBeenCalled()
+    })
+  })
 })
