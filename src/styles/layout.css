@@ -160,12 +160,12 @@
 .b-topbar__link[data-active="true"] {
   border-color: var(--blue-deep);
   background: var(--void);
-  color: var(--blue);
+  color: var(--accent-2);
 }
 
 .b-topbar__link[data-active="true"]::before {
   margin-right: var(--space-1);
-  color: var(--blue);
+  color: var(--accent-2);
   content: "//";
 }
 
@@ -290,13 +290,13 @@
 }
 
 .b-theme-menu__key {
-  color: var(--blue);
+  color: var(--accent-2);
   font-variant-numeric: tabular-nums;
 }
 
 .b-theme-menu__mark {
   margin-left: auto;
-  color: var(--blue);
+  color: var(--accent-3);
 }
 
 /* crash ------------------------------------------------------------- */

@@ -12,6 +12,7 @@ export const THEMES: readonly Theme[] = [
   'github-dark',
   'github-light',
   'duotone',
+  'cyberpunk',
 ]
 
 export const THEME_LABELS: Record<Theme, string> = {
@@ -26,6 +27,7 @@ export const THEME_LABELS: Record<Theme, string> = {
   'github-dark': 'github dark',
   'github-light': 'github light',
   duotone: 'duotone',
+  cyberpunk: 'cyberpunk 2077',
 }
 
 export const THEME_KEYS: Record<Theme, string> = {
@@ -40,6 +42,7 @@ export const THEME_KEYS: Record<Theme, string> = {
   'github-dark': 'g',
   'github-light': 'h',
   duotone: 'u',
+  cyberpunk: 'c',
 }
 
 export const THEME_COLORS: Record<Theme, string> = {
@@ -54,6 +57,7 @@ export const THEME_COLORS: Record<Theme, string> = {
   'github-dark': '#0d1117',
   'github-light': '#ffffff',
   duotone: '#05030d',
+  cyberpunk: '#050505',
 }
 
 const THEME_LOOKUP: Record<Theme, true> = {
@@ -68,6 +72,7 @@ const THEME_LOOKUP: Record<Theme, true> = {
   'github-dark': true,
   'github-light': true,
   duotone: true,
+  cyberpunk: true,
 }
 
 export function isTheme(value: unknown): value is Theme {

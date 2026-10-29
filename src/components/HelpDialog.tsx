@@ -26,6 +26,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'b', what: 'repost the focused card' },
   { keys: 'r', what: 'reply to the focused card' },
   { keys: 'q', what: 'quote the focused card' },
+  { keys: 'd d', what: 'delete your focused post' },
   { keys: 'v', what: 'cycle flow' },
   { keys: '?', what: 'help' },
 ]
@@ -45,7 +46,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
     >
       <p className="b-help__note">
         sign in to like, repost, quote and reply. sessions stay local. themes are void, bone, oxide,
-        phosphor, catppuccin, dracula, atom one dark, github and duotone.
+        phosphor, catppuccin, dracula, atom one dark, github, duotone and cyberpunk 2077.
       </p>
 
       <dl className="b-help__grid">

@@ -34,6 +34,23 @@ describe('fetchFeedPage', () => {
       limit: 30,
     })
   })
+
+  it('reads custom feeds through the signed-in agent', async () => {
+    const getFeed = vi.fn(async () => ({ data: { feed: [] } }))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      app: { bsky: { feed: { getFeed } } },
+    } as unknown as AtpAgent)
+
+    await fetchFeedPage(TARGET, {
+      kind: 'feed',
+      uri: 'at://did:plc:test/app.bsky.feed.generator/for-you',
+    })
+
+    expect(getFeed).toHaveBeenCalledWith({
+      feed: 'at://did:plc:test/app.bsky.feed.generator/for-you',
+      limit: 30,
+    })
+  })
 })
 
 describe('pinnedFeedUris', () => {

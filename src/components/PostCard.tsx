@@ -1,8 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
 import { useActionStore } from '../lib/actionStore'
+import { deletePost } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
+import { errorInfo } from '../lib/errors'
 import type { PostModel } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { DitherImage } from './DitherImage'
@@ -27,8 +30,14 @@ export function PostCard({ post, index = 0, focused = false, eyebrow, replies }:
   const threadHref = `/thread?uri=${encodeURIComponent(post.uri)}`
 
   const authed = useAuthStore((state) => state.status === 'authenticated')
+  const accountDid = useAuthStore((state) => state.account?.did ?? null)
+  const queryClient = useQueryClient()
   const cardRef = useRef<HTMLElement>(null)
   const [inView, setInView] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const own = authed && accountDid !== null && accountDid === post.author.did
   const topComments = useTopComments(
     post.uri,
     replies === undefined && inView && post.replyCount > 0,
@@ -120,6 +129,52 @@ export function PostCard({ post, index = 0, focused = false, eyebrow, replies }:
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [focused, post])
+
+  const confirmDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deletePost(post.uri)
+      await queryClient.invalidateQueries()
+      setConfirmingDelete(false)
+    } catch (error) {
+      setDeleteError(errorInfo(error).detail)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!focused || !own) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+
+      const ui = useUiStore.getState()
+      if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
+      if (document.querySelector('dialog[open]') !== null) return
+      if (event.key !== 'd') return
+
+      event.preventDefault()
+      if (confirmingDelete) {
+        void confirmDelete()
+      } else {
+        setConfirmingDelete(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [focused, own, confirmingDelete, deleting, post])
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {
@@ -317,6 +372,49 @@ export function PostCard({ post, index = 0, focused = false, eyebrow, replies }:
           >
             quote
           </button>
+          {own ? (
+            confirmingDelete ? (
+              <>
+                <button
+                  type="button"
+                  className="b-post-card__action b-post-card__action--danger"
+                  disabled={deleting}
+                  title="delete · d"
+                  onClick={() => {
+                    void confirmDelete()
+                  }}
+                >
+                  {deleting ? 'deleting' : 'confirm delete'}
+                </button>
+                <button
+                  type="button"
+                  className="b-post-card__action"
+                  disabled={deleting}
+                  onClick={() => {
+                    setConfirmingDelete(false)
+                  }}
+                >
+                  cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="b-post-card__action b-post-card__action--danger"
+                title="delete · d"
+                onClick={() => {
+                  setConfirmingDelete(true)
+                }}
+              >
+                delete
+              </button>
+            )
+          ) : null}
+          {deleteError !== null ? (
+            <span className="b-post-card__delete-error" role="alert">
+              {deleteError}
+            </span>
+          ) : null}
         </div>
       </footer>
     </article>

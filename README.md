@@ -33,7 +33,9 @@ cache is still useful for cached reads. blacksky demonstrates a real independent
 appview. a custom host must allow browser CORS. there is no server-side proxy.
 
 reads stay on the selected appview. writes and viewer state go through the
-signed-in account's pds.
+signed-in account's pds. discover and custom feed requests use the signed-in
+agent when one exists so feeds that require a JWT can return the account's
+version.
 
 ## auth
 
@@ -68,29 +70,33 @@ where the portal cannot.
 | `b`                       | repost the focused card                |
 | `r`                       | reply to the focused card              |
 | `q`                       | quote the focused card                 |
+| `d` `d`                   | delete your focused post               |
 | `/` or `ctrl`/`cmd` + `k` | open the jump palette                  |
 | `s`                       | go to search and focus the query field |
 | `c`                       | compose a post                         |
 | `a`                       | switch appview                         |
 | `t`                       | open the theme menu                    |
-| `v b o p m l d a g h u`   | pick a theme while the menu is open    |
+| `v b o p m l d a g h u c` | pick a theme while the menu is open    |
 | `v`                       | cycle flow on narrow screens           |
 | `?`                       | keyboard help                          |
 
-the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`.
-signed-out clicks open the sign-in dialog. the top bar has a compose button for
-signed-in accounts. the jump palette accepts `@handle`, post and feed `at://`
-uris, `#tags` and plain search text, and lists the account's pinned feeds when
-the session exposes them.
+the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
+your own posts a two-step `delete` action appears beside them. signed-out clicks
+open the sign-in dialog. the top bar has a compose button for signed-in
+accounts. the jump palette accepts `@handle`, post and feed `at://` uris,
+`#tags` and plain search text, and lists the account's pinned feeds when the
+session exposes them.
 
 ## themes
 
-eleven themes share the same dither pipeline: `void`, `bone`, `oxide`,
+twelve themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
-`github dark`, `github light` and `duotone`. `t` opens a menu; each row carries a
-single-letter shortcut (`v b o p m l d a g h u`). media is dithered through an
-inline svg filter with one duotone table per theme, not canvas. the ordered
-dither is an 8x8 Bayer matrix with 64 levels in a 16x16 tile.
+`github dark`, `github light`, `duotone` and `cyberpunk 2077`. `t` opens a menu;
+each row carries a single-letter shortcut (`v b o p m l d a g h u c`). media is
+dithered through an inline svg filter with one duotone table per theme, not
+canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
+tile. newer themes use their secondary palette colours for active navigation,
+likes, comments and repost marks.
 
 ## composing
 
@@ -184,7 +190,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 109 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 112 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
@@ -209,7 +215,9 @@ route semantics without adding chrome.
 - portal login is loopback-only in this static build; a public deployment needs
   hosted oauth client metadata. the password fallback remains
 - the composer markdown subset covers inline bold, italic, strikethrough, code
-  and links; headings, lists and tables are plain text
+  and links; headings, lists and tables are plain text. benday renders the
+  formatting facets itself; the public facet vocabulary is mention/link/tag so
+  other clients may only show the stripped text
 - autocomplete covers `@handle` mentions in the composer and search field, not
   hashtag or feed-uri completion
 - pinned feeds appear when the signed-in pds returns saved-feed preferences

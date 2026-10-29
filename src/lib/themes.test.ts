@@ -13,6 +13,7 @@ const EXPECTED_THEMES = [
   'github-dark',
   'github-light',
   'duotone',
+  'cyberpunk',
 ] as const
 
 describe('themes', () => {
@@ -35,6 +36,7 @@ describe('themes', () => {
     expect(THEME_LABELS['github-dark']).toBe('github dark')
     expect(THEME_LABELS['github-light']).toBe('github light')
     expect(THEME_LABELS.duotone).toBe('duotone')
+    expect(THEME_LABELS.cyberpunk).toBe('cyberpunk 2077')
   })
 
   it('labels every theme uniquely', () => {
@@ -71,6 +73,7 @@ describe('themes', () => {
     expect(THEME_KEYS['catppuccin-latte']).toBe('l')
     expect(THEME_KEYS['github-dark']).toBe('g')
     expect(THEME_KEYS['github-light']).toBe('h')
+    expect(THEME_KEYS.cyberpunk).toBe('c')
   })
 
   it('maps every theme to a browser meta color', () => {
@@ -86,6 +89,7 @@ describe('themes', () => {
       'github-dark': '#0d1117',
       'github-light': '#ffffff',
       duotone: '#05030d',
+      cyberpunk: '#050505',
     })
     expect(Object.keys(THEME_COLORS)).toHaveLength(THEMES.length)
   })

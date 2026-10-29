@@ -259,10 +259,6 @@ export function Deck<T>({
         data-deck-index={index}
         data-focused={isFocused ? 'true' : 'false'}
         onFocus={() => setFocused(index)}
-        onPointerEnter={() => {
-          if (document.documentElement.dataset['input'] === 'keyboard') return
-          setFocused(index)
-        }}
       >
         {renderItem(item, index, isFocused)}
       </li>

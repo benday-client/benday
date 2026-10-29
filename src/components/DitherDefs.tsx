@@ -99,6 +99,11 @@ export function DitherDefs(): ReactElement {
           from={[0.043, 0.027, 0.094]}
           to={[0.133, 0.827, 0.933]}
         />
+        <DitherFilter
+          id="benday-dither-cyberpunk"
+          from={[0.02, 0.02, 0.02]}
+          to={[1, 0.165, 0.427]}
+        />
       </defs>
     </svg>
   )

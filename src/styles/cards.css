@@ -225,7 +225,7 @@
 }
 
 .b-post-card__reply-context-author:hover {
-  color: var(--blue);
+  color: var(--accent-2);
   text-decoration: none;
 }
 
@@ -258,7 +258,7 @@
 
 .b-post-card__comments-label {
   margin-bottom: var(--space-1);
-  color: var(--blue);
+  color: var(--accent-2);
   font-size: var(--step--1);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -299,7 +299,7 @@
 }
 
 .b-post-card__comment-author:hover {
-  color: var(--blue);
+  color: var(--accent-2);
   text-decoration: none;
 }
 
@@ -314,7 +314,7 @@
 }
 
 .b-post-card__comment-likes {
-  color: var(--ink-faint);
+  color: var(--accent-3);
   font-size: var(--step--2);
   letter-spacing: 0.04em;
 }
@@ -366,13 +366,28 @@
 }
 
 .b-post-card__action[data-kind="like"][aria-pressed="true"] {
-  border-bottom-color: var(--blue);
-  color: var(--blue);
+  border-bottom-color: var(--accent-2);
+  color: var(--accent-2);
 }
 
 .b-post-card__action[data-kind="repost"][aria-pressed="true"] {
-  border-bottom-color: var(--acid);
-  color: var(--acid);
+  border-bottom-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+.b-post-card__action--danger {
+  color: var(--rust);
+}
+
+.b-post-card__action--danger:hover {
+  border-bottom-color: var(--rust);
+  color: var(--rust);
+}
+
+.b-post-card__delete-error {
+  color: var(--rust);
+  font-size: var(--step--2);
+  letter-spacing: 0.03em;
 }
 
 .b-post-card__action:disabled {

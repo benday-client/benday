@@ -100,7 +100,8 @@ export async function fetchFeedPage(
     }
 
     case 'feed': {
-      const response = await agent.app.bsky.feed.getFeed({
+      const reader = getAuthAgent() ?? agent
+      const response = await reader.app.bsky.feed.getFeed({
         feed: source.uri,
         limit: PAGE_LIMIT,
         ...cursorParam(cursor),

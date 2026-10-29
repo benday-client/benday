@@ -29,7 +29,6 @@ export function useInputMode(): void {
     const root = document.documentElement
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
       if (isTypingTarget(event.target)) return
       if (!NAVIGATION_KEYS.has(event.key)) return
       root.dataset['input'] = 'keyboard'
@@ -40,12 +39,12 @@ export function useInputMode(): void {
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('pointermove', handlePointer, { passive: true })
-    window.addEventListener('pointerdown', handlePointer, { passive: true })
+    window.addEventListener('pointermove', handlePointer, { passive: true, capture: true })
+    window.addEventListener('pointerdown', handlePointer, { passive: true, capture: true })
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('pointermove', handlePointer)
-      window.removeEventListener('pointerdown', handlePointer)
+      window.removeEventListener('pointermove', handlePointer, true)
+      window.removeEventListener('pointerdown', handlePointer, true)
     }
   }, [])
 }

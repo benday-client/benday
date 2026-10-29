@@ -1,6 +1,6 @@
 import type { AtpAgent } from '@atproto/api'
 import { describe, expect, it, vi } from 'vitest'
-import { createPost, fetchViewerStates } from './actions'
+import { createPost, deletePost, fetchViewerStates } from './actions'
 import { getAuthAgent } from './auth'
 
 vi.mock('./auth', () => ({
@@ -34,6 +34,21 @@ describe('fetchViewerStates', () => {
     expect(states.get('at://did:plc:test/app.bsky.feed.post/1')).toEqual({
       likeUri: 'at://like/1',
       repostUri: null,
+    })
+  })
+
+  it('deletes a post record by at-uri', async () => {
+    const deleteRecord = vi.fn(async () => ({}))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      com: { atproto: { repo: { deleteRecord } } },
+    } as unknown as AtpAgent)
+
+    await deletePost('at://did:plc:test/app.bsky.feed.post/abc123')
+
+    expect(deleteRecord).toHaveBeenCalledWith({
+      repo: 'did:plc:test',
+      collection: 'app.bsky.feed.post',
+      rkey: 'abc123',
     })
   })
 

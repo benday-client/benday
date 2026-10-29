@@ -10,6 +10,7 @@ export type Theme =
   | 'github-dark'
   | 'github-light'
   | 'duotone'
+  | 'cyberpunk'
 
 export interface StrongRefModel {
   uri: string

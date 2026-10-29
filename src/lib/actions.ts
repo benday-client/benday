@@ -56,6 +56,18 @@ export async function unrepostPost(repostUri: string): Promise<void> {
   await requireAgent().deleteRepost(repostUri)
 }
 
+export async function deletePost(uri: string): Promise<void> {
+  const parts = uri.split('/')
+  const repo = parts[2]
+  const collection = parts[3]
+  const rkey = parts[4]
+  if (parts[0] !== 'at:' || repo === undefined || collection === undefined || rkey === undefined) {
+    throw new Error('invalid post uri')
+  }
+
+  await requireAgent().com.atproto.repo.deleteRecord({ repo, collection, rkey })
+}
+
 export async function createPost(text: string): Promise<WriteResult> {
   const rich = await preparedText(text)
   const record: Partial<AppBskyFeedPost.Record> = { text: rich.text }

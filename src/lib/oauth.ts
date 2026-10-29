@@ -16,7 +16,10 @@ let session: OAuthSession | null = null
 let initPromise: Promise<OAuthAccount | null> | null = null
 
 function isLoopbackHost(host: string): boolean {
-  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+  // The oauth library rewrites localhost to 127.0.0.1. Do not start that
+  // redirect implicitly: it would orphan password sessions and settings stored
+  // under the localhost origin. localhost keeps the password path instead.
+  return host === '127.0.0.1' || host === '[::1]' || host === '::1'
 }
 
 export function canUseOAuth(): boolean {

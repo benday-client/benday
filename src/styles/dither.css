@@ -56,6 +56,10 @@
   filter: url(#benday-dither-duotone);
 }
 
+[data-theme="cyberpunk"] .dither-image {
+  filter: url(#benday-dither-cyberpunk);
+}
+
 .dither-image--fallback {
   display: grid;
   aspect-ratio: 1;

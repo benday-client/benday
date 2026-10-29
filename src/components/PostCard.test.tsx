@@ -93,6 +93,27 @@ describe('PostCard actions', () => {
     expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
   })
 
+  it('arms deletion from the focused-card shortcut without deleting', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: 'd' })
+    expect(screen.getByRole('button', { name: 'confirm delete' })).toBeInTheDocument()
+  })
+
   it('renders the parent preview for a reply', () => {
     const post = postFixture({
       replyContext: {

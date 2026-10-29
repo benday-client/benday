@@ -32,7 +32,7 @@ function feedKey(
     case 'search':
       return ['feed', target.host, 'search', source.query]
     case 'feed':
-      return ['feed', target.host, 'feed', source.uri]
+      return ['feed', target.host, 'feed', source.uri, viewerDid ?? 'anonymous']
   }
 }
 
