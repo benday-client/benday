@@ -23,6 +23,7 @@ export interface DeckProps<T> {
   empty?: ReactNode
   label: string
   className?: string
+  initialIndex?: number
 }
 
 const SKELETONS = [
@@ -49,6 +50,7 @@ export function Deck<T>({
   empty,
   label,
   className,
+  initialIndex,
 }: DeckProps<T>): ReactElement {
   const flow = useSettings((state) => state.flow)
   const wide = useMediaQuery('(min-width: 900px)')
@@ -57,12 +59,22 @@ export function Deck<T>({
   const horizontal = flow === 'horizontal' || (flow === 'auto' && wide)
   const axis = horizontal ? 'x' : 'y'
 
-  const [focused, setFocused] = useState(0)
+  const [focused, setFocused] = useState(initialIndex ?? 0)
   const focusIndex = items.length === 0 ? 0 : Math.min(focused, items.length - 1)
 
   const scrollerRef = useRef<HTMLOListElement>(null)
   const sentinelRef = useRef<HTMLLIElement>(null)
   const loadMoreRef = useRef(onLoadMore)
+
+  useEffect(() => {
+    if (initialIndex === undefined) return
+    const index = Math.min(Math.max(initialIndex, 0), Math.max(items.length - 1, 0))
+    setFocused(index)
+    const card = scrollerRef.current?.querySelector<HTMLElement>(`[data-deck-index="${index}"]`)
+    if (card !== null && card !== undefined && typeof card.scrollIntoView === 'function') {
+      card.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' })
+    }
+  }, [initialIndex, items.length])
 
   useEffect(() => {
     loadMoreRef.current = onLoadMore
