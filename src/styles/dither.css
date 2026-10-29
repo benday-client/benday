@@ -20,6 +20,14 @@
   filter: url(#benday-dither-bone);
 }
 
+[data-theme="oxide"] .dither-image {
+  filter: url(#benday-dither-oxide);
+}
+
+[data-theme="phosphor"] .dither-image {
+  filter: url(#benday-dither-phosphor);
+}
+
 .dither-image--fallback {
   display: grid;
   aspect-ratio: 1;
@@ -38,6 +46,8 @@
   text-transform: uppercase;
 }
 
-[data-theme="bone"] .dither-image--fallback {
+[data-theme="bone"] .dither-image--fallback,
+[data-theme="oxide"] .dither-image--fallback,
+[data-theme="phosphor"] .dither-image--fallback {
   filter: none;
 }

@@ -58,6 +58,12 @@ export function DitherDefs(): ReactElement {
       <defs>
         <DitherFilter id="benday-dither-void" from={[0.035, 0.045, 0.065]} to={[0.52, 0.63, 1]} />
         <DitherFilter id="benday-dither-bone" from={[0.07, 0.08, 0.1]} to={[0.86, 0.84, 0.78]} />
+        <DitherFilter id="benday-dither-oxide" from={[0.047, 0.031, 0.02]} to={[1, 0.69, 0.39]} />
+        <DitherFilter
+          id="benday-dither-phosphor"
+          from={[0.016, 0.04, 0.024]}
+          to={[0.45, 1, 0.63]}
+        />
       </defs>
     </svg>
   )

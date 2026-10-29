@@ -78,3 +78,51 @@
   --scan-opacity: 0.08;
   --selection-ink: #f6efdf;
 }
+
+[data-theme="oxide"] {
+  color-scheme: dark;
+
+  --void: #0b0705;
+  --ink: #f0e3cf;
+  --ink-dim: #b9a68b;
+  --ink-faint: #7f6f58;
+  --paper: #120c08;
+  --panel: #17100a;
+  --panel-raised: #1f150d;
+  --line: #35271a;
+  --line-strong: #5a452e;
+  --blue: #ffb066;
+  --blue-hot: #ff8c2e;
+  --blue-deep: #5c3312;
+  --rust: #a8552f;
+  --acid: #d6c07a;
+  --shadow: #000000;
+
+  --noise-opacity: 0.05;
+  --scan-opacity: 0.16;
+  --selection-ink: #0b0705;
+}
+
+[data-theme="phosphor"] {
+  color-scheme: dark;
+
+  --void: #040906;
+  --ink: #cfefd6;
+  --ink-dim: #90af97;
+  --ink-faint: #5f7a66;
+  --paper: #071009;
+  --panel: #0a150d;
+  --panel-raised: #0e1c12;
+  --line: #1c3322;
+  --line-strong: #325239;
+  --blue: #4ef08a;
+  --blue-hot: #15d96a;
+  --blue-deep: #124a2a;
+  --rust: #d9a13c;
+  --acid: #d7e86a;
+  --shadow: #000000;
+
+  --noise-opacity: 0.045;
+  --scan-opacity: 0.15;
+  --selection-ink: #040906;
+}

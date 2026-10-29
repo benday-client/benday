@@ -14,7 +14,9 @@
     <script>
       try {
         const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
-        if (stored?.state?.theme === 'bone') document.documentElement.dataset.theme = 'bone'
+        const theme = stored?.state?.theme
+        const themes = ['void', 'bone', 'oxide', 'phosphor']
+        if (themes.includes(theme)) document.documentElement.dataset.theme = theme
       } catch {}
     </script>
   </head>

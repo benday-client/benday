@@ -1,4 +1,9 @@
-export type Theme = 'void' | 'bone'
+export type Theme = 'void' | 'bone' | 'oxide' | 'phosphor'
+
+export interface StrongRefModel {
+  uri: string
+  cid: string
+}
 
 export type FlowPreference = 'auto' | 'horizontal' | 'vertical'
 
@@ -115,6 +120,7 @@ export interface PostModel {
   embed: EmbedModel | null
   reason: PostReason | null
   isReply: boolean
+  replyRoot: StrongRefModel | null
   labels: string[]
 }
 
