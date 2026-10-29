@@ -30,6 +30,7 @@ export default function FeedView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const uri = (searchParams.get('uri') ?? '').trim()
   const [draft, setDraft] = useState(uri)
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const [feedsMode, setFeedsMode] = useState(false)
   const [dealMode, setDealMode] = useState<'posts' | 'feeds' | null>(null)
   const dealTimerRef = useRef<number | null>(null)
@@ -61,10 +62,24 @@ export default function FeedView() {
     : ({ kind: 'discover' } as const)
   const feed = usePostFeed(source, !waitingForPinned)
   const posts = feed.data ?? []
+  const visiblePosts = posts.filter((post) => !dismissed.has(post.uri))
   const feedbackFeed =
     source.kind === 'feed' ? source.uri : source.kind === 'discover' ? DISCOVER_FEED_URI : null
   useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
+
+  useEffect(() => {
+    setDismissed(new Set())
+  }, [activeUri, appView.host])
+
+  const dismissPost = (postUri: string) => {
+    setDismissed((current) => {
+      if (current.has(postUri)) return current
+      const next = new Set(current)
+      next.add(postUri)
+      return next
+    })
+  }
 
   const canPickFeeds = authenticated && wide && supported
   const showingFeeds = feedsMode && canPickFeeds
@@ -163,7 +178,7 @@ export default function FeedView() {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== 'Escape') return
       const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
+      if (ui.dialog !== null || ui.compose !== null) return
       event.preventDefault()
       switchMode(false)
     }
@@ -290,7 +305,7 @@ export default function FeedView() {
           >
             <Deck
               key="posts-deck"
-              items={posts}
+              items={visiblePosts}
               getKey={(post) => post.uri}
               renderItem={(post, index, focused) => (
                 <PostCard
@@ -301,6 +316,9 @@ export default function FeedView() {
                     ? {
                         onFeedback: (event: FeedFeedbackEvent) => {
                           void sendFeedFeedback(feedbackFeed, post, event).catch(() => {})
+                        },
+                        onDismiss: () => {
+                          dismissPost(post.uri)
                         },
                       }
                     : {})}

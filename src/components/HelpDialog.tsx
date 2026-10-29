@@ -30,8 +30,6 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'c', what: 'compose' },
   { keys: 'ctrl/cmd enter', what: 'send from the composer' },
   { keys: 'a', what: 'appviews' },
-  { keys: 't', what: 'themes menu' },
-  { keys: 'v b o p m l d a g h c w', what: 'pick a theme' },
   { keys: 'f', what: 'like the focused card' },
   { keys: '+', what: 'more like this in a feed' },
   { keys: '-', what: 'less like this in a feed' },

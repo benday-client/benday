@@ -15,7 +15,8 @@ client talks to the pds that owns the account and uses the selected appview for
 public reads.
 
 no account data is stored on a server owned by this project. ui settings live in
-localStorage under `benday:settings` (theme and the selected appview).
+localStorage under `benday:settings` (theme the selected appview and labelers).
+composer drafts live under `benday:drafts`.
 password session tokens live under `benday:session`; portal sessions live in the
 browser's indexedDB. the password is never stored. search terms are sent to the
 selected appview when you search.
@@ -90,8 +91,6 @@ the password fallback works everywhere else, including `localhost`.
 | `c`                       | compose a post                                |
 | `ctrl`/`cmd` + `enter`    | send from the composer                        |
 | `a`                       | switch appview                                |
-| `t`                       | open the theme menu                           |
-| `v b o p m l d a g h c w` | pick a theme while the menu is open           |
 | `,`                       | settings                                      |
 | `?`                       | keyboard help                                 |
 
@@ -107,9 +106,9 @@ from a card gets a temporary tab after search and loses it when you leave.
 
 twelve themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
-`github dark`, `github light`, `cyberpunk 2077` and `cottagecore`. `t` opens a menu;
-each row carries a single-letter shortcut (`v b o p m l d a g h c w`). single
-images scale to fit the viewport while keeping their natural ratio. media is
+`github dark`, `github light`, `cyberpunk 2077` and `cottagecore`. themes are
+chosen in settings. single images scale to fit the viewport while keeping their
+natural ratio. media is
 dithered through an inline svg filter with one duotone table per theme, not
 canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
 tile. newer themes use their secondary palette colours for active navigation,
@@ -129,9 +128,9 @@ from the account's saved `labelersPref`.
 ## feed feedback
 
 on a focused card in a feed or discover deck `+` asks for more posts like it and
-`-` asks for less. the request carries the feed URI plus any `feedContext` and
-`reqId` the generator supplied. cards from author and search decks do not send
-feedback.
+`-` asks for less. a less request also slides the card out of the feed. the
+request carries the feed URI plus any `feedContext` and `reqId` the generator
+supplied. cards from author and search decks do not send feedback.
 
 ## settings
 
@@ -142,8 +141,9 @@ open it with `,` or the gear button.
 
 the composer supports a small inline markdown subset: `**bold**`, `*italic*`,
 `_italic_`, `~~strikethrough~~`, `` `code` `` and `[label](https://example.com)`.
-markers are removed before publishing and converted to atproto facets with
-UTF-8 byte offsets. mentions, hashtags and bare urls are still detected by the
+closing the composer keeps a draft per post reply or quote target. a successful
+send clears it. markers are removed before publishing and converted to atproto
+facets with UTF-8 byte offsets. mentions, hashtags and bare urls are still detected by the
 atproto rich-text layer. the counter counts the stripped text.
 
 typing `@` or `#` in the composer or jump palette opens handle or hashtag
@@ -240,7 +240,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 141 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 144 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
@@ -249,7 +249,7 @@ route semantics without adding chrome.
   wide deck is checked as a centred card with half-neighbour peeks, the narrow
   deck as a two-up vertical list, and the thread view as one full card with replies inside
   it
-- theme letters and the 12-theme dither filters are checked in the browser
+- the 12-theme dither filters are checked in the browser
 - the portal button is checked through a live pds authorization redirect; the
   consent page is completed manually, not by the headless harness
 - appview switching is checked against the live canonical, public, and

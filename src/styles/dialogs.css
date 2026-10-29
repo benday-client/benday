@@ -427,12 +427,6 @@
   color: var(--blue);
 }
 
-.b-settings__theme-key {
-  flex: 0 0 1ch;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
 .b-settings__appviews {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

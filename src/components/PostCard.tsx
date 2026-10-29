@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
@@ -12,7 +12,7 @@ import { DitherImage } from './DitherImage'
 import { Embeds } from './Embeds'
 import { FacetText } from './FacetText'
 import { RelativeTime } from './RelativeTime'
-import { Tag } from './ui'
+import { Kbd, Tag } from './ui'
 
 export interface PostCardProps {
   post: PostModel
@@ -21,6 +21,7 @@ export interface PostCardProps {
   eyebrow?: string
   replies?: ReactNode
   onFeedback?: (event: FeedFeedbackEvent) => void
+  onDismiss?: () => void
 }
 
 function isOwnPostUri(uri: string, did: string): boolean {
@@ -37,6 +38,7 @@ export function PostCard({
   eyebrow,
   replies,
   onFeedback,
+  onDismiss,
 }: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
@@ -52,6 +54,8 @@ export function PostCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const dismissTimerRef = useRef<number | null>(null)
   const own =
     authed &&
     accountDid !== null &&
@@ -65,10 +69,32 @@ export function PostCard({
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
+  const feedbackAction = useCallback(
+    (kind: FeedFeedbackEvent) => {
+      if (!authed) {
+        openDialog('login')
+        return
+      }
+      if (kind === 'less' && onDismiss !== undefined && !leaving) {
+        setLeaving(true)
+        dismissTimerRef.current = window.setTimeout(onDismiss, 240)
+      }
+      onFeedback?.(kind)
+    },
+    [authed, openDialog, onDismiss, onFeedback, leaving],
+  )
+
   useEffect(() => {
     setConfirmingDelete(false)
     setDeleteError(null)
+    setLeaving(false)
   }, [post.uri, own])
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     const node = cardRef.current
@@ -106,7 +132,7 @@ export function PostCard({
       }
 
       const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
+      if (ui.dialog !== null || ui.compose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
 
       const authenticated = useAuthStore.getState().status === 'authenticated'
@@ -117,7 +143,6 @@ export function PostCard({
         }
         action()
       }
-
       switch (event.key) {
         case 'f':
           event.preventDefault()
@@ -146,16 +171,12 @@ export function PostCard({
         case '+':
           if (onFeedback === undefined) break
           event.preventDefault()
-          interact(() => {
-            onFeedback('more')
-          })
+          feedbackAction('more')
           break
         case '-':
           if (onFeedback === undefined) break
           event.preventDefault()
-          interact(() => {
-            onFeedback('less')
-          })
+          feedbackAction('less')
           break
         default:
           break
@@ -166,7 +187,7 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, post, onFeedback])
+  }, [focused, post, feedbackAction])
 
   const confirmDelete = async () => {
     if (deleting) return
@@ -196,7 +217,7 @@ export function PostCard({
       }
 
       const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
+      if (ui.dialog !== null || ui.compose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
       if (event.key !== 'd') return
 
@@ -242,6 +263,7 @@ export function PostCard({
 
   const classes = ['b-frame', 'b-post-card']
   if (focused) classes.push('b-post-card--focused')
+  if (leaving) classes.push('b-post-card--leaving')
 
   return (
     <article ref={cardRef} className={classes.join(' ')}>
@@ -428,14 +450,10 @@ export function PostCard({
                 title="more like this · +"
                 aria-label="more like this"
                 onClick={() => {
-                  if (!authed) {
-                    openDialog('login')
-                    return
-                  }
-                  onFeedback('more')
+                  feedbackAction('more')
                 }}
               >
-                more
+                more <Kbd>+</Kbd>
               </button>
               <button
                 type="button"
@@ -443,14 +461,10 @@ export function PostCard({
                 title="less like this · -"
                 aria-label="less like this"
                 onClick={() => {
-                  if (!authed) {
-                    openDialog('login')
-                    return
-                  }
-                  onFeedback('less')
+                  feedbackAction('less')
                 }}
               >
-                less
+                less <Kbd>-</Kbd>
               </button>
             </>
           ) : null}

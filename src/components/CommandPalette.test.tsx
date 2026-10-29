@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useSettings } from '../lib/store'
-import { useUiStore } from '../lib/ui'
 import { CommandPalette } from './CommandPalette'
 
 interface RenderOptions {
   onClose?: () => void
   onOpenAppView?: () => void
   onOpenHelp?: () => void
+  onOpenSettings?: () => void
 }
 
 function renderPalette(options: RenderOptions = {}) {
@@ -18,6 +18,7 @@ function renderPalette(options: RenderOptions = {}) {
   const onClose = options.onClose ?? vi.fn()
   const onOpenAppView = options.onOpenAppView ?? vi.fn()
   const onOpenHelp = options.onOpenHelp ?? vi.fn()
+  const onOpenSettings = options.onOpenSettings ?? vi.fn()
 
   const queryClient = new QueryClient()
 
@@ -29,12 +30,13 @@ function renderPalette(options: RenderOptions = {}) {
           onClose={onClose}
           onOpenAppView={onOpenAppView}
           onOpenHelp={onOpenHelp}
+          onOpenSettings={onOpenSettings}
         />
       </Router>
     </QueryClientProvider>,
   )
 
-  return { onClose, onOpenAppView, onOpenHelp, history: location.history }
+  return { onClose, onOpenAppView, onOpenHelp, onOpenSettings, history: location.history }
 }
 
 function submit(value: string) {
@@ -46,13 +48,12 @@ function submit(value: string) {
 describe('CommandPalette', () => {
   beforeEach(() => {
     useSettings.setState({ theme: 'void' })
-    useUiStore.setState({ themeMenuOpen: false })
   })
 
-  it('opens the theme menu instead of searching the command name', () => {
-    const { onClose } = renderPalette()
+  it('opens settings for the theme command instead of searching', () => {
+    const { onClose, onOpenSettings } = renderPalette()
     submit('theme')
-    expect(useUiStore.getState().themeMenuOpen).toBe(true)
+    expect(onOpenSettings).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
   })
 

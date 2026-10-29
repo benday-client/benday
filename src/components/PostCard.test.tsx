@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { displayedCount, useActionStore } from '../lib/actionStore'
@@ -26,6 +26,10 @@ describe('displayedCount', () => {
 })
 
 describe('PostCard actions', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     useAuthStore.setState({
       status: 'anonymous',
@@ -59,6 +63,34 @@ describe('PostCard actions', () => {
     )
 
     expect(screen.queryByText('[03]')).not.toBeInTheDocument()
+  })
+
+  it('dismisses the card after a less feedback', () => {
+    vi.useFakeTimers()
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const feedback = vi.fn()
+    const dismiss = vi.fn()
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} focused onFeedback={feedback} onDismiss={dismiss} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'less like this' }))
+    expect(feedback).toHaveBeenCalledWith('less')
+    act(() => {
+      vi.advanceTimersByTime(240)
+    })
+    expect(dismiss).toHaveBeenCalled()
   })
 
   it('sends feed feedback from the focused card keys', () => {

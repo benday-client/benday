@@ -4,7 +4,6 @@ import {
   isTheme,
   THEME_COLORS,
   THEME_EFFECTS,
-  THEME_KEYS,
   THEME_LABELS,
   THEMES,
 } from './themes'
@@ -80,18 +79,6 @@ describe('themes', () => {
     }
     expect(THEME_EFFECTS.void).toBe('grunge')
     expect(THEME_EFFECTS['github-light']).toBe('clean')
-  })
-
-  it('maps every theme to a unique single lowercase letter', () => {
-    const keys = THEMES.map((theme) => THEME_KEYS[theme])
-    for (const key of keys) expect(key).toMatch(/^[a-z]$/)
-    expect(new Set(keys).size).toBe(THEMES.length)
-    expect(THEME_KEYS['catppuccin-mocha']).toBe('m')
-    expect(THEME_KEYS['catppuccin-latte']).toBe('l')
-    expect(THEME_KEYS['github-dark']).toBe('g')
-    expect(THEME_KEYS['github-light']).toBe('h')
-    expect(THEME_KEYS.cyberpunk).toBe('c')
-    expect(THEME_KEYS.cottagecore).toBe('w')
   })
 
   it('maps every theme to a browser meta color', () => {

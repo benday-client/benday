@@ -17,7 +17,7 @@ import { useInputMode } from './hooks/useInputMode'
 import { getAuthAgent, useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
 import { useSettings } from './lib/store'
-import { THEME_COLORS, THEME_KEYS, THEMES } from './lib/themes'
+import { THEME_COLORS } from './lib/themes'
 import { useUiStore } from './lib/ui'
 import FeedView from './views/FeedView'
 import ProfileView from './views/ProfileView'
@@ -57,9 +57,6 @@ function AppShell() {
   const closeDialog = useUiStore((state) => state.closeDialog)
   const openCompose = useUiStore((state) => state.openCompose)
   const closeCompose = useUiStore((state) => state.closeCompose)
-  const themeMenuOpen = useUiStore((state) => state.themeMenuOpen)
-  const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
-  const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
   const lastViewRef = useRef<string | null>(null)
   const baseViewRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
@@ -69,15 +66,10 @@ function AppShell() {
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
-  const setTheme = useSettings((state) => state.setTheme)
 
   useEffect(() => {
     void useAuthStore.getState().restore()
   }, [])
-
-  useEffect(() => {
-    closeThemeMenu()
-  }, [pathname, closeThemeMenu])
 
   useEffect(() => {
     const view = `${pathname}${search.length > 0 ? `?${search}` : ''}`
@@ -133,7 +125,10 @@ function AppShell() {
     const handleTabKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-      if (isEditableTarget(event.target)) return
+      if (isEditableTarget(event.target)) {
+        const target = event.target
+        if (!(target instanceof HTMLElement) || target.closest('.b-view__form') === null) return
+      }
 
       event.preventDefault()
       changeTab(event.key === 'ArrowLeft' ? -1 : 1)
@@ -146,10 +141,6 @@ function AppShell() {
   }, [dialog, compose, pathname])
 
   const closeOrBack = () => {
-    if (themeMenuOpen) {
-      closeThemeMenu()
-      return
-    }
     if (pathname.startsWith('/profile/')) {
       navigate(baseViewRef.current ?? '/feed')
       return
@@ -163,18 +154,7 @@ function AppShell() {
     }
   }
 
-  const themeKeys: Hotkey[] = themeMenuOpen
-    ? THEMES.map((item) => ({
-        key: THEME_KEYS[item],
-        handler: () => {
-          setTheme(item)
-          closeThemeMenu()
-        },
-      }))
-    : []
-
   const hotkeys: readonly Hotkey[] = [
-    ...themeKeys,
     { key: 'k', ctrlOrMeta: true, handler: () => openDialog('palette') },
     { key: '/', handler: () => openDialog('palette') },
     { key: 's', handler: focusSearch },
@@ -182,7 +162,6 @@ function AppShell() {
     { key: 'a', handler: () => openDialog('appview') },
     { key: '?', handler: () => openDialog('help') },
     { key: ',', handler: () => openDialog('settings') },
-    { key: 't', handler: toggleThemeMenu },
     { key: 'Escape', handler: closeOrBack },
   ]
 
@@ -212,6 +191,7 @@ function AppShell() {
         onClose={closeDialog}
         onOpenAppView={() => openDialog('appview')}
         onOpenHelp={() => openDialog('help')}
+        onOpenSettings={() => openDialog('settings')}
       />
       <AppViewDialog open={dialog === 'appview'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />

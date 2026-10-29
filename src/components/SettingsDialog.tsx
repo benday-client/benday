@@ -10,7 +10,7 @@ import {
 import { fetchLabelerPrefs } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
-import { THEME_KEYS, THEME_LABELS, THEMES } from '../lib/themes'
+import { THEME_LABELS, THEMES } from '../lib/themes'
 import type { AppViewPreset } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { Button, Dialog, Tag, TextInput } from './ui'
@@ -112,7 +112,6 @@ export function SettingsDialog({ open, onClose, onOpenHelp }: SettingsDialogProp
                 setTheme(item)
               }}
             >
-              <span className="b-settings__theme-key">{THEME_KEYS[item]}</span>
               <span>{THEME_LABELS[item]}</span>
             </button>
           ))}

@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { createPost, createQuote, createReply } from '../lib/actions'
+import { clearDraft, draftKeyFor, readDraft, writeDraft } from '../lib/drafts'
 import { errorInfo } from '../lib/errors'
 import { markdownText } from '../lib/markdown'
 import type { ComposeMode, ComposeRequest } from '../lib/ui'
@@ -41,19 +42,35 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const formId = useId()
   const listboxId = useId()
   const generationRef = useRef(0)
+  const submittedRef = useRef(false)
+  const draftKey = request === null ? null : draftKeyFor(request.mode, request.post?.uri ?? null)
 
   useEffect(() => {
     generationRef.current += 1
-    setText('')
+    submittedRef.current = false
+    const saved = draftKey === null ? '' : readDraft(draftKey)
+    setText(saved)
     setPending(false)
     setError(null)
     setCursor(0)
     setSuggestOpen(false)
     setSelectedSuggestion(0)
-  }, [open, request])
+    setCursor(saved.length)
+  }, [open, request, draftKey])
+
+  useEffect(() => {
+    if (!open || draftKey === null) return
+    const timer = window.setTimeout(() => {
+      if (!submittedRef.current) writeDraft(draftKey, text)
+    }, 250)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [open, draftKey, text])
 
   const close = () => {
     generationRef.current += 1
+    if (draftKey !== null && !submittedRef.current) writeDraft(draftKey, text)
     setPending(false)
     onClose()
   }
@@ -159,6 +176,9 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
       }
 
       if (generationRef.current !== generation) return
+
+      submittedRef.current = true
+      if (draftKey !== null) clearDraft(draftKey)
 
       // the selected appview may not have indexed the new record yet
       void queryClient.invalidateQueries()

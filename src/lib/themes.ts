@@ -49,21 +49,6 @@ export const THEME_LABELS: Record<Theme, string> = {
   cottagecore: 'cottagecore',
 }
 
-export const THEME_KEYS: Record<Theme, string> = {
-  void: 'v',
-  bone: 'b',
-  oxide: 'o',
-  phosphor: 'p',
-  'catppuccin-mocha': 'm',
-  'catppuccin-latte': 'l',
-  dracula: 'd',
-  atom: 'a',
-  'github-dark': 'g',
-  'github-light': 'h',
-  cyberpunk: 'c',
-  cottagecore: 'w',
-}
-
 export const THEME_COLORS: Record<Theme, string> = {
   void: '#07090c',
   bone: '#ddd6c6',

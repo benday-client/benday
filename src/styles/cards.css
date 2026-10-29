@@ -77,6 +77,26 @@
   box-shadow: 2px 2px 0 0 var(--shadow);
 }
 
+/* feed feedback dismissal -------------------------------------------- */
+
+.b-post-card--leaving {
+  pointer-events: none;
+  animation: b-post-card-leave 220ms ease-in both;
+}
+
+@keyframes b-post-card-leave {
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b-post-card--leaving {
+    animation: none;
+  }
+}
+
 /* post card --------------------------------------------------------- */
 
 .b-post-card {

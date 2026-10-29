@@ -50,6 +50,7 @@ export interface CommandPaletteProps {
   onClose: () => void
   onOpenAppView: () => void
   onOpenHelp: () => void
+  onOpenSettings: () => void
 }
 
 interface PaletteCommand {
@@ -60,14 +61,19 @@ interface PaletteCommand {
   run: () => void
 }
 
-export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onClose,
+  onOpenAppView,
+  onOpenHelp,
+  onOpenSettings,
+}: CommandPaletteProps) {
   const [, navigate] = useLocation()
   const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
   const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
-  const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
 
   const [input, setInput] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -229,12 +235,12 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     {
       id: 'theme',
       label: 'themes',
-      meta: 't',
+      meta: ',',
       keywords:
         'void bone oxide phosphor catppuccin-mocha catppuccin-latte dracula atom one dark github-dark github-light cyberpunk 2077 cottagecore catppuccin mocha latte color',
       run: () => {
         onClose()
-        toggleThemeMenu()
+        onOpenSettings()
       },
     },
     {

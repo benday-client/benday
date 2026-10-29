@@ -60,7 +60,6 @@ export default function ThreadView() {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       }
-      if (useUiStore.getState().themeMenuOpen) return
       if (document.querySelector('dialog[open]') !== null) return
       const direction = event.key === 'PageUp' || event.key === 'ArrowUp' ? -1 : 1
       if (scrollPostBody(document.querySelector('.b-thread > .b-post-card'), direction)) {
@@ -91,7 +90,6 @@ export default function ThreadView() {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       }
-      if (useUiStore.getState().themeMenuOpen) return
       if (document.querySelector('dialog[open]') !== null) return
 
       if (event.key === 'ArrowUp' || event.key === 'k') {

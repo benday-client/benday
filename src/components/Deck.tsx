@@ -11,7 +11,6 @@ import {
 import { flushSync } from 'react-dom'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { scrollPostBody } from '../lib/scroll'
-import { useUiStore } from '../lib/ui'
 import { Button, EmptyState } from './ui'
 
 export interface DeckProps<T> {
@@ -266,7 +265,6 @@ export function Deck<T>({
     if (event.defaultPrevented) return
     if (event.metaKey || event.ctrlKey || event.altKey) return
     if (isTypingTarget(event.target)) return
-    if (useUiStore.getState().themeMenuOpen) return
     if (document.querySelector('dialog[open]') !== null) return
     if (items.length === 0) return
 
