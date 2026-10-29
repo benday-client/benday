@@ -69,6 +69,7 @@ export async function fetchFeedPage(
   target: AppViewTarget,
   source: FeedSource,
   cursor?: string,
+  limit = PAGE_LIMIT,
 ): Promise<{ posts: PostModel[]; cursor: string | null }> {
   const agent = createAgent(target)
 
@@ -77,7 +78,7 @@ export async function fetchFeedPage(
       const reader = getAuthAgent() ?? agent
       const response = await reader.app.bsky.feed.getFeed({
         feed: DISCOVER_FEED_URI,
-        limit: PAGE_LIMIT,
+        limit,
         ...cursorParam(cursor),
       })
       return {
@@ -89,7 +90,7 @@ export async function fetchFeedPage(
     case 'author': {
       const response = await agent.app.bsky.feed.getAuthorFeed({
         actor: source.actor.replace(/^@/, ''),
-        limit: PAGE_LIMIT,
+        limit,
         filter: 'posts_with_replies',
         ...cursorParam(cursor),
       })
@@ -103,7 +104,7 @@ export async function fetchFeedPage(
       const reader = getAuthAgent() ?? agent
       const response = await reader.app.bsky.feed.getFeed({
         feed: source.uri,
-        limit: PAGE_LIMIT,
+        limit,
         ...cursorParam(cursor),
       })
       return {
@@ -115,7 +116,7 @@ export async function fetchFeedPage(
     case 'search': {
       const response = await agent.app.bsky.feed.searchPosts({
         q: source.query,
-        limit: PAGE_LIMIT,
+        limit,
         sort: 'latest',
         ...cursorParam(cursor),
       })

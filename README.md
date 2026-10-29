@@ -65,6 +65,8 @@ the password fallback works everywhere else, including `localhost`.
 | key                       | action                                        |
 | ------------------------- | --------------------------------------------- |
 | `left` `right` or `h` `l` | scan cards on a wide screen                   |
+| `←` at the first post     | open the feeds deck                           |
+| `←` at the first feed     | return to the posts deck                      |
 | `up` `down` or `j` `k`    | scan cards on a narrow screen                 |
 | `ctrl`/`cmd` + `←` `→`    | switch feeds / search / profile tabs          |
 | `g` / `G`                 | first / last card                             |
@@ -124,9 +126,14 @@ typing `@` or `#` in the composer or jump palette opens handle or hashtag
 suggestions from the selected appview. the search field offers the same
 suggestions. the feeds tab is home: logged-out readers see the discover feed
 only; signed-in accounts default to their first pinned feed and fall back to
-discover when there is none. the `+ add` dialog opens any feed generator. the
-profile view splits identity and posts horizontally on wide screens. single
-images keep their natural aspect ratio so text stays readable.
+discover when there is none. on wide screens the first post hides the feeds
+deck behind its left edge; press left to enter it. the exposed half shows the
+back of the first post card with the feed title post index date and appview.
+each feed is a card and left from the first feed returns to posts. mobile keeps
+the compact pinned strip.
+the `+ add` dialog opens any feed generator. the profile view splits identity
+and posts horizontally on wide screens. single images keep their natural
+aspect ratio so text stays readable.
 
 ## stack
 

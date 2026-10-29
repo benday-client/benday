@@ -1,5 +1,12 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck is a focusable scroll region
-import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { scrollPostBody } from '../lib/scroll'
@@ -11,6 +18,8 @@ export interface DeckProps<T> {
   getKey: (item: T) => string
   renderItem: (item: T, index: number, focused: boolean) => ReactNode
   onActivate?: (item: T, index: number) => void
+  onExitStart?: () => void
+  leadingPeek?: ReactNode
   pending?: boolean
   hasMore?: boolean
   loadingMore?: boolean
@@ -54,6 +63,8 @@ export function Deck<T>({
   getKey,
   renderItem,
   onActivate,
+  onExitStart,
+  leadingPeek,
   pending = false,
   hasMore = false,
   loadingMore = false,
@@ -71,6 +82,7 @@ export function Deck<T>({
 
   const horizontal = wide
   const axis = horizontal ? 'x' : 'y'
+  const hasLeadingPeek = leadingPeek !== undefined
 
   const remembered = stateKey === undefined ? undefined : deckPositions.get(stateKey)
   const [focused, setFocused] = useState(remembered?.index ?? initialIndex ?? 0)
@@ -83,6 +95,7 @@ export function Deck<T>({
   const lastPositionRef = useRef<DeckPosition | null>(remembered ?? null)
   const initialAppliedRef = useRef(remembered !== undefined || initialIndex === undefined)
   const initialIndexRef = useRef(initialIndex)
+  const centeredPeekKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     initialIndexRef.current = initialIndex
@@ -97,25 +110,32 @@ export function Deck<T>({
     setFocused(position?.index ?? index ?? 0)
 
     const scroller = scrollerRef.current
-    if (position === undefined && scroller !== null) {
+    if (position === undefined && scroller !== null && !(horizontal && hasLeadingPeek)) {
       scroller.scrollLeft = 0
       scroller.scrollTop = 0
     }
-  }, [stateKey])
+  }, [stateKey, horizontal, hasLeadingPeek])
 
   useEffect(() => {
     const position = pendingPositionRef.current
     if (position === null || items.length === 0) return
 
     pendingPositionRef.current = null
-    setFocused(Math.min(position.index, items.length - 1))
+    const index = Math.min(position.index, items.length - 1)
+    setFocused(index)
 
     const scroller = scrollerRef.current
     if (scroller !== null) {
-      scroller.scrollLeft = position.left
-      scroller.scrollTop = position.top
+      // A stored offset belongs to the layout before the leading peek existed.
+      // Re-center the first card so the peek stays exactly half visible.
+      if (horizontal && hasLeadingPeek && index === 0) {
+        scrollToIndex(0, 'auto')
+      } else {
+        scroller.scrollLeft = position.left
+        scroller.scrollTop = position.top
+      }
     }
-  }, [items.length, stateKey])
+  }, [items.length, stateKey, horizontal, hasLeadingPeek])
 
   useEffect(() => {
     if (initialAppliedRef.current) return
@@ -191,7 +211,28 @@ export function Deck<T>({
     })
   }
 
+  // A leading peek occupies the previous-card slot. The first real card must
+  // start centered so the peek is only half visible.
+  useLayoutEffect(() => {
+    if (!horizontal || !hasLeadingPeek || items.length === 0 || focusIndex !== 0) return
+    const key = stateKey ?? 'no-key'
+    if (centeredPeekKeyRef.current === key) return
+    const scroller = scrollerRef.current
+    if (scroller === null) return
+    const target = scroller.querySelector<HTMLElement>('[data-deck-index="0"]')
+    if (target === null) return
+    const deckRect = scroller.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const centeredLeft = targetRect.left - deckRect.left - (deckRect.width - targetRect.width) / 2
+    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + centeredLeft)
+    centeredPeekKeyRef.current = key
+  }, [horizontal, hasLeadingPeek, items.length, focusIndex, stateKey])
+
   const moveTo = (index: number) => {
+    if (index < 0) {
+      onExitStart?.()
+      return
+    }
     const next = Math.min(items.length - 1, Math.max(0, index))
     setFocused(next)
     scrollToIndex(next, reduceMotion ? 'auto' : 'smooth')
@@ -300,6 +341,13 @@ export function Deck<T>({
   const classes = ['b-deck']
   if (className !== undefined) classes.push(className)
 
+  const leadingItem =
+    horizontal && hasLeadingPeek && items.length > 0 ? (
+      <li className="b-deck__item b-deck__peek" aria-hidden="true">
+        {leadingPeek}
+      </li>
+    ) : null
+
   const renderCard = (item: T, index: number) => {
     const isFocused = index === focusIndex
     return (
@@ -341,6 +389,7 @@ export function Deck<T>({
       aria-roledescription="card deck"
       tabIndex={0}
     >
+      {leadingItem}
       {content}
       {loadMoreError ? (
         <li className="b-deck__load-error">

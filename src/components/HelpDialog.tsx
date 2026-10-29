@@ -12,6 +12,8 @@ interface Shortcut {
 
 const SHORTCUTS: readonly Shortcut[] = [
   { keys: '← → / h l', what: 'scan cards on laptop' },
+  { keys: '← at first post', what: 'open the feeds deck' },
+  { keys: '← at first feed', what: 'back to posts' },
   { keys: '↑ ↓ / j k', what: 'scan cards on mobile' },
   { keys: 'g / G', what: 'first / last card' },
   { keys: 'enter / space', what: 'open replies' },
