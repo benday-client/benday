@@ -119,7 +119,10 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
 
   const runSelected = () => {
     const trimmed = input.trim()
-    if (trimmed.length > 0) {
+    const explicitTarget =
+      trimmed.startsWith('@') || trimmed.startsWith('at://') || trimmed.startsWith('#')
+
+    if (trimmed.length > 0 && explicitTarget) {
       const parsed = parseCommand(trimmed)
       if (parsed !== null) {
         navigate(parsed.href)
@@ -129,7 +132,18 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     }
 
     const command = filtered[selected] ?? filtered[0]
-    if (command !== undefined) command.run()
+    if (command !== undefined) {
+      command.run()
+      return
+    }
+
+    if (trimmed.length > 0) {
+      const parsed = parseCommand(trimmed)
+      if (parsed !== null) {
+        navigate(parsed.href)
+        onClose()
+      }
+    }
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
