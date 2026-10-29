@@ -1,12 +1,5 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck is a focusable scroll region
-import {
-  type KeyboardEvent,
-  type ReactElement,
-  type ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useSettings } from '../lib/store'
 import { EmptyState } from './ui'
@@ -32,10 +25,15 @@ const SKELETONS = [
   { key: 'skeleton-3', label: 'loading card' },
 ] as const
 
-function isEditableTarget(target: EventTarget | null): boolean {
+function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
-  return target.closest('a, button, input, textarea, select') !== null
+  return target.closest('input, textarea, select, [contenteditable="true"]') !== null
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return target.closest('a, button, input, textarea, select, [contenteditable="true"]') !== null
 }
 
 export function Deck<T>({
@@ -118,9 +116,11 @@ export function Deck<T>({
     })
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLOListElement>) => {
+  const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+    if (event.defaultPrevented) return
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
-    if (isEditableTarget(event.target)) return
+    if (isTypingTarget(event.target)) return
+    if (document.querySelector('dialog[open]') !== null) return
     if (items.length === 0) return
 
     const key = event.key
@@ -138,6 +138,7 @@ export function Deck<T>({
     }
 
     if (key === 'Enter' || key === ' ') {
+      if (isInteractiveTarget(event.target)) return
       const item = items[focusIndex]
       if (item !== undefined) onActivate?.(item, focusIndex)
       event.preventDefault()
@@ -153,6 +154,13 @@ export function Deck<T>({
     event.preventDefault()
     moveTo(back ? focusIndex - 1 : focusIndex + 1)
   }
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleKeyDown])
 
   const classes = ['b-deck']
   if (className !== undefined) classes.push(className)
@@ -196,7 +204,6 @@ export function Deck<T>({
       aria-label={label}
       aria-roledescription="card deck"
       tabIndex={0}
-      onKeyDown={handleKeyDown}
     >
       {content}
       {hasMore ? <li ref={sentinelRef} className="b-deck__sentinel" aria-hidden="true" /> : null}
