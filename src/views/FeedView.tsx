@@ -110,6 +110,12 @@ export default function FeedView() {
     activeFeedIndex >= 0
       ? feedChoices[activeFeedIndex]
       : feedChoices.find((choice) => choice.kind !== 'add')
+  const activeFeedName =
+    activeFeedIndex >= 0
+      ? (feedChoices[activeFeedIndex]?.name ?? 'feed')
+      : activeUri.length > 0
+        ? (activeUri.split('/').at(-1) ?? 'custom feed')
+        : 'discover'
 
   const selectFeed = (choice: FeedChoice) => {
     if (choice.kind === 'add') {
@@ -255,7 +261,7 @@ export default function FeedView() {
             leadingPeek={
               canPickFeeds && peekChoice !== undefined ? (
                 <FeedCardBack
-                  feedName={peekChoice.name}
+                  feedName={activeFeedName}
                   postIndex={0}
                   postDate={posts[0]?.indexedAt ?? ''}
                   appview={appView.label}
