@@ -4,9 +4,11 @@ import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { createPost, createQuote, createReply } from '../lib/actions'
+import { useAuthStore } from '../lib/auth'
 import { clearDraft, draftKeyFor, readDraft, writeDraft } from '../lib/drafts'
 import { errorInfo } from '../lib/errors'
 import { markdownText } from '../lib/markdown'
+import { invalidateNonFeedQueries } from '../lib/queries'
 import type { ComposeMode, ComposeRequest } from '../lib/ui'
 import { Button, Dialog } from './ui'
 
@@ -32,6 +34,7 @@ function excerptOf(text: string): string {
 
 export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const queryClient = useQueryClient()
+  const accountDid = useAuthStore((state) => state.account?.did ?? null)
   const [text, setText] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +46,8 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const listboxId = useId()
   const generationRef = useRef(0)
   const submittedRef = useRef(false)
-  const draftKey = request === null ? null : draftKeyFor(request.mode, request.post?.uri ?? null)
+  const draftKey =
+    request === null ? null : draftKeyFor(request.mode, request.post?.uri ?? null, accountDid)
 
   useEffect(() => {
     generationRef.current += 1
@@ -181,7 +185,7 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
       if (draftKey !== null) clearDraft(draftKey)
 
       // the selected appview may not have indexed the new record yet
-      void queryClient.invalidateQueries()
+      void invalidateNonFeedQueries(queryClient)
       onClose()
     } catch (caught) {
       if (generationRef.current !== generation) return

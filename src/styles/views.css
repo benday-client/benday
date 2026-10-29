@@ -325,6 +325,36 @@
   border-bottom: 1px solid var(--line);
 }
 
+.b-view__tools--feed {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--page-gutter);
+}
+
+.b-view__tools--feed .b-view__pinned {
+  flex: 1 1 auto;
+  padding: 0;
+}
+
+.b-view__feed-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b-view__refresh {
+  flex: 0 0 auto;
+}
+
+.b-view__refresh:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
 .b-view__form {
   display: flex;
   flex-direction: row;

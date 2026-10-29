@@ -16,7 +16,7 @@ public reads.
 
 no account data is stored on a server owned by this project. ui settings live in
 localStorage under `benday:settings` (theme the selected appview and labelers).
-composer drafts live under `benday:drafts`.
+composer drafts live under `benday:drafts` scoped by account did.
 password session tokens live under `benday:session`; portal sessions live in the
 browser's indexedDB. the password is never stored. search terms are sent to the
 selected appview when you search.
@@ -132,6 +132,11 @@ on a focused card in a feed or discover deck `+` asks for more posts like it and
 request carries the feed URI plus any `feedContext` and `reqId` the generator
 supplied. cards from author and search decks do not send feedback.
 
+feed and discover decks do not refetch themselves. restoring a cached deck, moving
+between tabs, letting a labeler change, or invalidating after a write leaves the
+cards alone. the refresh button in the feed strip and submitting the same search
+again are the explicit reloads.
+
 ## settings
 
 settings is the central window for themes appviews labelers account and help.
@@ -240,11 +245,11 @@ route semantics without adding chrome.
 
 ## verification
 
-- 144 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 147 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
-  the reply composer and the appview proxy used for viewer state
+  the reply composer drafts the feed cache guard and the appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths; the
   wide deck is checked as a centred card with half-neighbour peeks, the narrow
   deck as a two-up vertical list, and the thread view as one full card with replies inside

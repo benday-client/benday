@@ -7,9 +7,10 @@ describe('drafts', () => {
   })
 
   it('keeps separate drafts for post reply and quote', () => {
-    const post = draftKeyFor('post', null)
-    const reply = draftKeyFor('reply', 'at://post/a')
-    const quote = draftKeyFor('quote', 'at://post/a')
+    const account = 'did:plc:test'
+    const post = draftKeyFor('post', null, account)
+    const reply = draftKeyFor('reply', 'at://post/a', account)
+    const quote = draftKeyFor('quote', 'at://post/a', account)
 
     writeDraft(post, 'a post')
     writeDraft(reply, 'a reply')
@@ -18,6 +19,18 @@ describe('drafts', () => {
     expect(readDraft(post)).toBe('a post')
     expect(readDraft(reply)).toBe('a reply')
     expect(readDraft(quote)).toBe('a quote')
+  })
+
+  it('scopes drafts by account', () => {
+    const first = draftKeyFor('post', null, 'did:plc:first')
+    const second = draftKeyFor('post', null, 'did:plc:second')
+
+    writeDraft(first, 'first account')
+    writeDraft(second, 'second account')
+
+    expect(readDraft(first)).toBe('first account')
+    expect(readDraft(second)).toBe('second account')
+    expect(readDraft(draftKeyFor('post', null, 'did:plc:third'))).toBe('')
   })
 
   it('removes empty drafts and clears on demand', () => {

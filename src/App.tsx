@@ -16,6 +16,7 @@ import { type Hotkey, isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
 import { getAuthAgent, useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
+import { invalidateNonFeedQueries } from './lib/queries'
 import { useSettings } from './lib/store'
 import { THEME_COLORS } from './lib/themes'
 import { useUiStore } from './lib/ui'
@@ -85,7 +86,7 @@ function AppShell() {
     if (lastLabelerKeyRef.current === labelerKey) return
     lastLabelerKeyRef.current = labelerKey
     getAuthAgent()?.configureLabelers(labelers)
-    void queryClient.invalidateQueries()
+    void invalidateNonFeedQueries(queryClient)
   }, [labelerKey, labelers, queryClient])
 
   useEffect(() => {

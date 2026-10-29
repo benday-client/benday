@@ -91,7 +91,9 @@ export default function SearchView() {
     setSuggestOpen(false)
     setSelectedSuggestion(0)
     const next = draft.trim()
-    if (next.length > 0) {
+    if (next.length > 0 && next === query) {
+      feed.retry()
+    } else if (next.length > 0) {
       setSearchParams({ q: next }, { replace: true })
     } else {
       setSearchParams({}, { replace: true })

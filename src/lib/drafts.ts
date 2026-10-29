@@ -30,8 +30,13 @@ function writeMap(drafts: DraftMap): void {
   }
 }
 
-export function draftKeyFor(mode: ComposeMode, targetUri: string | null): string {
-  return mode === 'post' ? 'post' : `${mode}:${targetUri ?? ''}`
+export function draftKeyFor(
+  mode: ComposeMode,
+  targetUri: string | null,
+  accountDid: string | null,
+): string {
+  const owner = accountDid ?? 'signed-out'
+  return mode === 'post' ? `${owner}:post` : `${owner}:${mode}:${targetUri ?? ''}`
 }
 
 export function readDraft(key: string): string {

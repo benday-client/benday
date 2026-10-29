@@ -6,6 +6,7 @@ import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
+import { invalidateNonFeedQueries } from '../lib/queries'
 import type { PostModel } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { DitherImage } from './DitherImage'
@@ -196,7 +197,7 @@ export function PostCard({
 
     try {
       await deletePost(post.uri)
-      await queryClient.invalidateQueries()
+      await invalidateNonFeedQueries(queryClient)
       setConfirmingDelete(false)
     } catch (error) {
       setDeleteError(errorInfo(error).detail)

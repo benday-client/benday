@@ -13,6 +13,7 @@ import type {
 } from '../lib/types'
 
 const STALE_TIME = 45_000
+const FEED_STALE_TIME = Number.POSITIVE_INFINITY
 
 interface FeedPage {
   posts: PostModel[]
@@ -78,8 +79,10 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
     enabled: active,
-    staleTime: STALE_TIME,
-    retry: 1,
+    staleTime: FEED_STALE_TIME,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   })
 
