@@ -3,6 +3,7 @@ import { AtpAgent } from '@atproto/api'
 import { create } from 'zustand'
 import { normalizeAppViewHost } from './appviews'
 import { errorInfo } from './errors'
+import { applyConfiguredLabelers } from './labelers'
 import { restoreOAuth, signInOAuth, signOutOAuth } from './oauth'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
@@ -153,7 +154,7 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
 
 function makeAgent(service: string): AtpAgent {
   const createdEpoch = authEpoch
-  return new AtpAgent({
+  const agent = new AtpAgent({
     service,
     persistSession: (event: AtpSessionEvent, session: AtpSessionData | undefined) => {
       // A session event from an agent that a newer auth action superseded must
@@ -173,6 +174,8 @@ function makeAgent(service: string): AtpAgent {
       }
     },
   })
+  applyConfiguredLabelers(agent)
+  return agent
 }
 
 export function getAuthAgent(): AtpAgent | Agent | null {
@@ -204,6 +207,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         const oauth = await restoreOAuth()
         if (epoch !== authEpoch) return
         if (oauth !== null) {
+          applyConfiguredLabelers(oauth.agent)
           activeAgent = oauth.agent
           clearStoredAuth()
           set({

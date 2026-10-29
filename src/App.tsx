@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { Link, Route, Switch, useLocation, useSearch } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
@@ -9,11 +9,12 @@ import { ComposeDialog } from './components/ComposeDialog'
 import { DitherDefs } from './components/DitherDefs'
 import { HelpDialog } from './components/HelpDialog'
 import { LoginDialog } from './components/LoginDialog'
+import { SettingsDialog } from './components/SettingsDialog'
 import { TopBar } from './components/TopBar'
 import { EmptyState } from './components/ui'
 import { type Hotkey, isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
-import { useAuthStore } from './lib/auth'
+import { getAuthAgent, useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
 import { useSettings } from './lib/store'
 import { THEME_COLORS, THEME_KEYS, THEMES } from './lib/themes'
@@ -61,6 +62,10 @@ function AppShell() {
   const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
   const lastViewRef = useRef<string | null>(null)
   const baseViewRef = useRef<string | null>(null)
+  const queryClient = useQueryClient()
+  const labelers = useSettings((state) => state.labelers)
+  const labelerKey = labelers.join('\n')
+  const lastLabelerKeyRef = useRef(labelerKey)
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
@@ -83,6 +88,13 @@ function AppShell() {
       baseViewRef.current = view
     }
   }, [pathname, search])
+
+  useEffect(() => {
+    if (lastLabelerKeyRef.current === labelerKey) return
+    lastLabelerKeyRef.current = labelerKey
+    getAuthAgent()?.configureLabelers(labelers)
+    void queryClient.invalidateQueries()
+  }, [labelerKey, labelers, queryClient])
 
   useEffect(() => {
     document.documentElement.dataset['theme'] = theme
@@ -169,6 +181,7 @@ function AppShell() {
     { key: 'c', handler: startCompose },
     { key: 'a', handler: () => openDialog('appview') },
     { key: '?', handler: () => openDialog('help') },
+    { key: ',', handler: () => openDialog('settings') },
     { key: 't', handler: toggleThemeMenu },
     { key: 'Escape', handler: closeOrBack },
   ]
@@ -202,6 +215,11 @@ function AppShell() {
       />
       <AppViewDialog open={dialog === 'appview'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
+      <SettingsDialog
+        open={dialog === 'settings'}
+        onClose={closeDialog}
+        onOpenHelp={() => openDialog('help')}
+      />
       <LoginDialog open={dialog === 'login'} onClose={closeDialog} />
       <AccountDialog open={dialog === 'account'} onClose={closeDialog} />
       <ComposeDialog open={compose !== null} request={compose} onClose={closeCompose} />

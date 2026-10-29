@@ -16,7 +16,9 @@ import { usePostFeed } from '../hooks/useBskyQueries'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useViewerSync } from '../hooks/useViewerSync'
+import { type FeedFeedbackEvent, sendFeedFeedback } from '../lib/actions'
 import { capabilitiesFor } from '../lib/appviews'
+import { DISCOVER_FEED_URI } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
 import { chooseFeedUri } from '../lib/feedSelection'
@@ -59,6 +61,8 @@ export default function FeedView() {
     : ({ kind: 'discover' } as const)
   const feed = usePostFeed(source, !waitingForPinned)
   const posts = feed.data ?? []
+  const feedbackFeed =
+    source.kind === 'feed' ? source.uri : source.kind === 'discover' ? DISCOVER_FEED_URI : null
   useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
 
@@ -289,7 +293,18 @@ export default function FeedView() {
               items={posts}
               getKey={(post) => post.uri}
               renderItem={(post, index, focused) => (
-                <PostCard post={post} index={index} focused={focused} />
+                <PostCard
+                  post={post}
+                  index={index}
+                  focused={focused}
+                  {...(feedbackFeed !== null
+                    ? {
+                        onFeedback: (event: FeedFeedbackEvent) => {
+                          void sendFeedFeedback(feedbackFeed, post, event).catch(() => {})
+                        },
+                      }
+                    : {})}
+                />
               )}
               onActivate={(post) => {
                 openPost(post)

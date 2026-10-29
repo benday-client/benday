@@ -156,6 +156,18 @@ export function TopBar() {
           <Kbd>/</Kbd>
         </Button>
 
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={() => {
+            openDialog('settings')
+          }}
+          aria-label="settings"
+          title="settings · ,"
+        >
+          <span aria-hidden="true">⚙</span>
+        </Button>
+
         <div className="b-theme-wrap" ref={themeWrapRef}>
           <Button
             variant="ghost"

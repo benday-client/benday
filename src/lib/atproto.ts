@@ -1,5 +1,6 @@
-import { AppBskyActorDefs, AppBskyFeedDefs, AtpAgent } from '@atproto/api'
+import { AppBskyActorDefs, AppBskyFeedDefs, AppBskyLabelerDefs, AtpAgent } from '@atproto/api'
 import { getAuthAgent } from './auth'
+import { applyConfiguredLabelers } from './labelers'
 import {
   flattenThread,
   mapFeedViewPost,
@@ -34,7 +35,9 @@ function normalizeCursor(cursor: string | undefined): string | null {
 }
 
 export function createAgent(target: AppViewTarget): AtpAgent {
-  return new AtpAgent({ service: target.host })
+  const agent = new AtpAgent({ service: target.host })
+  applyConfiguredLabelers(agent)
+  return agent
 }
 
 async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise<PostModel[]> {
@@ -194,6 +197,55 @@ export async function fetchTagSuggestions(target: AppViewTarget, query: string):
   } catch {
     return query.length > 0 ? [query] : []
   }
+}
+
+export async function fetchLabelerPrefs(): Promise<string[]> {
+  const agent = getAuthAgent()
+  if (agent === null) return []
+  const prefs = await agent.app.bsky.actor.getPreferences()
+  const dids: string[] = []
+  for (const pref of prefs.data.preferences) {
+    if (AppBskyActorDefs.isLabelersPref(pref)) {
+      for (const labeler of pref.labelers) dids.push(labeler.did)
+    }
+  }
+  return [...new Set(dids)]
+}
+
+export interface LabelerSummary {
+  did: string
+  handle: string
+  displayName: string
+  description: string
+  avatar: string | null
+  labelCount: number
+}
+
+export async function fetchLabelerSummaries(
+  target: AppViewTarget,
+  dids: readonly string[],
+): Promise<LabelerSummary[]> {
+  if (dids.length === 0) return []
+  const agent = createAgent(target)
+  const response = await agent.app.bsky.labeler.getServices({ dids: [...dids], detailed: true })
+  const summaries: LabelerSummary[] = []
+
+  for (const view of response.data.views) {
+    if (!AppBskyLabelerDefs.isLabelerViewDetailed(view)) continue
+    summaries.push({
+      did: view.creator.did,
+      handle: view.creator.handle,
+      displayName:
+        view.creator.displayName !== undefined && view.creator.displayName.length > 0
+          ? view.creator.displayName
+          : view.creator.handle,
+      description: view.creator.description ?? '',
+      avatar: view.creator.avatar ?? null,
+      labelCount: view.policies.labelValues.length,
+    })
+  }
+
+  return summaries
 }
 
 export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFeedModel[]> {

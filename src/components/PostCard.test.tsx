@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { displayedCount, useActionStore } from '../lib/actionStore'
@@ -59,6 +59,31 @@ describe('PostCard actions', () => {
     )
 
     expect(screen.queryByText('[03]')).not.toBeInTheDocument()
+  })
+
+  it('sends feed feedback from the focused card keys', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const feedback = vi.fn()
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} focused onFeedback={feedback} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: '+' })
+    fireEvent.keyDown(window, { key: '-' })
+
+    expect(feedback).toHaveBeenNthCalledWith(1, 'more')
+    expect(feedback).toHaveBeenNthCalledWith(2, 'less')
   })
 
   it('opens sign in when a signed-out user likes a post', () => {

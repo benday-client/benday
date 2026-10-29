@@ -1,5 +1,5 @@
 import type { AppBskyEmbedRecord, AppBskyFeedPost } from '@atproto/api'
-import { RichText } from '@atproto/api'
+import { AppBskyFeedDefs, RichText } from '@atproto/api'
 import { getAuthAgent } from './auth'
 import { parseMarkdown } from './markdown'
 import type { PostModel } from './types'
@@ -13,6 +13,8 @@ export interface WriteResult {
   uri: string
   cid: string
 }
+
+export type FeedFeedbackEvent = 'more' | 'less'
 
 const VIEWER_BATCH = 25
 const APPVIEW_PROXY = {
@@ -110,6 +112,26 @@ export async function createQuote(text: string, post: PostModel): Promise<WriteR
   }
   applyFacets(record, rich)
   return requireAgent().post(record)
+}
+
+export async function sendFeedFeedback(
+  feedUri: string,
+  post: PostModel,
+  event: FeedFeedbackEvent,
+): Promise<void> {
+  const agent = requireAgent()
+  const interaction: AppBskyFeedDefs.Interaction = {
+    $type: 'app.bsky.feed.defs#interaction',
+    item: post.uri,
+    event: event === 'more' ? AppBskyFeedDefs.REQUESTMORE : AppBskyFeedDefs.REQUESTLESS,
+  }
+  if (post.feedContext !== undefined) interaction.feedContext = post.feedContext
+  if (post.reqId !== undefined) interaction.reqId = post.reqId
+
+  await agent.app.bsky.feed.sendInteractions({
+    feed: feedUri,
+    interactions: [interaction],
+  })
 }
 
 export async function fetchViewerStates(

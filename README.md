@@ -79,6 +79,8 @@ the password fallback works everywhere else, including `localhost`.
 | `esc`                     | close a dialog or back out of replies/profile |
 | `enter` on a reply        | open that reply's thread                      |
 | `f`                       | like the focused card                         |
+| `+`                       | more like the focused feed card               |
+| `-`                       | less like the focused feed card               |
 | `b`                       | repost the focused card                       |
 | `r`                       | reply to the focused card                     |
 | `q`                       | quote the focused card                        |
@@ -90,6 +92,7 @@ the password fallback works everywhere else, including `localhost`.
 | `a`                       | switch appview                                |
 | `t`                       | open the theme menu                           |
 | `v b o p m l d a g h c w` | pick a theme while the menu is open           |
+| `,`                       | settings                                      |
 | `?`                       | keyboard help                                 |
 
 the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
@@ -113,6 +116,27 @@ tile. newer themes use their secondary palette colours for active navigation,
 likes, comments and repost marks. image effects are themed too, defaulting to
 `grunge`; `phosphor`, `catppuccin latte`, `atom one dark`, `github dark` and
 `github light` use the clean ordered option.
+
+
+## labelers
+
+the settings window (`,` or the gear in the top bar) stores labeler DIDs in
+`benday:settings`. configured labelers are sent on reads through the
+`accept-labelers` header so the appview can attach their labels. labeler
+services resolve through the selected appview; imported account labelers come
+from the account's saved `labelersPref`.
+
+## feed feedback
+
+on a focused card in a feed or discover deck `+` asks for more posts like it and
+`-` asks for less. the request carries the feed URI plus any `feedContext` and
+`reqId` the generator supplied. cards from author and search decks do not send
+feedback.
+
+## settings
+
+settings is the central window for themes appviews labelers account and help.
+open it with `,` or the gear button.
 
 ## composing
 
@@ -216,7 +240,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 138 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 141 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,

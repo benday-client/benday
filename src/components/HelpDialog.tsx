@@ -33,10 +33,13 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 't', what: 'themes menu' },
   { keys: 'v b o p m l d a g h c w', what: 'pick a theme' },
   { keys: 'f', what: 'like the focused card' },
+  { keys: '+', what: 'more like this in a feed' },
+  { keys: '-', what: 'less like this in a feed' },
   { keys: 'b', what: 'repost the focused card' },
   { keys: 'r', what: 'reply to the focused card' },
   { keys: 'q', what: 'quote the focused card' },
   { keys: 'd d', what: 'delete your focused post' },
+  { keys: ',', what: 'settings' },
   { keys: '?', what: 'help' },
 ]
 

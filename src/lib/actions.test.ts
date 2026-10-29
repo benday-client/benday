@@ -1,6 +1,7 @@
 import type { AtpAgent } from '@atproto/api'
 import { describe, expect, it, vi } from 'vitest'
-import { createPost, deletePost, fetchViewerStates } from './actions'
+import { postFixture } from '../test/fixtures'
+import { createPost, deletePost, fetchViewerStates, sendFeedFeedback } from './actions'
 import { getAuthAgent } from './auth'
 
 vi.mock('./auth', () => ({
@@ -90,6 +91,42 @@ describe('fetchViewerStates', () => {
       'invalid post uri',
     )
     expect(deleteRecord).not.toHaveBeenCalled()
+  })
+
+  it('sends more and less feed interactions with feed context', async () => {
+    const sendInteractions = vi.fn(async () => ({}))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      app: { bsky: { feed: { sendInteractions } } },
+    } as unknown as AtpAgent)
+    const post = { ...postFixture(), feedContext: 'ctx-1', reqId: 'req-1' }
+
+    await sendFeedFeedback('at://did:plc:test/app.bsky.feed.generator/one', post, 'more')
+    await sendFeedFeedback('at://did:plc:test/app.bsky.feed.generator/one', post, 'less')
+
+    expect(sendInteractions).toHaveBeenNthCalledWith(1, {
+      feed: 'at://did:plc:test/app.bsky.feed.generator/one',
+      interactions: [
+        {
+          $type: 'app.bsky.feed.defs#interaction',
+          item: post.uri,
+          event: 'app.bsky.feed.defs#requestMore',
+          feedContext: 'ctx-1',
+          reqId: 'req-1',
+        },
+      ],
+    })
+    expect(sendInteractions).toHaveBeenNthCalledWith(2, {
+      feed: 'at://did:plc:test/app.bsky.feed.generator/one',
+      interactions: [
+        {
+          $type: 'app.bsky.feed.defs#interaction',
+          item: post.uri,
+          event: 'app.bsky.feed.defs#requestLess',
+          feedContext: 'ctx-1',
+          reqId: 'req-1',
+        },
+      ],
+    })
   })
 
   it('converts markdown markers into record facets', async () => {

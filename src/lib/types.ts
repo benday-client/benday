@@ -161,6 +161,8 @@ export interface PostModel {
   replyParent: StrongRefModel | null
   replyContext: ReplyContextModel | null
   labels: string[]
+  feedContext?: string
+  reqId?: string
 }
 
 export interface ProfileModel {

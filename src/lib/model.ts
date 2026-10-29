@@ -320,7 +320,13 @@ export function mapFeedViewPost(view: AppBskyFeedDefs.FeedViewPost): PostModel {
   const replyContext =
     parent !== undefined && AppBskyFeedDefs.isPostView(parent) ? mapReplyContext(parent) : null
 
-  return { ...mapPostView(view.post), reason: mapReason(view.reason), replyContext }
+  return {
+    ...mapPostView(view.post),
+    reason: mapReason(view.reason),
+    replyContext,
+    ...(view.feedContext !== undefined ? { feedContext: view.feedContext } : {}),
+    ...(view.reqId !== undefined ? { reqId: view.reqId } : {}),
+  }
 }
 
 export function mapProfile(view: AppBskyActorDefs.ProfileViewDetailed): ProfileModel {

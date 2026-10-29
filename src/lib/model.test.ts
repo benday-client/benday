@@ -579,6 +579,13 @@ describe('mapFeedViewPost', () => {
     expect(mapFeedViewPost(plain).reason).toBeNull()
   })
 
+  it('keeps feed context and request id', () => {
+    const model = mapFeedViewPost(feedViewPost({ feedContext: 'ctx-1', reqId: 'req-1' }))
+
+    expect(model.feedContext).toBe('ctx-1')
+    expect(model.reqId).toBe('req-1')
+  })
+
   it('maps the parent preview for reply items', () => {
     const parentRef = { uri: 'at://did:plc:ada/app.bsky.feed.post/parent', cid: 'parent-cid' }
     const parent = postView({

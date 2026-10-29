@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
-import { deletePost } from '../lib/actions'
+import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
 import type { PostModel } from '../lib/types'
@@ -20,6 +20,7 @@ export interface PostCardProps {
   focused?: boolean
   eyebrow?: string
   replies?: ReactNode
+  onFeedback?: (event: FeedFeedbackEvent) => void
 }
 
 function isOwnPostUri(uri: string, did: string): boolean {
@@ -29,7 +30,14 @@ function isOwnPostUri(uri: string, did: string): boolean {
   return rkey.length > 0 && !rkey.includes('/')
 }
 
-export function PostCard({ post, index, focused = false, eyebrow, replies }: PostCardProps) {
+export function PostCard({
+  post,
+  index,
+  focused = false,
+  eyebrow,
+  replies,
+  onFeedback,
+}: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
@@ -135,6 +143,20 @@ export function PostCard({ post, index, focused = false, eyebrow, replies }: Pos
             ui.openCompose({ mode: 'quote', post })
           })
           break
+        case '+':
+          if (onFeedback === undefined) break
+          event.preventDefault()
+          interact(() => {
+            onFeedback('more')
+          })
+          break
+        case '-':
+          if (onFeedback === undefined) break
+          event.preventDefault()
+          interact(() => {
+            onFeedback('less')
+          })
+          break
         default:
           break
       }
@@ -144,7 +166,7 @@ export function PostCard({ post, index, focused = false, eyebrow, replies }: Pos
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, post])
+  }, [focused, post, onFeedback])
 
   const confirmDelete = async () => {
     if (deleting) return
