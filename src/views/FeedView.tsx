@@ -2,13 +2,22 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
-import { Button, Dialog, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  ErrorNotice,
+  Frame,
+  Progress,
+  TextInput,
+} from '../components/ui'
 import { usePostFeed } from '../hooks/useBskyQueries'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
+import { chooseFeedUri } from '../lib/feedSelection'
 import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 
@@ -36,8 +45,12 @@ export default function FeedView() {
   const appView = useSettings((state) => state.appView)
   const supported = capabilitiesFor(appView).feeds
   const pinned = usePinnedFeeds()
-  const showingCustom = authenticated && uri.length > 0
-  const source = showingCustom ? ({ kind: 'feed', uri } as const) : ({ kind: 'discover' } as const)
+  const activeUri = chooseFeedUri(uri, authenticated, pinned.feeds)
+  const showingCustom = activeUri.length > 0
+  const waitingForPinned = authenticated && uri.length === 0 && pinned.isPending
+  const source = showingCustom
+    ? ({ kind: 'feed', uri: activeUri } as const)
+    : ({ kind: 'discover' } as const)
   const feed = usePostFeed(source)
   const posts = feed.data ?? []
   useViewerSync(posts)
@@ -69,7 +82,7 @@ export default function FeedView() {
                   key={item.uri}
                   type="button"
                   className="b-pinned-feed"
-                  data-active={item.uri === uri ? 'true' : 'false'}
+                  data-active={item.uri === activeUri ? 'true' : 'false'}
                   onClick={() => {
                     setSearchParams({ uri: item.uri }, { replace: true })
                   }}
@@ -95,6 +108,11 @@ export default function FeedView() {
         {authenticated && !supported ? (
           <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
+          </Frame>
+        ) : waitingForPinned ? (
+          <Frame label="pinned feeds" meta="loading">
+            <p className="mono-label">loading pinned feeds</p>
+            <Progress indeterminate />
           </Frame>
         ) : info !== null && posts.length === 0 ? (
           <ErrorNotice title={info.title} message={info.detail} onRetry={feed.retry} />

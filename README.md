@@ -115,7 +115,8 @@ atproto rich-text layer. the counter counts the stripped text.
 typing `@` or `#` in the composer or jump palette opens handle or hashtag
 suggestions from the selected appview. the search field offers the same
 suggestions. the feeds tab is home: logged-out readers see the discover feed
-only; signed-in accounts also get pinned feeds and the `+ add` feed dialog. the
+only; signed-in accounts default to their first pinned feed and fall back to
+discover when there is none. the `+ add` dialog opens any feed generator. the
 profile view splits identity and posts horizontally on wide screens. single
 images keep their natural aspect ratio so text stays readable.
 
@@ -198,7 +199,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 115 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 118 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
