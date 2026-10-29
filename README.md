@@ -4,8 +4,8 @@ a dithered tensorpunk reader for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
 square-edged index card with an ordered-dither portrait or image. on a wide
-screen two cards share the deck and it scrolls horizontally; narrow screens
-use a two-up vertical card list. appviews are switchable. the interface
+screen the focused card sits in the centre with half-neighbour peeks on either
+side; narrow screens use a two-up vertical card list. appviews are switchable. the interface
 is a small TUI: monospace, one-pixel borders, lowercase labels, keyboard-first,
 no rounded corners.
 
@@ -210,8 +210,8 @@ route semantics without adding chrome.
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
   the reply composer and the appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths; the
-  wide deck is checked as two-column horizontal cards, the narrow deck as a
-  two-up vertical list, and the thread view as one full card with replies inside
+  wide deck is checked as a centred card with half-neighbour peeks, the narrow
+  deck as a two-up vertical list, and the thread view as one full card with replies inside
   it
 - theme letters and the 12-theme dither filters are checked in the browser
 - the portal button is checked through a live pds authorization redirect; the
@@ -242,8 +242,8 @@ route semantics without adding chrome.
 - video posts show the poster and alt text; there is no player
 - labeler services are not rendered beyond label tags on cards and profiles
 - a thread is flattened to depth 3 and capped at 80 replies
-- wide screens show two cards at a time and scan horizontally; narrow screens
-  use a two-up vertical list
+- wide screens centre the focused card with half-neighbour peeks; narrow
+  screens use a two-up vertical list
 - custom appviews and self-hosted pds instances must allow browser cors
 - password session tokens live in localStorage; portal tokens live in
   indexedDB. sign out clears both

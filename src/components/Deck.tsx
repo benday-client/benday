@@ -176,7 +176,7 @@ export function Deck<T>({
 
     target.scrollIntoView({
       block: horizontal ? 'nearest' : 'start',
-      inline: horizontal ? 'start' : 'nearest',
+      inline: horizontal ? 'center' : 'nearest',
       behavior,
     })
   }

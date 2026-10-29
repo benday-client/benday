@@ -29,7 +29,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'ctrl/cmd enter', what: 'send from the composer' },
   { keys: 'a', what: 'appviews' },
   { keys: 't', what: 'themes menu' },
-  { keys: 'v b o p m l d a g h u', what: 'pick a theme' },
+  { keys: 'v b o p m l d a g h c w', what: 'pick a theme' },
   { keys: 'f', what: 'like the focused card' },
   { keys: 'b', what: 'repost the focused card' },
   { keys: 'r', what: 'reply to the focused card' },

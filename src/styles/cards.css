@@ -915,23 +915,12 @@
 
 /* responsive -------------------------------------------------------- */
 
-@media (max-width: 599px) {
-  .b-profile__banner {
-    height: 56px;
-  }
-
-  .b-post-card__actions {
-    gap: var(--space-1) var(--space-2);
-  }
-
-  .b-embed__grid {
-    gap: 1px;
-  }
-
+@media (max-width: 899px) {
   .b-deck[data-axis="y"] .b-deck__item {
     flex: 0 0 calc((100% - var(--deck-gap)) / 2);
     max-width: 100%;
     min-height: 0;
+    scroll-snap-align: start;
   }
 
   .b-deck[data-axis="y"] .b-post-card {
@@ -945,6 +934,20 @@
     overscroll-behavior: contain;
     scrollbar-color: var(--line-strong) transparent;
     scrollbar-width: thin;
+  }
+}
+
+@media (max-width: 599px) {
+  .b-profile__banner {
+    height: 56px;
+  }
+
+  .b-post-card__actions {
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .b-embed__grid {
+    gap: 1px;
   }
 }
 
