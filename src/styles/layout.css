@@ -1,1 +1,416 @@
-/* app shell and deck layout */
+/* app shell, top bar, status bar */
+
+.b-app {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--void);
+}
+
+.b-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.b-main > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.b-skip {
+  position: absolute;
+  top: calc(-1 * var(--space-8));
+  left: var(--space-3);
+  z-index: calc(var(--z-dialog) + 1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--blue);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: var(--step-0);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.b-skip:focus {
+  top: var(--space-2);
+}
+
+.b-notfound {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  overflow: auto;
+}
+
+.b-notfound > * {
+  width: min(100%, 52ch);
+}
+
+/* top bar ----------------------------------------------------------- */
+
+.b-topbar {
+  position: relative;
+  z-index: var(--z-topbar);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  min-height: var(--topbar-height);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background-color: var(--panel);
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--line) 38%, transparent) 6px 7px
+  );
+}
+
+.b-topbar::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--blue-deep) 0 18%,
+    transparent 18% 82%,
+    var(--rust) 82% 100%
+  );
+  pointer-events: none;
+  content: "";
+}
+
+.b-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--ink);
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.b-brand:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.b-brand__mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border: 1px solid var(--line-strong);
+  background-color: var(--panel-raised);
+  background-image: repeating-conic-gradient(var(--ink) 0 25%, transparent 0 50%);
+  background-size: 5px 5px;
+  box-shadow: 2px 1px 0 0 var(--rust);
+}
+
+.b-brand__mark::after {
+  position: absolute;
+  inset: 3px;
+  background-image: repeating-conic-gradient(var(--blue) 0 25%, transparent 0 50%);
+  background-size: 3px 3px;
+  content: "";
+  mix-blend-mode: screen;
+}
+
+.b-brand__name {
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.b-brand__tagline {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+}
+
+.b-topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.b-topbar__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  color: var(--ink-dim);
+  font-size: var(--step-0);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.b-topbar__link:hover {
+  background: var(--panel-raised);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.b-topbar__link[data-active="true"] {
+  border-color: var(--blue-deep);
+  background: var(--void);
+  color: var(--blue);
+}
+
+.b-topbar__link[data-active="true"]::before {
+  margin-right: var(--space-1);
+  color: var(--blue);
+  content: "//";
+}
+
+.b-topbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  min-width: 0;
+}
+
+.b-topbar .b-topbar__jump,
+.b-topbar .b-topbar__action {
+  min-height: 24px;
+  padding: 2px var(--space-2);
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+}
+
+.b-topbar__glyph {
+  color: var(--blue);
+  font-size: var(--step-1);
+  line-height: 1;
+}
+
+.b-topbar__action-label {
+  color: var(--ink-dim);
+}
+
+.b-topbar__help {
+  min-width: 26px;
+  color: var(--ink-dim);
+}
+
+.b-appview-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 24px;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--blue-deep);
+  border-radius: 0;
+  background: var(--void);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+  transition:
+    border-color 120ms linear,
+    box-shadow 120ms linear,
+    transform 120ms linear;
+}
+
+.b-appview-chip:hover {
+  border-color: var(--blue);
+  box-shadow: 2px 2px 0 0 var(--shadow);
+  transform: translate(-1px, -1px);
+}
+
+.b-appview-chip__label {
+  color: var(--blue);
+  text-transform: lowercase;
+}
+
+.b-appview-chip__host {
+  max-width: 20ch;
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* status bar -------------------------------------------------------- */
+
+.b-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--statusbar-height);
+  min-height: var(--statusbar-height);
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  overflow: hidden;
+}
+
+.b-statusbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.b-statusbar__group--end {
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.b-statusbar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.b-statusbar__label {
+  color: var(--ink-faint);
+}
+
+.b-statusbar__item:first-child .b-statusbar__label {
+  color: var(--rust);
+}
+
+.b-statusbar__value {
+  max-width: 28ch;
+  overflow: hidden;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.b-statusbar__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.b-statusbar__clock {
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.b-statusbar__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+}
+
+.b-statusbar__keys:hover {
+  color: var(--ink);
+}
+
+.b-statusbar__glyph {
+  color: var(--blue);
+}
+
+/* crash ------------------------------------------------------------- */
+
+.b-crash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: var(--space-4);
+  background: var(--void);
+}
+
+.b-crash__frame {
+  width: min(100%, 60ch);
+}
+
+.b-crash__frame > .b-frame__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.b-crash__message {
+  color: var(--ink);
+  font-size: var(--step-1);
+  overflow-wrap: anywhere;
+}
+
+.b-crash__hint {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+}
+
+/* responsive -------------------------------------------------------- */
+
+@media (max-width: 899px) {
+  .b-topbar {
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .b-brand__tagline,
+  .b-appview-chip__host,
+  .b-topbar__action-label {
+    display: none;
+  }
+
+  .b-topbar__actions {
+    gap: var(--space-1);
+  }
+
+  .b-statusbar {
+    gap: var(--space-2);
+    padding: 0 var(--space-2);
+  }
+
+  .b-statusbar__path,
+  .b-statusbar__flow {
+    display: none;
+  }
+
+  .b-statusbar__value {
+    max-width: 18ch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b-appview-chip {
+    transition: none;
+  }
+}
