@@ -400,7 +400,8 @@
   }
 
   .b-statusbar__path,
-  .b-statusbar__flow {
+  .b-statusbar__flow,
+  .b-statusbar__host {
     display: none;
   }
 

@@ -31,8 +31,12 @@ export function StatusBar({ onOpenHelp }: StatusBarProps) {
         </span>
         <span className="b-statusbar__item">
           <span className="b-statusbar__label">appview</span>
-          <span className="b-statusbar__value">
-            {`${appView.label} // ${appViewHostname(appView)}`}
+          <span
+            className="b-statusbar__value"
+            title={`${appView.label} // ${appViewHostname(appView)}`}
+          >
+            {appView.label}
+            <span className="b-statusbar__host">{` // ${appViewHostname(appView)}`}</span>
           </span>
         </span>
         <span className="b-statusbar__item b-statusbar__flow">
