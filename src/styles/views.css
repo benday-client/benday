@@ -3,37 +3,35 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  isolation: isolate;
 }
 
 .b-deck-stage[data-deal] .b-deck__item {
+  position: relative;
+  backface-visibility: hidden;
   transform-origin: 50% 55%;
   animation: benday-deal 620ms cubic-bezier(0.18, 0.82, 0.22, 1.18) both;
-  will-change: transform;
 }
 
 @keyframes benday-deal {
   0% {
-    opacity: 0;
-    transform: translateX(var(--deal-shift, 0%)) translateY(-3%) rotate(var(--deal-rotate, 0deg))
-      scale(0.94);
+    transform: translateX(var(--deal-shift, 0%)) translateY(-4%) rotate(var(--deal-rotate, 0deg));
   }
 
   55% {
-    opacity: 1;
-    transform: translateX(0) translateY(0) rotate(0.35deg) scale(1.015);
+    transform: translateX(0) translateY(-1.5%) rotate(0.2deg);
   }
 
   72% {
-    transform: translateX(0) rotate(-0.12deg) scale(0.997);
+    transform: translateX(0) translateY(0.8%) rotate(-0.1deg);
   }
 
   86% {
-    transform: translateX(0) rotate(0.05deg) scale(1.002);
+    transform: translateX(0) translateY(-0.3%) rotate(0.05deg);
   }
 
   100% {
-    opacity: 1;
-    transform: translateX(0) translateY(0) rotate(0) scale(1);
+    transform: translateX(0) translateY(0) rotate(0);
   }
 }
 

@@ -350,6 +350,7 @@ export function Deck<T>({
         style={
           {
             animationDelay: '45ms',
+            zIndex: 96,
             '--deal-shift': '100%',
             '--deal-rotate': '-0.45deg',
           } as CSSProperties
@@ -371,6 +372,7 @@ export function Deck<T>({
         style={
           {
             animationDelay: `${Math.min(Math.abs(dealOffset), 6) * 45}ms`,
+            zIndex: 100 - Math.abs(dealOffset) * 2 - (dealOffset < 0 ? 1 : 0),
             '--deal-shift': `${-dealOffset * 100}%`,
             '--deal-rotate': `${dealOffset * 0.45}deg`,
           } as CSSProperties
