@@ -157,6 +157,13 @@
   text-decoration: none;
 }
 
+.b-topbar__link--profile {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .b-topbar__link[data-active="true"] {
   border-color: var(--blue-deep);
   background: var(--void);

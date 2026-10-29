@@ -23,6 +23,15 @@ export function TopBar() {
 
   const searchActive = pathname.startsWith('/search')
   const feedsActive = pathname === '/' || pathname.startsWith('/feed')
+  const profileActive = pathname.startsWith('/profile/')
+  let profileHandle = ''
+  if (profileActive) {
+    try {
+      profileHandle = decodeURIComponent(pathname.split('/')[2] ?? '')
+    } catch {
+      profileHandle = ''
+    }
+  }
   const authenticated = authStatus === 'authenticated' && account !== null
   const accountLabel = authenticated
     ? `@${account.handle}`
@@ -69,6 +78,17 @@ export function TopBar() {
         >
           search
         </Link>
+        {profileActive ? (
+          <Link
+            href={pathname}
+            className="b-topbar__link b-topbar__link--profile"
+            data-active="true"
+            aria-current="page"
+            title={profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+          >
+            {profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+          </Link>
+        ) : null}
       </nav>
 
       <div className="b-topbar__actions">

@@ -20,6 +20,7 @@ export default function FeedView() {
   const addOpen = useUiStore((state) => state.dialog === 'feed-add')
   const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const openDialog = useUiStore((state) => state.openDialog)
+  const openPost = useUiStore((state) => state.openPost)
   const closeDialog = useUiStore((state) => state.closeDialog)
 
   useEffect(() => {
@@ -104,7 +105,10 @@ export default function FeedView() {
             renderItem={(post, index, focused) => (
               <PostCard post={post} index={index} focused={focused} />
             )}
-            onActivate={(post) => navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)}
+            onActivate={(post) => {
+              openPost(post)
+              navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+            }}
             pending={feed.isPending}
             hasMore={feed.hasMore}
             loadingMore={feed.isLoadingMore}

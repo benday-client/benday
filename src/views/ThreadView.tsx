@@ -25,9 +25,17 @@ export default function ThreadView() {
   const thread = useThread(uri)
   const entries = thread.data?.entries ?? []
   const focus = entries.find((entry) => entry.role === 'focus')
+  const openingPost = useUiStore((state) => state.openingPost)
+  const focusPost = focus?.post ?? (openingPost?.uri === uri ? openingPost : null)
   const replies = entries.filter((entry) => entry.role === 'reply')
   useViewerSync(entries.map((entry) => entry.post))
   const info = thread.error !== null ? errorInfo(thread.error) : null
+  const loadingReplies = (
+    <div className="b-thread__replies">
+      <p className="b-thread__replies-label">replies</p>
+      <p className="b-thread__replies-empty">loading replies</p>
+    </div>
+  )
 
   useEffect(() => {
     if (focusedReply !== null) return
@@ -156,13 +164,15 @@ export default function ThreadView() {
           <EmptyState title="no thread selected" hint="open a card or paste an at-uri" />
         ) : info !== null ? (
           <ErrorNotice title={info.title} message={info.detail} onRetry={thread.retry} />
-        ) : thread.isPending && focus === undefined ? (
-          <Frame label="thread" meta="loading">
-            <p className="mono-label">loading replies</p>
-            <Progress indeterminate />
-          </Frame>
-        ) : focus === undefined ? (
-          <EmptyState title="empty thread" hint="the appview returned no posts" />
+        ) : focusPost === null ? (
+          thread.isPending ? (
+            <Frame label="thread" meta="loading">
+              <p className="mono-label">loading replies</p>
+              <Progress indeterminate />
+            </Frame>
+          ) : (
+            <EmptyState title="empty thread" hint="the appview returned no posts" />
+          )
         ) : (
           <div
             ref={mainRef}
@@ -173,7 +183,11 @@ export default function ThreadView() {
               if (event.target.closest('.b-thread__reply') === null) setFocusedReply(null)
             }}
           >
-            <PostCard post={focus.post} focused={focusedReply === null} replies={replyList} />
+            <PostCard
+              post={focusPost}
+              focused={focusedReply === null}
+              replies={thread.isPending && focus === undefined ? loadingReplies : replyList}
+            />
           </div>
         )}
       </div>

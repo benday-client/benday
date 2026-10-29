@@ -1,5 +1,6 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck is a focusable scroll region
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useUiStore } from '../lib/ui'
 import { EmptyState } from './ui'
@@ -185,6 +186,29 @@ export function Deck<T>({
     scrollToIndex(next, reduceMotion ? 'auto' : 'smooth')
   }
 
+  const activateItem = (item: T, index: number) => {
+    const card = scrollerRef.current?.querySelector<HTMLElement>(
+      `[data-deck-index="${index}"] .b-post-card`,
+    )
+    if (card !== null && card !== undefined) card.style.viewTransitionName = 'benday-post'
+
+    const documentWithTransition = document as Document & {
+      startViewTransition?: (update: () => void) => unknown
+    }
+    const startViewTransition = documentWithTransition.startViewTransition
+
+    if (startViewTransition !== undefined && !reduceMotion) {
+      startViewTransition.call(documentWithTransition, () => {
+        flushSync(() => {
+          onActivate?.(item, index)
+        })
+      })
+      return
+    }
+
+    onActivate?.(item, index)
+  }
+
   const handleKeyDown = (event: globalThis.KeyboardEvent) => {
     if (event.defaultPrevented) return
     if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -218,7 +242,16 @@ export function Deck<T>({
     if (key === 'Enter' || key === ' ') {
       if (isInteractiveTarget(event.target)) return
       const item = items[focusIndex]
-      if (item !== undefined) onActivate?.(item, focusIndex)
+      if (item !== undefined) activateItem(item, focusIndex)
+      event.preventDefault()
+      return
+    }
+
+    const openKey = axis === 'x' ? 'ArrowDown' : 'ArrowRight'
+    if (key === openKey) {
+      if (isInteractiveTarget(event.target)) return
+      const item = items[focusIndex]
+      if (item !== undefined) activateItem(item, focusIndex)
       event.preventDefault()
       return
     }

@@ -64,9 +64,10 @@ where the portal cannot.
 | ------------------------- | -------------------------------------- |
 | `left` `right` or `h` `l` | scan cards on a wide screen            |
 | `up` `down` or `j` `k`    | scan cards on a narrow screen          |
-| `ctrl`/`cmd` + `←` `→`    | switch feeds / search tabs             |
+| `ctrl`/`cmd` + `←` `→`    | switch feeds / search / profile tabs   |
 | `g` / `G`                 | first / last card                      |
 | `enter` / `space`         | open the focused card's replies        |
+| `↓` wide · `→` narrow     | open the full post with an animation   |
 | `↑` `↓` in replies        | focus reply rows                       |
 | `esc`                     | close a dialog or back out of replies  |
 | `enter` on a reply        | open that reply's thread               |
@@ -89,7 +90,8 @@ your own posts a two-step `delete` action appears beside them. signed-out clicks
 open the sign-in dialog. the top bar has a compose button for signed-in
 accounts. the jump palette accepts `@handle`, post and feed `at://` uris,
 `#tags` and plain search text, and lists the account's pinned feeds when the
-session exposes them. the palette keeps the last five jumps for a quick return.
+session exposes them. the palette keeps the last five jumps for a quick return. a profile opened
+from a card gets a temporary tab after search and loses it when you leave.
 
 ## themes
 

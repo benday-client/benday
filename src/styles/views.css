@@ -134,6 +134,36 @@
 .b-thread > .b-post-card {
   width: 100%;
   max-height: none;
+  view-transition-name: benday-post;
+}
+
+::view-transition-old(benday-post) {
+  animation: 140ms ease-in both benday-card-out;
+}
+
+::view-transition-new(benday-post) {
+  animation: 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both benday-card-in;
+}
+
+@keyframes benday-card-out {
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes benday-card-in {
+  from {
+    opacity: 0.35;
+    transform: scale(0.985) translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(benday-post),
+  ::view-transition-new(benday-post) {
+    animation: none;
+  }
 }
 
 .b-thread .b-post-card__body {

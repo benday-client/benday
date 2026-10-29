@@ -10,10 +10,12 @@ import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
 import { errorInfo } from '../lib/errors'
 import { useSettings } from '../lib/store'
+import { useUiStore } from '../lib/ui'
 
 export default function SearchView() {
   const [, navigate] = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
+  const openPost = useUiStore((state) => state.openPost)
   const query = (searchParams.get('q') ?? '').trim()
   const [draft, setDraft] = useState(query)
   const [cursor, setCursor] = useState(0)
@@ -211,7 +213,10 @@ export default function SearchView() {
             renderItem={(post, index, focused) => (
               <PostCard post={post} index={index} focused={focused} />
             )}
-            onActivate={(post) => navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)}
+            onActivate={(post) => {
+              openPost(post)
+              navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+            }}
             pending={feed.isPending}
             hasMore={feed.hasMore}
             loadingMore={feed.isLoadingMore}

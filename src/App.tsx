@@ -94,9 +94,11 @@ function AppShell() {
   }
 
   const changeTab = (direction: number) => {
-    const current = pathname.startsWith('/search') ? 1 : 0
-    const next = (current + direction + TAB_ROUTES.length) % TAB_ROUTES.length
-    navigate(TAB_ROUTES[next] ?? '/feed')
+    const profileTab = pathname.startsWith('/profile/') ? pathname : null
+    const routes = profileTab === null ? TAB_ROUTES : [...TAB_ROUTES, profileTab]
+    const current = profileTab !== null ? 2 : pathname.startsWith('/search') ? 1 : 0
+    const next = (current + direction + routes.length) % routes.length
+    navigate(routes[next] ?? '/feed')
   }
 
   const startCompose = () => {

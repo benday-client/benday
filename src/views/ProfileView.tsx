@@ -6,6 +6,7 @@ import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { errorInfo } from '../lib/errors'
+import { useUiStore } from '../lib/ui'
 
 function decodeActor(raw: string): string {
   try {
@@ -19,6 +20,7 @@ export default function ProfileView() {
   const [, navigate] = useLocation()
   const params = useParams<{ actor?: string }>()
   const actor = decodeActor(params.actor ?? '')
+  const openPost = useUiStore((state) => state.openPost)
   const profile = useProfile(actor)
   const feed = usePostFeed({ kind: 'author', actor })
   const posts = feed.data ?? []
@@ -65,7 +67,10 @@ export default function ProfileView() {
                   renderItem={(post, index, focused) => (
                     <PostCard post={post} index={index} focused={focused} />
                   )}
-                  onActivate={(post) => navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)}
+                  onActivate={(post) => {
+                    openPost(post)
+                    navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+                  }}
                   pending={feed.isPending}
                   hasMore={feed.hasMore}
                   loadingMore={feed.isLoadingMore}
