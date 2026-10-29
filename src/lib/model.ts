@@ -253,6 +253,7 @@ export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
     embed: view.embed ? mapEmbed(view.embed) : null,
     reason: null,
     isReply: record?.reply !== undefined,
+    replyRoot: record?.reply?.root ?? null,
     labels: (view.labels ?? []).map((label) => label.val),
   }
 }

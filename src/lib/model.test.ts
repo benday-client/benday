@@ -189,6 +189,7 @@ describe('mapPostView', () => {
       embed: null,
       reason: null,
       isReply: false,
+      replyRoot: null,
       labels: [],
     })
   })
@@ -222,6 +223,7 @@ describe('mapPostView', () => {
       },
     ])
     expect(model.isReply).toBe(true)
+    expect(model.replyRoot).toEqual({ uri: 'at://root', cid: 'root-cid' })
     expect(model.replyCount).toBe(4)
     expect(model.repostCount).toBe(3)
     expect(model.likeCount).toBe(12)
