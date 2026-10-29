@@ -3,6 +3,7 @@ import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { EmptyState, ErrorNotice } from '../components/ui'
 import { useThread } from '../hooks/useBskyQueries'
+import { useViewerSync } from '../hooks/useViewerSync'
 import { errorInfo } from '../lib/errors'
 import type { ThreadEntry } from '../lib/types'
 
@@ -17,6 +18,8 @@ export default function ThreadView() {
   const uri = (searchParams.get('uri') ?? '').trim()
   const thread = useThread(uri)
   const entries = thread.data?.entries ?? []
+  const posts = entries.map((entry) => entry.post)
+  useViewerSync(posts)
   const focusIndex = Math.max(
     0,
     entries.findIndex((entry) => entry.role === 'focus'),
@@ -25,13 +28,7 @@ export default function ThreadView() {
 
   return (
     <section className="b-view">
-      <header className="b-view__head">
-        <div className="b-view__heading">
-          <p className="b-view__kicker mono-label">{'view // thread'}</p>
-          <h1 className="b-view__title">thread</h1>
-        </div>
-        <p className="b-view__meta">{`${entries.length} cards`}</p>
-      </header>
+      <h1 className="visually-hidden">thread</h1>
       <div className="b-view__body">
         {uri.length === 0 ? (
           <EmptyState title="no thread selected" hint="open a card or paste an at-uri" />

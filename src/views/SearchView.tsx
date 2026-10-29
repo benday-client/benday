@@ -4,6 +4,7 @@ import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
 import { usePostFeed } from '../hooks/useBskyQueries'
+import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
 import { errorInfo } from '../lib/errors'
 import { useSettings } from '../lib/store'
@@ -22,6 +23,7 @@ export default function SearchView() {
   const supported = capabilitiesFor(appView).search
   const feed = usePostFeed({ kind: 'search', query: supported ? query : '' })
   const posts = feed.data ?? []
+  useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -36,15 +38,7 @@ export default function SearchView() {
 
   return (
     <section className="b-view">
-      <header className="b-view__head">
-        <div className="b-view__heading">
-          <p className="b-view__kicker mono-label">{'view // search'}</p>
-          <h1 className="b-view__title">search</h1>
-        </div>
-        <p className="b-view__meta">
-          {query.length > 0 ? `${posts.length} cards // ${query}` : `${posts.length} cards`}
-        </p>
-      </header>
+      <h1 className="visually-hidden">search</h1>
       <div className="b-view__tools">
         <form className="b-view__form" onSubmit={handleSubmit}>
           <TextInput

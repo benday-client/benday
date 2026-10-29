@@ -4,6 +4,7 @@ import { PostCard } from '../components/PostCard'
 import { ProfileCard } from '../components/ProfileCard'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
+import { useViewerSync } from '../hooks/useViewerSync'
 import { errorInfo } from '../lib/errors'
 
 function decodeActor(raw: string): string {
@@ -21,19 +22,14 @@ export default function ProfileView() {
   const profile = useProfile(actor)
   const feed = usePostFeed({ kind: 'author', actor })
   const posts = feed.data ?? []
+  useViewerSync(posts)
   const profileInfo = profile.error !== null ? errorInfo(profile.error) : null
   const feedInfo = feed.error !== null ? errorInfo(feed.error) : null
   const handle = actor.replace(/^@/, '')
 
   return (
     <section className="b-view">
-      <header className="b-view__head">
-        <div className="b-view__heading">
-          <p className="b-view__kicker mono-label">{'view // profile'}</p>
-          <h1 className="b-view__title">profile</h1>
-        </div>
-        <p className="b-view__meta">{handle.length > 0 ? `@${handle}` : 'no actor'}</p>
-      </header>
+      <h1 className="visually-hidden">profile</h1>
       <div className="b-view__body">
         {actor.length === 0 ? (
           <EmptyState title="no profile selected" hint="open a card or name a handle to resolve" />

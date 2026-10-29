@@ -4,14 +4,10 @@ import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
 import { usePostFeed } from '../hooks/useBskyQueries'
+import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
 import { errorInfo } from '../lib/errors'
 import { useSettings } from '../lib/store'
-
-function feedAuthority(uri: string): string | null {
-  const match = /^at:\/\/([^/]+)/.exec(uri)
-  return match?.[1] ?? null
-}
 
 export default function FeedView() {
   const [, navigate] = useLocation()
@@ -27,9 +23,8 @@ export default function FeedView() {
   const supported = capabilitiesFor(appView).feeds
   const feed = usePostFeed({ kind: 'feed', uri: supported ? uri : '' })
   const posts = feed.data ?? []
+  useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
-  const authority = feedAuthority(uri)
-  const meta = supported ? (authority ?? 'appview feed') : 'feeds unavailable'
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -43,13 +38,7 @@ export default function FeedView() {
 
   return (
     <section className="b-view">
-      <header className="b-view__head">
-        <div className="b-view__heading">
-          <p className="b-view__kicker mono-label">{'view // feed'}</p>
-          <h1 className="b-view__title">feed</h1>
-        </div>
-        <p className="b-view__meta">{`${posts.length} cards // ${meta}`}</p>
-      </header>
+      <h1 className="visually-hidden">feed</h1>
       <div className="b-view__tools">
         <form className="b-view__form" onSubmit={handleSubmit}>
           <TextInput
