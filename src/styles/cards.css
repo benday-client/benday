@@ -69,12 +69,17 @@
 .b-post-card:hover,
 .b-profile-card:hover {
   border-color: var(--line-strong);
-  box-shadow: 2px 2px 0 0 var(--shadow);
+  box-shadow:
+    2px 2px 0 0 var(--shadow),
+    0 0 14px -6px var(--neon);
 }
 
 .b-post-card--focused {
   border-color: var(--blue-deep);
-  box-shadow: 2px 2px 0 0 var(--shadow);
+  box-shadow:
+    2px 2px 0 0 var(--shadow),
+    0 0 22px -4px var(--neon),
+    0 0 42px -18px var(--neon-alt);
 }
 
 /* feed feedback dismissal -------------------------------------------- */

@@ -108,8 +108,10 @@ twelve themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
 `github dark`, `github light`, `cyberpunk 2077` and `cottagecore`. themes are
 chosen in settings, grouped under dark and light. a live preview above the
-groups shows the current card type tags controls input and keycap. single images
-scale to fit the viewport while keeping their natural ratio. media is dithered
+groups shows the current card type tags controls input and keycap. cyberpunk opts
+into cyan and magenta neon shadows on focused cards solid buttons active
+navigation and selected settings. other themes leave the neon tokens transparent.
+single images scale to fit the viewport while keeping their natural ratio. media is dithered
 through an inline svg filter with one duotone table per theme, not canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
 tile. newer themes use their secondary palette colours for active navigation,
 likes, comments and repost marks. image effects are themed too, defaulting to

@@ -39,6 +39,8 @@
   --accent-2: var(--blue);
   --accent-3: var(--acid);
   --shadow: #000000;
+  --neon: transparent;
+  --neon-alt: transparent;
 
   --noise-opacity: 0.055;
   --scan-opacity: 0.2;
@@ -304,6 +306,8 @@
   --accent-2: #22d3ee;
   --accent-3: #f0568c;
   --shadow: #000000;
+  --neon: #22d3ee;
+  --neon-alt: #f0568c;
 
   --noise-opacity: 0.06;
   --scan-opacity: 0.2;

@@ -111,7 +111,9 @@
 
 .b-button:hover:not(:disabled) {
   border-color: var(--ink-dim);
-  box-shadow: 2px 2px 0 0 var(--shadow);
+  box-shadow:
+    2px 2px 0 0 var(--shadow),
+    0 0 16px -5px var(--neon);
   transform: translate(-1px, -1px);
 }
 
@@ -128,6 +130,7 @@
   border-color: var(--blue);
   background: var(--blue);
   color: var(--void);
+  box-shadow: 0 0 14px -5px var(--neon);
 }
 
 .b-button--solid:hover:not(:disabled) {

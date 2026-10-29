@@ -432,7 +432,10 @@
     transparent 0 3px,
     color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
   );
-  box-shadow: 3px 3px 0 0 var(--shadow);
+  box-shadow:
+    3px 3px 0 0 var(--shadow),
+    0 0 26px -12px var(--neon),
+    0 0 46px -22px var(--neon-alt);
 }
 
 .b-theme-preview__head {
@@ -536,6 +539,7 @@
 .b-settings__theme[data-active="true"] {
   border-color: var(--blue);
   color: var(--blue);
+  box-shadow: 0 0 14px -7px var(--neon);
 }
 
 .b-settings__appviews {
@@ -562,6 +566,7 @@
 .b-settings__appview[data-active="true"] {
   border-color: var(--blue);
   color: var(--blue);
+  box-shadow: 0 0 14px -7px var(--neon);
 }
 
 .b-settings__appview-name {
