@@ -1,7 +1,7 @@
 import { RichText } from '@atproto/api'
+import { useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useState } from 'react'
-import { useLocation } from 'wouter'
-import { createPost, createQuote, createReply, type WriteResult } from '../lib/actions'
+import { createPost, createQuote, createReply } from '../lib/actions'
 import { errorInfo } from '../lib/errors'
 import type { ComposeMode, ComposeRequest } from '../lib/ui'
 import { Button, Dialog } from './ui'
@@ -27,7 +27,7 @@ function excerptOf(text: string): string {
 }
 
 export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
-  const [, navigate] = useLocation()
+  const queryClient = useQueryClient()
   const [text, setText] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,21 +56,22 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
     setError(null)
 
     try {
-      let result: WriteResult
       if (request.mode === 'post') {
-        result = await createPost(text)
+        await createPost(text)
       } else if (targetPost !== null) {
-        result =
-          request.mode === 'reply'
-            ? await createReply(text, targetPost)
-            : await createQuote(text, targetPost)
+        if (request.mode === 'reply') {
+          await createReply(text, targetPost)
+        } else {
+          await createQuote(text, targetPost)
+        }
       } else {
         setError('no target post')
         setPending(false)
         return
       }
 
-      navigate(`/thread?uri=${encodeURIComponent(result.uri)}`)
+      // the selected appview may not have indexed the new record yet
+      void queryClient.invalidateQueries()
       onClose()
     } catch (caught) {
       setError(errorInfo(caught).detail)
