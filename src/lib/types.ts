@@ -9,8 +9,8 @@ export type Theme =
   | 'atom'
   | 'github-dark'
   | 'github-light'
-  | 'duotone'
   | 'cyberpunk'
+  | 'cottagecore'
 
 export interface StrongRefModel {
   uri: string

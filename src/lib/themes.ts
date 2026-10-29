@@ -1,5 +1,24 @@
 import type { Theme } from './types'
 
+export type ImageEffect = 'grunge' | 'clean'
+
+export const DEFAULT_IMAGE_EFFECT: ImageEffect = 'grunge'
+
+export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
+  void: 'grunge',
+  bone: 'grunge',
+  oxide: 'grunge',
+  phosphor: 'clean',
+  'catppuccin-mocha': 'grunge',
+  'catppuccin-latte': 'clean',
+  dracula: 'grunge',
+  atom: 'clean',
+  'github-dark': 'clean',
+  'github-light': 'clean',
+  cyberpunk: 'grunge',
+  cottagecore: 'grunge',
+}
+
 export const THEMES: readonly Theme[] = [
   'void',
   'bone',
@@ -11,8 +30,8 @@ export const THEMES: readonly Theme[] = [
   'atom',
   'github-dark',
   'github-light',
-  'duotone',
   'cyberpunk',
+  'cottagecore',
 ]
 
 export const THEME_LABELS: Record<Theme, string> = {
@@ -26,8 +45,8 @@ export const THEME_LABELS: Record<Theme, string> = {
   atom: 'atom one dark',
   'github-dark': 'github dark',
   'github-light': 'github light',
-  duotone: 'duotone',
   cyberpunk: 'cyberpunk 2077',
+  cottagecore: 'cottagecore',
 }
 
 export const THEME_KEYS: Record<Theme, string> = {
@@ -41,8 +60,8 @@ export const THEME_KEYS: Record<Theme, string> = {
   atom: 'a',
   'github-dark': 'g',
   'github-light': 'h',
-  duotone: 'u',
   cyberpunk: 'c',
+  cottagecore: 'w',
 }
 
 export const THEME_COLORS: Record<Theme, string> = {
@@ -56,8 +75,8 @@ export const THEME_COLORS: Record<Theme, string> = {
   atom: '#282c34',
   'github-dark': '#0d1117',
   'github-light': '#ffffff',
-  duotone: '#05030d',
-  cyberpunk: '#050505',
+  cyberpunk: '#05030d',
+  cottagecore: '#f3ead8',
 }
 
 const THEME_LOOKUP: Record<Theme, true> = {
@@ -71,8 +90,8 @@ const THEME_LOOKUP: Record<Theme, true> = {
   atom: true,
   'github-dark': true,
   'github-light': true,
-  duotone: true,
   cyberpunk: true,
+  cottagecore: true,
 }
 
 export function isTheme(value: unknown): value is Theme {

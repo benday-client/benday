@@ -284,7 +284,7 @@
   --selection-ink: #ffffff;
 }
 
-[data-theme="duotone"] {
+[data-theme="cyberpunk"] {
   color-scheme: dark;
 
   --void: #05030d;
@@ -310,28 +310,28 @@
   --selection-ink: #05030d;
 }
 
-[data-theme="cyberpunk"] {
-  color-scheme: dark;
+[data-theme="cottagecore"] {
+  color-scheme: light;
 
-  --void: #050505;
-  --ink: #f5f3df;
-  --ink-dim: #c9c6a8;
-  --ink-faint: #8f8c72;
-  --paper: #0b0b0b;
-  --panel: #11110d;
-  --panel-raised: #1a1a12;
-  --line: #333322;
-  --line-strong: #5c5c34;
-  --blue: #ff2a6d;
-  --blue-hot: #ff5c8a;
-  --blue-deep: #4a0b21;
-  --rust: #ff003c;
-  --acid: #00f0ff;
-  --accent-2: #00f0ff;
-  --accent-3: #ff003c;
-  --shadow: #000000;
+  --void: #f3ead8;
+  --ink: #3f3a2e;
+  --ink-dim: #5f5745;
+  --ink-faint: #7d735f;
+  --paper: #ede2ca;
+  --panel: #e6d9bf;
+  --panel-raised: #dccdae;
+  --line: #c9b99b;
+  --line-strong: #9c8a6b;
+  --blue: #5c6d43;
+  --blue-hot: #475634;
+  --blue-deep: #c7d0b2;
+  --rust: #a35d4f;
+  --acid: #7f8f4f;
+  --accent-2: #b4537a;
+  --accent-3: #5c6d43;
+  --shadow: #8c7c61;
 
-  --noise-opacity: 0.06;
-  --scan-opacity: 0.18;
-  --selection-ink: #050505;
+  --noise-opacity: 0.035;
+  --scan-opacity: 0.06;
+  --selection-ink: #f3ead8;
 }

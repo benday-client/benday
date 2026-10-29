@@ -4,8 +4,8 @@ a dithered tensorpunk reader for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
 square-edged index card with an ordered-dither portrait or image. on a wide
-screen one card fills the deck and the deck scrolls horizontally; narrow
-screens use a vertical card list. appviews are switchable. the interface
+screen two cards share the deck and it scrolls horizontally; narrow screens
+use a two-up vertical card list. appviews are switchable. the interface
 is a small TUI: monospace, one-pixel borders, lowercase labels, keyboard-first,
 no rounded corners.
 
@@ -85,7 +85,7 @@ where the portal cannot.
 | `ctrl`/`cmd` + `enter`    | send from the composer                        |
 | `a`                       | switch appview                                |
 | `t`                       | open the theme menu                           |
-| `v b o p m l d a g h u c` | pick a theme while the menu is open           |
+| `v b o p m l d a g h c w` | pick a theme while the menu is open           |
 | `?`                       | keyboard help                                 |
 
 the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
@@ -100,12 +100,14 @@ from a card gets a temporary tab after search and loses it when you leave.
 
 twelve themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
-`github dark`, `github light`, `duotone` and `cyberpunk 2077`. `t` opens a menu;
-each row carries a single-letter shortcut (`v b o p m l d a g h u c`). media is
+`github dark`, `github light`, `cyberpunk 2077` and `cottagecore`. `t` opens a menu;
+each row carries a single-letter shortcut (`v b o p m l d a g h c w`). single
+images scale to fit the viewport while keeping their natural ratio. media is
 dithered through an inline svg filter with one duotone table per theme, not
 canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
 tile. newer themes use their secondary palette colours for active navigation,
-likes, comments and repost marks.
+likes, comments and repost marks. image effects are themed too, defaulting to
+`grunge` with a clean ordered option on the light and github palettes.
 
 ## composing
 
@@ -193,7 +195,7 @@ puts the appview host and viewer in every relevant query key. `auth.ts` resolves
 the pds, keeps the signed-in agent and persists the session; `oauth.ts` owns the
 loopback portal. `actions.ts` owns likes, reposts, replies, quotes and
 viewer-state fetches; `markdown.ts` turns composer markers into facets. `Deck`
-owns full-card horizontal focus and position memory. `ThreadView` is one full card
+owns card focus and position memory. `ThreadView` is one full card
 with the post and replies inside it. `PostCard` and `ProfileCard` are
 presentation.
 
@@ -202,14 +204,15 @@ route semantics without adding chrome.
 
 ## verification
 
-- 118 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 120 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
   the reply composer and the appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths; the
-  wide deck is checked as full-width horizontal cards, and the thread view is
-  checked as one full card with replies inside it
+  wide deck is checked as two-column horizontal cards, the narrow deck as a
+  two-up vertical list, and the thread view as one full card with replies inside
+  it
 - theme letters and the 12-theme dither filters are checked in the browser
 - the portal button is checked through a live pds authorization redirect; the
   consent page is completed manually, not by the headless harness
@@ -239,8 +242,8 @@ route semantics without adding chrome.
 - video posts show the poster and alt text; there is no player
 - labeler services are not rendered beyond label tags on cards and profiles
 - a thread is flattened to depth 3 and capped at 80 replies
-- wide screens show one full card at a time and scan horizontally; narrow
-  screens use a vertical card list
+- wide screens show two cards at a time and scan horizontally; narrow screens
+  use a two-up vertical list
 - custom appviews and self-hosted pds instances must allow browser cors
 - password session tokens live in localStorage; portal tokens live in
   indexedDB. sign out clears both

@@ -19,6 +19,30 @@ describe('PostCard actions', () => {
     useUiStore.setState({ dialog: null, compose: null })
   })
 
+  it('shows its feed position only when given an index', () => {
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} index={3} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByText('[03]')).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByText('[03]')).not.toBeInTheDocument()
+  })
+
   it('opens sign in when a signed-out user likes a post', () => {
     const location = memoryLocation({ path: '/' })
     const queryClient = new QueryClient()

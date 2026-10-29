@@ -16,12 +16,13 @@ import { Tag } from './ui'
 
 export interface PostCardProps {
   post: PostModel
+  index?: number
   focused?: boolean
   eyebrow?: string
   replies?: ReactNode
 }
 
-export function PostCard({ post, focused = false, eyebrow, replies }: PostCardProps) {
+export function PostCard({ post, index, focused = false, eyebrow, replies }: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
@@ -200,6 +201,11 @@ export function PostCard({ post, focused = false, eyebrow, replies }: PostCardPr
     <article ref={cardRef} className={classes.join(' ')}>
       <header className="b-frame__head b-post-card__head">
         <span className="b-post-card__head-left">
+          {index !== undefined ? (
+            <span className="b-post-card__index">
+              [{String(Math.max(0, index)).padStart(2, '0')}]
+            </span>
+          ) : null}
           {eyebrow !== undefined && eyebrow.length > 0 ? <Tag tone="accent">{eyebrow}</Tag> : null}
           {reasonLabels.map((label) => (
             <Tag key={label} tone="default">

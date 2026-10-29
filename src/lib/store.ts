@@ -35,7 +35,8 @@ export const useSettings = create<SettingsState>()(
         const stored = persisted as Record<string, unknown>
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
         const appView = isAppViewTarget(stored['appView']) ? stored['appView'] : current.appView
-        const theme = isTheme(stored['theme']) ? stored['theme'] : current.theme
+        const storedTheme = stored['theme'] === 'duotone' ? 'cyberpunk' : stored['theme']
+        const theme = isTheme(storedTheme) ? storedTheme : current.theme
         return { ...current, appView, theme }
       },
     },

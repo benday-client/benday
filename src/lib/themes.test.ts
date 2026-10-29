@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { isTheme, THEME_COLORS, THEME_KEYS, THEME_LABELS, THEMES } from './themes'
+import {
+  DEFAULT_IMAGE_EFFECT,
+  isTheme,
+  THEME_COLORS,
+  THEME_EFFECTS,
+  THEME_KEYS,
+  THEME_LABELS,
+  THEMES,
+} from './themes'
 
 const EXPECTED_THEMES = [
   'void',
@@ -12,8 +20,8 @@ const EXPECTED_THEMES = [
   'atom',
   'github-dark',
   'github-light',
-  'duotone',
   'cyberpunk',
+  'cottagecore',
 ] as const
 
 describe('themes', () => {
@@ -35,8 +43,8 @@ describe('themes', () => {
     expect(THEME_LABELS.atom).toBe('atom one dark')
     expect(THEME_LABELS['github-dark']).toBe('github dark')
     expect(THEME_LABELS['github-light']).toBe('github light')
-    expect(THEME_LABELS.duotone).toBe('duotone')
     expect(THEME_LABELS.cyberpunk).toBe('cyberpunk 2077')
+    expect(THEME_LABELS.cottagecore).toBe('cottagecore')
   })
 
   it('labels every theme uniquely', () => {
@@ -65,6 +73,15 @@ describe('themes', () => {
     expect(isTheme({ theme: 'oxide' })).toBe(false)
   })
 
+  it('gives every theme a valid image effect and defaults to grunge', () => {
+    expect(DEFAULT_IMAGE_EFFECT).toBe('grunge')
+    for (const theme of THEMES) {
+      expect(['grunge', 'clean']).toContain(THEME_EFFECTS[theme])
+    }
+    expect(THEME_EFFECTS.void).toBe('grunge')
+    expect(THEME_EFFECTS['github-light']).toBe('clean')
+  })
+
   it('maps every theme to a unique single lowercase letter', () => {
     const keys = THEMES.map((theme) => THEME_KEYS[theme])
     for (const key of keys) expect(key).toMatch(/^[a-z]$/)
@@ -74,6 +91,7 @@ describe('themes', () => {
     expect(THEME_KEYS['github-dark']).toBe('g')
     expect(THEME_KEYS['github-light']).toBe('h')
     expect(THEME_KEYS.cyberpunk).toBe('c')
+    expect(THEME_KEYS.cottagecore).toBe('w')
   })
 
   it('maps every theme to a browser meta color', () => {
@@ -88,8 +106,8 @@ describe('themes', () => {
       atom: '#282c34',
       'github-dark': '#0d1117',
       'github-light': '#ffffff',
-      duotone: '#05030d',
-      cyberpunk: '#050505',
+      cyberpunk: '#05030d',
+      cottagecore: '#f3ead8',
     })
     expect(Object.keys(THEME_COLORS)).toHaveLength(THEMES.length)
   })

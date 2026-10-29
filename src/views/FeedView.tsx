@@ -120,7 +120,9 @@ export default function FeedView() {
           <Deck
             items={posts}
             getKey={(post) => post.uri}
-            renderItem={(post, _index, focused) => <PostCard post={post} focused={focused} />}
+            renderItem={(post, index, focused) => (
+              <PostCard post={post} index={index} focused={focused} />
+            )}
             onActivate={(post) => {
               openPost(post)
               navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)

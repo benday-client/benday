@@ -52,12 +52,12 @@
   filter: url(#benday-dither-github-light);
 }
 
-[data-theme="duotone"] .dither-image {
-  filter: url(#benday-dither-duotone);
-}
-
 [data-theme="cyberpunk"] .dither-image {
   filter: url(#benday-dither-cyberpunk);
+}
+
+[data-theme="cottagecore"] .dither-image {
+  filter: url(#benday-dither-cottagecore);
 }
 
 .dither-image--fallback {
