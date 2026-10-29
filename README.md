@@ -4,7 +4,9 @@ a dithered tensorpunk reader for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
 square-edged index card with an ordered-dither portrait or image. appviews are
-switchable. no account is required and no personal data is written anywhere.
+switchable. no account data is stored. the only persisted state is local ui
+settings in localStorage under `benday:settings` (theme, flow, and the selected
+appview). search terms are sent to the selected appview when you search.
 
 the flow is horizontal on laptops and vertical on mobile. switching appviews
 refetches the current view from that host. the interface is a small TUI:
@@ -115,9 +117,9 @@ presentation.
 
 ## verification
 
-- 75 offline unit tests cover byte-offset facets, thread flattening and
-  mapping, appviews, relative time, dither pattern generation, and command
-  parsing
+- 78 offline unit tests cover byte-offset facets, thread flattening and
+  mapping, appviews, relative time, dither pattern generation, command
+  parsing, and command-palette keyboard behavior
 - the built bundle is exercised in a browser at desktop and mobile widths
 - appview switching is checked against the live canonical, public, and
   blacksky hosts
