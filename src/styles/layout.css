@@ -170,8 +170,8 @@
   color: var(--accent-2);
   box-shadow:
     inset 0 -1px 0 var(--neon),
-    0 0 12px -6px var(--neon);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--neon) 45%, transparent);
+    0 0 9px -5px var(--neon);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--neon) 45%, transparent);
 }
 
 .b-topbar__link[data-active="true"]::before {
