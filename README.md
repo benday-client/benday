@@ -80,6 +80,7 @@ the password fallback works everywhere else, including `localhost`.
 | `esc`                     | close a dialog or back out of replies/profile |
 | `enter` on a reply        | open that reply's thread                      |
 | `1`                       | open the focused post's quoted post           |
+| `1`-`9` in a thread       | focus a reply by position                     |
 | `f`                       | like the focused card                         |
 | `+`                       | more like the focused feed card               |
 | `-`                       | less like the focused feed card               |
@@ -251,7 +252,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 149 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 150 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,

@@ -157,6 +157,40 @@ describe('PostCard actions', () => {
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
+  it('leaves the 1 key for replies when the post owns a reply list', () => {
+    const location = memoryLocation({ path: '/', record: true })
+    const queryClient = new QueryClient()
+    const quoted = {
+      uri: 'at://did:plc:test/app.bsky.feed.post/quoted',
+      cid: 'quoted-cid',
+      author: {
+        did: 'did:plc:quoted',
+        handle: 'quoted.test',
+        displayName: 'quoted',
+        avatar: null,
+      },
+      text: 'quoted text',
+      facets: [],
+      indexedAt: '2026-10-29T12:00:00.000Z',
+      embedType: null,
+    }
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard
+            post={postFixture({ embed: { type: 'quote', post: quoted } })}
+            focused
+            replies={<div>reply list</div>}
+          />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: '1' })
+    expect(location.history).toEqual(['/'])
+  })
+
   it('opens sign in when a signed-out user likes a post', () => {
     const location = memoryLocation({ path: '/' })
     const queryClient = new QueryClient()

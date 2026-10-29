@@ -145,7 +145,7 @@ export function PostCard({
       if (ui.dialog !== null || ui.compose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
 
-      if (event.key === '1' && quotedUri !== null) {
+      if (event.key === '1' && quotedUri !== null && replies === undefined) {
         event.preventDefault()
         navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
         return
@@ -249,7 +249,7 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, own, confirmingDelete, deleting, post, quotedUri, navigate])
+  }, [focused, own, confirmingDelete, deleting, post, quotedUri, navigate, replies])
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {

@@ -114,6 +114,28 @@ export default function ThreadView() {
     }
   }, [focusedReply, replies.length])
 
+  useEffect(() => {
+    const handleReplyNumber = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.shiftKey || event.repeat) return
+      if (!/^[1-9]$/.test(event.key)) return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+      if (document.querySelector('dialog[open]') !== null) return
+      const reply = replyRefs.current[Number(event.key) - 1]
+      if (reply === null || reply === undefined) return
+      event.preventDefault()
+      reply.focus()
+    }
+
+    window.addEventListener('keydown', handleReplyNumber)
+    return () => {
+      window.removeEventListener('keydown', handleReplyNumber)
+    }
+  }, [replies.length])
+
   const focusNextReply = (index: number) => {
     const next = replyRefs.current[index + 1]
     if (next !== null && next !== undefined) next.focus()

@@ -58,6 +58,7 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
     items: [
       { keys: '↑ / k', what: 'close the full post' },
       { keys: '↑ ↓ in replies', what: 'focus reply rows' },
+      { keys: '1-9', what: 'focus a reply by position' },
       { keys: 'enter on a reply', what: 'open that reply' },
       { keys: 'pgup / pgdn', what: 'scroll the focused post' },
       { keys: 'shift ↑ ↓', what: 'scroll the focused post' },
