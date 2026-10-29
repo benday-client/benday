@@ -140,6 +140,14 @@
   border-style: dashed;
 }
 
+.b-feed-card[data-kind="refresh"] {
+  border-style: dashed;
+}
+
+.b-feed-card__add--refresh .b-feed-card__add-mark {
+  color: var(--accent-2);
+}
+
 .b-feed-card__body {
   display: flex;
   flex-direction: column;

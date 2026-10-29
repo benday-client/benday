@@ -120,6 +120,14 @@ export default function FeedView() {
       avatar: null,
       source: null,
     })
+    feedChoices.push({
+      kind: 'refresh',
+      key: 'refresh',
+      name: 'refresh',
+      description: 'reload the first page',
+      avatar: null,
+      source: null,
+    })
   }
 
   const activeFeedIndex = feedChoices.findIndex((choice) => {
@@ -159,6 +167,11 @@ export default function FeedView() {
   }
 
   const selectFeed = (choice: FeedChoice) => {
+    if (choice.kind === 'refresh') {
+      feed.retry()
+      switchMode(false)
+      return
+    }
     if (choice.kind === 'add') {
       setDraft('')
       openDialog('feed-add')
@@ -208,8 +221,8 @@ export default function FeedView() {
   return (
     <section className="b-view">
       <h1 className="visually-hidden">feeds</h1>
-      <div className="b-view__tools b-view__tools--feed">
-        {authenticated && !wide ? (
+      {authenticated && !wide ? (
+        <div className="b-view__tools b-view__tools--feed">
           <fieldset className="b-view__pinned">
             <legend className="mono-label">pinned</legend>
             {pinned.isPending ? (
@@ -240,17 +253,17 @@ export default function FeedView() {
               + add
             </button>
           </fieldset>
-        ) : null}
-        <button
-          type="button"
-          className="b-pinned-add b-view__refresh"
-          onClick={feed.retry}
-          disabled={feed.isFetching}
-          aria-label="refresh feed"
-        >
-          {feed.isFetching ? 'refreshing' : 'refresh'}
-        </button>
-      </div>
+          <button
+            type="button"
+            className="b-pinned-add b-view__refresh"
+            onClick={feed.retry}
+            disabled={feed.isFetching}
+            aria-label="refresh feed"
+          >
+            {feed.isFetching ? 'refreshing' : 'refresh'}
+          </button>
+        </div>
+      ) : null}
       <div className="b-view__body">
         {showingFeeds ? (
           <div
