@@ -1,6 +1,8 @@
 import { Link } from 'wouter'
-import { postWebUrl } from '../lib/postUrl'
+import { useActionStore } from '../lib/actionStore'
+import { useAuthStore } from '../lib/auth'
 import type { PostModel } from '../lib/types'
+import { useUiStore } from '../lib/ui'
 import { DitherImage } from './DitherImage'
 import { Embeds } from './Embeds'
 import { FacetText } from './FacetText'
@@ -14,19 +16,17 @@ export interface PostCardProps {
   eyebrow?: string
 }
 
-const METRICS = [
-  { key: 'replies', short: 're' },
-  { key: 'reposts', short: 'rt' },
-  { key: 'likes', short: 'like' },
-  { key: 'quotes', short: 'qt' },
-] as const
-
 export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
   const profileHref = `/profile/${encodeURIComponent(handle)}`
   const threadHref = `/thread?uri=${encodeURIComponent(post.uri)}`
+
+  const authed = useAuthStore((state) => state.status === 'authenticated')
+  const entry = useActionStore((state) => state.byUri[post.uri])
+  const openDialog = useUiStore((state) => state.openDialog)
+  const openCompose = useUiStore((state) => state.openCompose)
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {
@@ -39,12 +39,12 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
   }
   if (post.isReply) reasonLabels.push('reply')
 
-  const counts: Record<(typeof METRICS)[number]['key'], number> = {
-    replies: post.replyCount,
-    reposts: post.repostCount,
-    likes: post.likeCount,
-    quotes: post.quoteCount,
-  }
+  const liked = entry?.likeUri != null
+  const reposted = entry?.repostUri != null
+  const pending = entry?.pending != null
+  const error = entry?.error ?? null
+  const likeCount = post.likeCount + (entry?.likeDelta ?? 0)
+  const repostCount = post.repostCount + (entry?.repostDelta ?? 0)
 
   const classes = ['b-frame', 'b-post-card']
   if (focused) classes.push('b-post-card--focused')
@@ -101,25 +101,72 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
       </div>
 
       <footer className="b-post-card__foot">
-        <div className="b-post-card__metrics">
-          {METRICS.map((metric) => (
-            <span key={metric.key} className="b-post-card__metric">
-              {metric.short} {counts[metric.key]}
-            </span>
-          ))}
-        </div>
         <div className="b-post-card__actions">
           <Link href={threadHref} className="b-post-card__action">
-            <span>thread</span>
+            re {post.replyCount}
           </Link>
-          <a
+          <button
+            type="button"
             className="b-post-card__action"
-            href={postWebUrl(post)}
-            target="_blank"
-            rel="noreferrer noopener"
+            data-kind="like"
+            aria-pressed={liked}
+            aria-label={`like, ${likeCount}`}
+            title={error ?? undefined}
+            disabled={pending}
+            onClick={() => {
+              if (!authed) {
+                openDialog('login')
+                return
+              }
+              void useActionStore.getState().toggleLike(post)
+            }}
           >
-            bsky ↗
-          </a>
+            like {likeCount}
+          </button>
+          <button
+            type="button"
+            className="b-post-card__action"
+            data-kind="repost"
+            aria-pressed={reposted}
+            aria-label={`repost, ${repostCount}`}
+            title={error ?? undefined}
+            disabled={pending}
+            onClick={() => {
+              if (!authed) {
+                openDialog('login')
+                return
+              }
+              void useActionStore.getState().toggleRepost(post)
+            }}
+          >
+            rt {repostCount}
+          </button>
+          <button
+            type="button"
+            className="b-post-card__action"
+            onClick={() => {
+              if (!authed) {
+                openDialog('login')
+                return
+              }
+              openCompose({ mode: 'reply', post })
+            }}
+          >
+            reply
+          </button>
+          <button
+            type="button"
+            className="b-post-card__action"
+            onClick={() => {
+              if (!authed) {
+                openDialog('login')
+                return
+              }
+              openCompose({ mode: 'quote', post })
+            }}
+          >
+            quote
+          </button>
         </div>
       </footer>
     </article>
