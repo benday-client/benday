@@ -66,6 +66,7 @@ export default function ProfileView() {
                 loadingMore={feed.isLoadingMore}
                 onLoadMore={feed.loadMore}
                 label={`posts by ${actor}`}
+                stateKey={`profile:${actor}`}
                 empty={
                   <EmptyState title="no posts" hint="this actor has no posts in the appview" />
                 }

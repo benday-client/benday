@@ -1,8 +1,10 @@
 import { RichText } from '@atproto/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useEffect, useId, useState } from 'react'
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
+import { mentionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { createPost, createQuote, createReply } from '../lib/actions'
 import { errorInfo } from '../lib/errors'
+import { markdownText } from '../lib/markdown'
 import type { ComposeMode, ComposeRequest } from '../lib/ui'
 import { Button, Dialog } from './ui'
 
@@ -31,21 +33,53 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cursor, setCursor] = useState(0)
+  const [mentionOpen, setMentionOpen] = useState(false)
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formId = useId()
 
   useEffect(() => {
     setText('')
     setPending(false)
     setError(null)
+    setCursor(0)
+    setMentionOpen(false)
+    setSelectedSuggestion(0)
   }, [open, request])
 
   const mode: ComposeMode = request === null ? 'post' : request.mode
   const target = request === null ? null : request.post
-  const count = new RichText({ text }).graphemeLength
-  const empty = mode !== 'quote' && text.trim().length === 0
+  const mention = mentionOpen ? mentionAt(text, cursor) : null
+  const actorSuggestions = useActorSuggestions(mention?.query ?? '', mention !== null)
+  const showSuggestions =
+    mention !== null && (actorSuggestions.isPending || actorSuggestions.suggestions.length > 0)
+  const plain = markdownText(text)
+  const count = new RichText({ text: plain }).graphemeLength
+  const empty = mode !== 'quote' && plain.trim().length === 0
   const overLimit = count > MAX_GRAPHEMES
   const missingTarget = mode !== 'post' && target === null
   const disabled = pending || empty || overLimit || missingTarget
+
+  const applySuggestion = (handle: string) => {
+    const token = mentionAt(text, cursor)
+    if (token === null) return
+
+    const inserted = `@${handle} `
+    const next = `${text.slice(0, token.start)}${inserted}${text.slice(token.end)}`
+    const position = token.start + inserted.length
+    setText(next)
+    setCursor(position)
+    setMentionOpen(false)
+    setSelectedSuggestion(0)
+
+    window.requestAnimationFrame(() => {
+      const input = textareaRef.current
+      if (input === null) return
+      input.focus()
+      input.setSelectionRange(position, position)
+    })
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -118,16 +152,82 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
 
       <form id={formId} onSubmit={handleSubmit}>
         <textarea
+          ref={textareaRef}
           className="b-compose__input"
           aria-label="compose post"
           placeholder={PLACEHOLDERS[mode]}
           value={text}
           disabled={pending}
           onChange={(event) => {
-            setText(event.target.value)
+            const next = event.target.value
+            const position = event.target.selectionStart ?? next.length
+            setText(next)
+            setCursor(position)
+            setMentionOpen(mentionAt(next, position) !== null)
+            setSelectedSuggestion(0)
+          }}
+          onSelect={(event) => {
+            const position = event.currentTarget.selectionStart ?? 0
+            setCursor(position)
+            setMentionOpen(mentionAt(text, position) !== null)
+          }}
+          onKeyDown={(event) => {
+            if (!showSuggestions) return
+
+            const count = actorSuggestions.suggestions.length
+            if (event.key === 'ArrowDown' && count > 0) {
+              event.preventDefault()
+              setSelectedSuggestion((index) => (index + 1) % count)
+              return
+            }
+            if (event.key === 'ArrowUp' && count > 0) {
+              event.preventDefault()
+              setSelectedSuggestion((index) => (index - 1 + count) % count)
+              return
+            }
+            if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {
+              event.preventDefault()
+              const selected = actorSuggestions.suggestions[selectedSuggestion]
+              if (selected !== undefined) applySuggestion(selected.handle)
+              return
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              setMentionOpen(false)
+            }
           }}
         />
+
+        {mention !== null && showSuggestions ? (
+          <div className="b-compose__suggestions" role="listbox" aria-label="mention suggestions">
+            {actorSuggestions.isPending ? (
+              <p className="b-compose__suggestion-note">searching handles</p>
+            ) : (
+              actorSuggestions.suggestions.map((actor, index) => (
+                <button
+                  key={actor.did}
+                  type="button"
+                  role="option"
+                  aria-selected={index === selectedSuggestion}
+                  className="b-compose__suggestion"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={() => {
+                    applySuggestion(actor.handle)
+                  }}
+                >
+                  <span>@{actor.handle}</span>
+                  {actor.displayName.length > 0 ? <span>{actor.displayName}</span> : null}
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
         <div className="b-compose__meta">
+          <span className="b-compose__markdown">
+            markdown: **bold**, *italic*, ~~strike~~, `code`, [link](url)
+          </span>
           <span className="b-compose__count" data-over={overLimit ? 'true' : 'false'}>
             {count}/{MAX_GRAPHEMES}
           </span>

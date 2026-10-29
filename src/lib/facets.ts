@@ -98,6 +98,10 @@ export function facetHref(feature: FacetFeature): FacetLink | null {
       return { href: `/search?q=${encodeURIComponent(`#${feature.tag}`)}`, external: false }
     case 'link':
       return linkHref(feature.uri)
+    case 'bold':
+    case 'italic':
+    case 'strikethrough':
+    case 'code':
     case 'unknown':
       return null
   }

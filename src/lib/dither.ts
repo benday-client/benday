@@ -1,39 +1,44 @@
 /**
  * Ordered-dither primitives.
  *
- * The pattern is a 16x16 SVG tile made of sixteen 4x4 cells. Each cell is
+ * The pattern is a 16x16 SVG tile made of sixty-four 2x2 cells. Each cell is
  * filled with the inverted Bayer threshold for its position, so an SVG
  * feComposite arithmetic step can compare a grayscale image against the tile
  * without canvas or an image proxy.
  */
 
 export const BAYER_MATRIX = [
-  [0, 8, 2, 10],
-  [12, 4, 14, 6],
-  [3, 11, 1, 9],
-  [15, 7, 13, 5],
+  [0, 32, 8, 40, 2, 34, 10, 42],
+  [48, 16, 56, 24, 50, 18, 58, 26],
+  [12, 44, 4, 36, 14, 46, 6, 38],
+  [60, 28, 52, 20, 62, 30, 54, 22],
+  [3, 35, 11, 43, 1, 33, 9, 41],
+  [51, 19, 59, 27, 49, 17, 57, 25],
+  [15, 47, 7, 39, 13, 45, 5, 37],
+  [63, 31, 55, 23, 61, 29, 53, 21],
 ] as const
 
 const BAYER_VALUES: readonly number[] = BAYER_MATRIX.flat()
 
-const BAYER_SIZE = 4
-const CELL_SIZE = 4
-const TILE_SIZE = 16
+const BAYER_SIZE = 8
+const CELL_SIZE = 2
+const LEVELS = BAYER_SIZE * BAYER_SIZE
+export const BAYER_TILE_SIZE = BAYER_SIZE * CELL_SIZE
 
-/** Threshold for a wrapped 4x4 Bayer coordinate, in the open interval (0, 1). */
+/** Threshold for a wrapped 8x8 Bayer coordinate, in the open interval (0, 1). */
 export function bayerThreshold(x: number, y: number): number {
   const column = ((x % BAYER_SIZE) + BAYER_SIZE) % BAYER_SIZE
   const row = ((y % BAYER_SIZE) + BAYER_SIZE) % BAYER_SIZE
   const value = BAYER_VALUES[row * BAYER_SIZE + column] ?? 0
-  return (value + 0.5) / TILE_SIZE
+  return (value + 0.5) / LEVELS
 }
 
 function cellFill(thresholdIndex: number): string {
-  const level = ((1 - (thresholdIndex + 0.5) / TILE_SIZE) * 100).toFixed(3).replace(/\.?0+$/, '')
+  const level = ((1 - (thresholdIndex + 0.5) / LEVELS) * 100).toFixed(3).replace(/\.?0+$/, '')
   return `rgb(${level}%, ${level}%, ${level}%)`
 }
 
-/** Deterministic 16x16 pattern tile: black ground plus sixteen 4x4 cells. */
+/** Deterministic 16x16 pattern tile: black ground plus sixty-four 2x2 cells. */
 export function buildBayerPatternSvg(): string {
   const cells: string[] = []
 
@@ -50,9 +55,10 @@ export function buildBayerPatternSvg(): string {
   }
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${TILE_SIZE}" height="${TILE_SIZE}"` +
-    ` viewBox="0 0 ${TILE_SIZE} ${TILE_SIZE}" shape-rendering="crispEdges">` +
-    `<path d="M0 0h${TILE_SIZE}v${TILE_SIZE}H0z" fill="#000"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${BAYER_TILE_SIZE}"` +
+    ` height="${BAYER_TILE_SIZE}" viewBox="0 0 ${BAYER_TILE_SIZE} ${BAYER_TILE_SIZE}"` +
+    ` shape-rendering="crispEdges">` +
+    `<path d="M0 0h${BAYER_TILE_SIZE}v${BAYER_TILE_SIZE}H0z" fill="#000"/>` +
     `${cells.join('')}</svg>`
   )
 }

@@ -13,6 +13,46 @@
   min-width: 0;
 }
 
+.b-auth__portal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--void);
+}
+
+.b-auth__portal .b-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.b-auth__portal-note {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+
+.b-auth__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.b-auth__divider::before,
+.b-auth__divider::after {
+  flex: 1;
+  border-top: 1px solid var(--line);
+  content: "";
+}
+
 .b-auth__advanced {
   border: 1px solid var(--line);
   border-radius: 0;
@@ -184,12 +224,66 @@
   opacity: 0.5;
 }
 
+.b-compose__suggestions {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  margin-top: var(--space-1);
+  border: 1px solid var(--line);
+  background: var(--void);
+  overflow-y: auto;
+}
+
+.b-compose__suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.b-compose__suggestion:last-child {
+  border-bottom: 0;
+}
+
+.b-compose__suggestion:hover,
+.b-compose__suggestion[aria-selected="true"] {
+  background: var(--panel-raised);
+  color: var(--blue);
+}
+
+.b-compose__suggestion span:last-child {
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+}
+
+.b-compose__suggestion-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+}
+
 .b-compose__meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+.b-compose__markdown {
+  margin-right: auto;
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+  letter-spacing: 0.02em;
 }
 
 .b-compose__count {

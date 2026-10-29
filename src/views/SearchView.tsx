@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
+import { useActorSuggestions } from '../hooks/useActorSuggestions'
 import { usePostFeed } from '../hooks/useBskyQueries'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
@@ -21,6 +22,8 @@ export default function SearchView() {
 
   const appView = useSettings((state) => state.appView)
   const supported = capabilitiesFor(appView).search
+  const actorQuery = draft.startsWith('@') ? draft.slice(1) : ''
+  const actorHints = useActorSuggestions(actorQuery, actorQuery.length > 0)
   const feed = usePostFeed({ kind: 'search', query: supported ? query : '' })
   const posts = feed.data ?? []
   useViewerSync(posts)
@@ -48,7 +51,15 @@ export default function SearchView() {
             onChange={(event) => setDraft(event.target.value)}
             autoComplete="off"
             spellCheck={false}
+            list="search-actors"
           />
+          <datalist id="search-actors">
+            {actorHints.suggestions.map((actor) => (
+              <option key={actor.did} value={`@${actor.handle}`}>
+                {actor.displayName.length > 0 ? actor.displayName : actor.handle}
+              </option>
+            ))}
+          </datalist>
           <Button type="submit" variant="solid">
             scan
           </Button>
@@ -76,6 +87,7 @@ export default function SearchView() {
             loadingMore={feed.isLoadingMore}
             onLoadMore={feed.loadMore}
             label="search results"
+            stateKey={`search:${query}`}
             empty={
               <EmptyState title="no matches" hint="the search returned nothing for this query" />
             }

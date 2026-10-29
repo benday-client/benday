@@ -13,17 +13,21 @@ interface Shortcut {
 const SHORTCUTS: readonly Shortcut[] = [
   { keys: '← → / h l', what: 'scan cards on laptop' },
   { keys: '↑ ↓ / j k', what: 'scan cards on mobile' },
-  { keys: '↓ wide · → narrow', what: 'open comments' },
   { keys: 'g / G', what: 'first / last card' },
-  { keys: 'enter', what: 'open thread' },
+  { keys: 'enter / space', what: 'open replies' },
+  { keys: 'esc', what: 'back out of replies' },
   { keys: '/ or ctrl/cmd+k', what: 'jump' },
   { keys: 's', what: 'search' },
   { keys: 'c', what: 'compose' },
   { keys: 'a', what: 'appviews' },
-  { keys: 't', what: 'themes' },
-  { keys: 'f', what: 'flow' },
+  { keys: 't', what: 'themes menu' },
+  { keys: 'v b o p m l d a g h u', what: 'pick a theme' },
+  { keys: 'f', what: 'like the focused card' },
+  { keys: 'b', what: 'repost the focused card' },
+  { keys: 'r', what: 'reply to the focused card' },
+  { keys: 'q', what: 'quote the focused card' },
+  { keys: 'v', what: 'cycle flow' },
   { keys: '?', what: 'help' },
-  { keys: 'esc', what: 'close' },
 ]
 
 export function HelpDialog({ open, onClose }: HelpDialogProps) {
@@ -40,8 +44,8 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
       }
     >
       <p className="b-help__note">
-        sign in to like, repost, quote and reply. sessions stay local. themes cycle void, bone,
-        oxide and phosphor.
+        sign in to like, repost, quote and reply. sessions stay local. themes are void, bone, oxide,
+        phosphor, catppuccin, dracula, atom one dark, github and duotone.
       </p>
 
       <dl className="b-help__grid">

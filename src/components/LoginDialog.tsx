@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useId, useState } from 'react'
 import { useAuthStore } from '../lib/auth'
+import { canUseOAuth } from '../lib/oauth'
 import { Button, Dialog, Tag, TextInput } from './ui'
 
 export interface LoginDialogProps {
@@ -11,6 +12,7 @@ const APP_PASSWORD_URL = 'https://bsky.app/settings/app-passwords'
 
 export function LoginDialog({ open, onClose }: LoginDialogProps) {
   const signIn = useAuthStore((state) => state.signIn)
+  const signInWithPortal = useAuthStore((state) => state.signInWithPortal)
   const clearError = useAuthStore((state) => state.clearError)
   const pending = useAuthStore((state) => state.pending)
   const error = useAuthStore((state) => state.error)
@@ -44,6 +46,12 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
     if (ok) close()
   }
 
+  const handlePortal = async () => {
+    if (pending || identifier.trim().length === 0) return
+    await signInWithPortal(identifier)
+  }
+
+  const portal = canUseOAuth()
   const disabled = pending || identifier.trim().length === 0 || password.length === 0
 
   return (
@@ -73,6 +81,27 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
             setIdentifier(event.target.value)
           }}
         />
+        {portal ? (
+          <>
+            <div className="b-auth__portal">
+              <Button
+                type="button"
+                variant="solid"
+                disabled={pending || identifier.trim().length === 0}
+                onClick={() => {
+                  void handlePortal()
+                }}
+              >
+                continue with bluesky
+              </Button>
+              <p className="b-auth__portal-note">
+                opens the sign-in page for your pds. the password stays there.
+              </p>
+            </div>
+            <p className="b-auth__divider">or use a password</p>
+          </>
+        ) : null}
+
         <TextInput
           label="password or app password"
           type="password"

@@ -32,6 +32,7 @@ export default function DiscoverView() {
             loadingMore={feed.isLoadingMore}
             onLoadMore={feed.loadMore}
             label="discover cards"
+            stateKey="discover"
             empty={<EmptyState title="no signal" hint="the discover feed returned nothing" />}
           />
         )}

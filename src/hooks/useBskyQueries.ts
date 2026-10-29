@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { fetchFeedPage, fetchProfile, fetchThread } from '../lib/atproto'
+import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
 import type {
   AppViewTarget,
@@ -18,10 +19,14 @@ interface FeedPage {
   cursor: string | null
 }
 
-function feedKey(target: AppViewTarget, source: FeedSource): readonly unknown[] {
+function feedKey(
+  target: AppViewTarget,
+  source: FeedSource,
+  viewerDid: string | null,
+): readonly unknown[] {
   switch (source.kind) {
     case 'discover':
-      return ['feed', target.host, 'discover']
+      return ['feed', target.host, 'discover', viewerDid ?? 'anonymous']
     case 'author':
       return ['feed', target.host, 'author', source.actor]
     case 'search':
@@ -64,10 +69,11 @@ function flattenPosts(pages: FeedPage[]): PostModel[] {
 
 export function usePostFeed(source: FeedSource): PostFeedState {
   const target = useSettings((state) => state.appView)
+  const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const enabled = feedEnabled(source)
 
   const query = useInfiniteQuery({
-    queryKey: feedKey(target, source),
+    queryKey: feedKey(target, source, viewerDid),
     queryFn: ({ pageParam }) => fetchFeedPage(target, source, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,

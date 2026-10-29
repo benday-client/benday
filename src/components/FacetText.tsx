@@ -23,6 +23,35 @@ export function FacetText({ text, facets, className }: FacetTextProps) {
         const feature = segment.feature
         if (feature === null) return <span key={key}>{segment.text}</span>
 
+        if (feature.kind === 'bold') {
+          return (
+            <strong key={key} className="b-facet-text__bold">
+              {segment.text}
+            </strong>
+          )
+        }
+        if (feature.kind === 'italic') {
+          return (
+            <em key={key} className="b-facet-text__italic">
+              {segment.text}
+            </em>
+          )
+        }
+        if (feature.kind === 'strikethrough') {
+          return (
+            <s key={key} className="b-facet-text__strike">
+              {segment.text}
+            </s>
+          )
+        }
+        if (feature.kind === 'code') {
+          return (
+            <code key={key} className="b-facet-text__code">
+              {segment.text}
+            </code>
+          )
+        }
+
         const link = facetHref(feature)
         if (link === null) return <span key={key}>{segment.text}</span>
 

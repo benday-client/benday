@@ -7,30 +7,34 @@ import {
 } from './dither'
 
 describe('BAYER_MATRIX', () => {
-  it('is the classic 4x4 ordered-dither matrix', () => {
+  it('is the classic 8x8 ordered-dither matrix', () => {
     expect(BAYER_MATRIX).toEqual([
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5],
+      [0, 32, 8, 40, 2, 34, 10, 42],
+      [48, 16, 56, 24, 50, 18, 58, 26],
+      [12, 44, 4, 36, 14, 46, 6, 38],
+      [60, 28, 52, 20, 62, 30, 54, 22],
+      [3, 35, 11, 43, 1, 33, 9, 41],
+      [51, 19, 59, 27, 49, 17, 57, 25],
+      [15, 47, 7, 39, 13, 45, 5, 37],
+      [63, 31, 55, 23, 61, 29, 53, 21],
     ])
   })
 })
 
 describe('bayerThreshold', () => {
   it('returns the midpoint threshold at the corners', () => {
-    expect(bayerThreshold(0, 0)).toBe(0.03125)
-    expect(bayerThreshold(1, 0)).toBe(0.53125)
-    expect(bayerThreshold(0, 1)).toBe(0.78125)
-    expect(bayerThreshold(3, 3)).toBe(0.34375)
+    expect(bayerThreshold(0, 0)).toBe(0.0078125)
+    expect(bayerThreshold(1, 0)).toBe(0.5078125)
+    expect(bayerThreshold(0, 1)).toBe(0.7578125)
+    expect(bayerThreshold(3, 3)).toBe(0.3203125)
   })
 
-  it('produces sixteen distinct levels inside the open unit interval', () => {
+  it('produces sixty-four distinct levels inside the open unit interval', () => {
     const levels = BAYER_MATRIX.flatMap((row, y) => row.map((_, x) => bayerThreshold(x, y)))
-    const expected = BAYER_MATRIX.flat().map((value) => (value + 0.5) / 16)
+    const expected = BAYER_MATRIX.flat().map((value) => (value + 0.5) / 64)
 
     expect(levels).toEqual(expected)
-    expect(new Set(expected).size).toBe(16)
+    expect(new Set(expected).size).toBe(64)
     for (const level of expected) {
       expect(level).toBeGreaterThan(0)
       expect(level).toBeLessThan(1)
@@ -38,16 +42,16 @@ describe('bayerThreshold', () => {
   })
 
   it('wraps coordinates in both directions', () => {
-    expect(bayerThreshold(4, 0)).toBe(bayerThreshold(0, 0))
-    expect(bayerThreshold(-4, -4)).toBe(bayerThreshold(0, 0))
-    expect(bayerThreshold(-1, 0)).toBe(bayerThreshold(3, 0))
-    expect(bayerThreshold(0, -1)).toBe(bayerThreshold(0, 3))
-    expect(bayerThreshold(5, 7)).toBe(bayerThreshold(1, 3))
+    expect(bayerThreshold(8, 0)).toBe(bayerThreshold(0, 0))
+    expect(bayerThreshold(-8, -8)).toBe(bayerThreshold(0, 0))
+    expect(bayerThreshold(-1, 0)).toBe(bayerThreshold(7, 0))
+    expect(bayerThreshold(0, -1)).toBe(bayerThreshold(0, 7))
+    expect(bayerThreshold(13, 15)).toBe(bayerThreshold(5, 7))
   })
 })
 
 describe('buildBayerPatternSvg', () => {
-  it('renders a 16x16 tile with sixteen 4x4 cells', () => {
+  it('renders a 16x16 tile with sixty-four 2x2 cells', () => {
     const svg = buildBayerPatternSvg()
 
     expect(svg.startsWith('<svg')).toBe(true)
@@ -55,16 +59,16 @@ describe('buildBayerPatternSvg', () => {
     expect(svg).toContain('height="16"')
     expect(svg).toContain('viewBox="0 0 16 16"')
     expect(svg).toContain('shape-rendering="crispEdges"')
-    expect(svg.match(/<rect /g) ?? []).toHaveLength(16)
-    expect(svg.match(/width="4" height="4"/g) ?? []).toHaveLength(16)
+    expect(svg.match(/<rect /g) ?? []).toHaveLength(64)
+    expect(svg.match(/width="2" height="2"/g) ?? []).toHaveLength(64)
   })
 
   it('uses the black ground and inverted threshold fills', () => {
     const svg = buildBayerPatternSvg()
 
     expect(svg).toContain('fill="#000"')
-    expect(svg).toContain('fill="rgb(96.875%, 96.875%, 96.875%)"')
-    expect(svg).toContain('fill="rgb(3.125%, 3.125%, 3.125%)"')
+    expect(svg).toContain('fill="rgb(99.219%, 99.219%, 99.219%)"')
+    expect(svg).toContain('fill="rgb(0.781%, 0.781%, 0.781%)"')
   })
 
   it('is deterministic', () => {

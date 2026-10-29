@@ -21,6 +21,8 @@ export function postFixture(overrides: Partial<PostModel> = {}): PostModel {
     reason: null,
     isReply: false,
     replyRoot: null,
+    replyParent: null,
+    replyContext: null,
     labels: [],
     ...overrides,
   }

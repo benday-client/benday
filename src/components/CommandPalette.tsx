@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
+import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { useSettings } from '../lib/store'
@@ -23,13 +24,14 @@ interface PaletteCommand {
 
 export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: CommandPaletteProps) {
   const [, navigate] = useLocation()
-  const toggleTheme = useSettings((state) => state.toggleTheme)
   const setFlow = useSettings((state) => state.setFlow)
   const flow = useSettings((state) => state.flow)
   const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
+  const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
+  const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
 
   const [input, setInput] = useState('')
   const [selected, setSelected] = useState(0)
@@ -94,8 +96,19 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
           ]
         : []
 
+  const pinnedCommands: PaletteCommand[] = pinned.feeds.map((feed) => ({
+    id: `pinned-feed:${feed.uri}`,
+    label: feed.name,
+    meta: 'pinned',
+    keywords: `feed ${feed.description}`,
+    run: () => {
+      go(`/feed?uri=${encodeURIComponent(feed.uri)}`)
+    },
+  }))
+
   const commands: PaletteCommand[] = [
     ...authCommands,
+    ...pinnedCommands,
     {
       id: 'discover',
       label: 'discover',
@@ -123,18 +136,18 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     },
     {
       id: 'theme',
-      label: 'toggle theme',
+      label: 'themes',
       meta: 't',
-      keywords: 'void bone color',
+      keywords: 'void bone oxide phosphor color',
       run: () => {
-        toggleTheme()
         onClose()
+        toggleThemeMenu()
       },
     },
     {
       id: 'flow',
       label: 'cycle flow',
-      meta: 'f',
+      meta: 'v',
       keywords: 'horizontal vertical auto layout',
       run: cycleFlow,
     },

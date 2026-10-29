@@ -1,8 +1,9 @@
-import type { AtpSessionData, AtpSessionEvent } from '@atproto/api'
+import type { Agent, AtpSessionData, AtpSessionEvent } from '@atproto/api'
 import { AtpAgent } from '@atproto/api'
 import { create } from 'zustand'
 import { normalizeAppViewHost } from './appviews'
 import { errorInfo } from './errors'
+import { restoreOAuth, signInOAuth, signOutOAuth } from './oauth'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
 
@@ -27,11 +28,13 @@ interface AuthState {
   error: string | null
   restore: () => Promise<void>
   signIn: (identifier: string, password: string, pds?: string) => Promise<boolean>
+  signInWithPortal: (identifier: string) => Promise<boolean>
   signOut: () => Promise<void>
   clearError: () => void
 }
 
-let activeAgent: AtpAgent | null = null
+let activeAgent: AtpAgent | Agent | null = null
+let authMode: 'password' | 'oauth' | null = null
 let restorePromise: Promise<void> | null = null
 
 function isSessionData(value: unknown): value is AtpSessionData {
@@ -156,13 +159,14 @@ function makeAgent(service: string): AtpAgent {
       if (event === 'expired') {
         clearStoredAuth()
         activeAgent = null
+        authMode = null
         useAuthStore.setState({ status: 'anonymous', account: null, pending: false })
       }
     },
   })
 }
 
-export function getAuthAgent(): AtpAgent | null {
+export function getAuthAgent(): AtpAgent | Agent | null {
   return activeAgent
 }
 
@@ -182,18 +186,38 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
 
     restorePromise = (async () => {
+      set({ status: 'restoring', error: null })
+
+      try {
+        const oauth = await restoreOAuth()
+        if (oauth !== null) {
+          activeAgent = oauth.agent
+          authMode = 'oauth'
+          clearStoredAuth()
+          set({
+            status: 'authenticated',
+            account: { did: oauth.did, handle: oauth.handle ?? oauth.did },
+            pending: false,
+            error: null,
+          })
+          return
+        }
+      } catch {
+        // portal sessions are optional; password sessions remain the fallback
+      }
+
       const stored = readStoredAuth()
       if (stored === null) {
         set({ status: 'anonymous', account: null })
         return
       }
 
-      set({ status: 'restoring', error: null })
       const candidate = makeAgent(stored.service)
       try {
         await candidate.resumeSession(stored.session)
         const session = candidate.session
         activeAgent = candidate
+        authMode = 'password'
         if (session !== undefined) writeStoredAuth(stored.service, session)
         set({
           status: 'authenticated',
@@ -205,6 +229,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         const info = errorInfo(error)
         if (info.status === 400 || info.status === 401) clearStoredAuth()
         activeAgent = null
+        authMode = null
         set({ status: 'anonymous', account: null, pending: false, error: null })
       }
     })()
@@ -241,6 +266,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (session === undefined) throw new Error('login did not return a session')
 
       activeAgent = candidate
+      authMode = 'password'
       writeStoredAuth(service, session)
       set({
         status: 'authenticated',
@@ -251,6 +277,31 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return true
     } catch (error) {
       activeAgent = null
+      authMode = null
+      set({
+        status: 'anonymous',
+        account: null,
+        pending: false,
+        error: errorInfo(error).detail,
+      })
+      return false
+    }
+  },
+
+  signInWithPortal: async (identifier) => {
+    const cleaned = identifier.trim().replace(/^@/, '')
+    if (cleaned.length === 0) {
+      set({ error: 'a handle or did is required', pending: false })
+      return false
+    }
+
+    set({ pending: true, error: null, status: 'anonymous', account: null })
+
+    try {
+      await signInOAuth(cleaned)
+      set({ pending: false })
+      return false
+    } catch (error) {
       set({
         status: 'anonymous',
         account: null,
@@ -264,12 +315,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
   signOut: async () => {
     set({ pending: true })
     const current = activeAgent
+    const mode = authMode
+    activeAgent = null
+    authMode = null
+
     try {
-      await current?.logout()
+      if (mode === 'oauth') {
+        await signOutOAuth()
+      } else if (current instanceof AtpAgent) {
+        await current.logout()
+      }
     } catch {
       // clearing the local session is the source of truth
     }
-    activeAgent = null
+
     clearStoredAuth()
     set({ status: 'anonymous', account: null, pending: false, error: null })
   },

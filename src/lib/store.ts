@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_APPVIEW, isAppViewTarget, toAppViewTarget } from './appviews'
-import { isTheme, nextTheme } from './themes'
+import { isTheme } from './themes'
 import type { AppViewTarget, FlowPreference, Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
@@ -12,7 +12,6 @@ interface SettingsState {
   flow: FlowPreference
   setAppView: (appView: AppViewTarget) => void
   setTheme: (theme: Theme) => void
-  toggleTheme: () => void
   setFlow: (flow: FlowPreference) => void
 }
 
@@ -30,7 +29,6 @@ export const useSettings = create<SettingsState>()(
       flow: 'auto',
       setAppView: (appView) => set({ appView }),
       setTheme: (theme) => set({ theme }),
-      toggleTheme: () => set((state) => ({ theme: nextTheme(state.theme) })),
       setFlow: (flow) => set({ flow }),
     }),
     {

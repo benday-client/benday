@@ -1,4 +1,15 @@
-export type Theme = 'void' | 'bone' | 'oxide' | 'phosphor'
+export type Theme =
+  | 'void'
+  | 'bone'
+  | 'oxide'
+  | 'phosphor'
+  | 'catppuccin-mocha'
+  | 'catppuccin-latte'
+  | 'dracula'
+  | 'atom'
+  | 'github-dark'
+  | 'github-light'
+  | 'duotone'
 
 export interface StrongRefModel {
   uri: string
@@ -37,6 +48,10 @@ export type FacetFeature =
   | { kind: 'mention'; did: string; handle: string }
   | { kind: 'link'; uri: string }
   | { kind: 'tag'; tag: string }
+  | { kind: 'bold' }
+  | { kind: 'italic' }
+  | { kind: 'strikethrough' }
+  | { kind: 'code' }
   | { kind: 'unknown'; typeName: string }
 
 export interface FacetSpan {
@@ -106,6 +121,22 @@ export type EmbedModel = MediaEmbed | QuoteEmbed | RecordWithMediaEmbed
 
 export type PostReason = { type: 'repost'; by: AuthorModel } | { type: 'pin' }
 
+export interface PinnedFeedModel {
+  uri: string
+  name: string
+  description: string
+  avatar: string | null
+}
+
+export interface ReplyContextModel {
+  uri: string
+  cid: string
+  author: AuthorModel
+  text: string
+  facets: FacetSpan[]
+  indexedAt: string
+}
+
 export interface PostModel {
   uri: string
   cid: string
@@ -121,6 +152,8 @@ export interface PostModel {
   reason: PostReason | null
   isReply: boolean
   replyRoot: StrongRefModel | null
+  replyParent: StrongRefModel | null
+  replyContext: ReplyContextModel | null
   labels: string[]
 }
 

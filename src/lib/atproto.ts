@@ -1,6 +1,20 @@
-import { AppBskyFeedDefs, AtpAgent } from '@atproto/api'
-import { flattenThread, mapFeedViewPost, mapPostView, mapProfile } from './model'
-import type { AppViewTarget, FeedSource, PostModel, ProfileModel, ThreadModel } from './types'
+import { AppBskyActorDefs, AppBskyFeedDefs, AtpAgent } from '@atproto/api'
+import { getAuthAgent } from './auth'
+import {
+  flattenThread,
+  mapFeedViewPost,
+  mapPostView,
+  mapProfile,
+  replyContextFromPost,
+} from './model'
+import type {
+  AppViewTarget,
+  FeedSource,
+  PinnedFeedModel,
+  PostModel,
+  ProfileModel,
+  ThreadModel,
+} from './types'
 
 export const DISCOVER_FEED_URI =
   'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
@@ -23,6 +37,34 @@ export function createAgent(target: AppViewTarget): AtpAgent {
   return new AtpAgent({ service: target.host })
 }
 
+async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise<PostModel[]> {
+  const missing = posts.filter(
+    (post) => post.isReply && post.replyContext === null && post.replyParent !== null,
+  )
+  if (missing.length === 0) return posts
+
+  const parentUris = [...new Set(missing.flatMap((post) => post.replyParent?.uri ?? []))]
+  const parents = new Map<string, PostModel>()
+
+  for (let index = 0; index < parentUris.length; index += 25) {
+    try {
+      const response = await agent.app.bsky.feed.getPosts({
+        uris: parentUris.slice(index, index + 25),
+      })
+      for (const view of response.data.posts) parents.set(view.uri, mapPostView(view))
+    } catch {
+      return posts
+    }
+  }
+
+  return posts.map((post) => {
+    const parentUri = post.replyParent?.uri
+    const parent = parentUri === undefined ? undefined : parents.get(parentUri)
+    if (parent === undefined) return post
+    return { ...post, replyContext: replyContextFromPost(parent) }
+  })
+}
+
 export async function fetchFeedPage(
   target: AppViewTarget,
   source: FeedSource,
@@ -32,7 +74,8 @@ export async function fetchFeedPage(
 
   switch (source.kind) {
     case 'discover': {
-      const response = await agent.app.bsky.feed.getFeed({
+      const reader = getAuthAgent() ?? agent
+      const response = await reader.app.bsky.feed.getFeed({
         feed: DISCOVER_FEED_URI,
         limit: PAGE_LIMIT,
         ...cursorParam(cursor),
@@ -76,11 +119,79 @@ export async function fetchFeedPage(
         ...cursorParam(cursor),
       })
       return {
-        posts: response.data.posts.map(mapPostView),
+        posts: await attachReplyContexts(agent, response.data.posts.map(mapPostView)),
         cursor: normalizeCursor(response.data.cursor),
       }
     }
   }
+}
+
+export interface ActorSuggestion {
+  did: string
+  handle: string
+  displayName: string
+  avatar: string | null
+}
+
+export async function fetchActorSuggestions(
+  target: AppViewTarget,
+  query: string,
+): Promise<ActorSuggestion[]> {
+  const agent = createAgent(target)
+  const response = await agent.app.bsky.actor.searchActorsTypeahead({
+    q: query,
+    limit: 6,
+  })
+  return response.data.actors.map((actor) => ({
+    did: actor.did,
+    handle: actor.handle,
+    displayName: actor.displayName ?? '',
+    avatar: actor.avatar ?? null,
+  }))
+}
+
+export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): string[] {
+  const uris: string[] = []
+  for (const pref of preferences) {
+    if (AppBskyActorDefs.isSavedFeedsPrefV2(pref)) {
+      for (const item of pref.items) {
+        if (item.type === 'feed' && item.pinned) uris.push(item.value)
+      }
+    } else if (AppBskyActorDefs.isSavedFeedsPref(pref)) {
+      uris.push(...pref.pinned)
+    }
+  }
+  return [...new Set(uris)]
+}
+
+export async function fetchPinnedFeeds(target: AppViewTarget): Promise<PinnedFeedModel[]> {
+  const agent = getAuthAgent()
+  if (agent === null) return []
+
+  const prefs = await agent.app.bsky.actor.getPreferences()
+  const unique = pinnedFeedUris(prefs.data.preferences)
+  if (unique.length === 0) return []
+
+  const generators = new Map<string, AppBskyFeedDefs.GeneratorView>()
+  try {
+    const response = await createAgent(target).app.bsky.feed.getFeedGenerators({
+      feeds: unique,
+    })
+    for (const feed of response.data.feeds) generators.set(feed.uri, feed)
+  } catch {
+    // pinned uris still work when the appview cannot label them
+  }
+
+  return unique.map((uri) => {
+    const generator = generators.get(uri)
+    const fallbackName = uri.split('/').at(-1) ?? uri
+    return {
+      uri,
+      name: generator?.displayName ?? fallbackName,
+      description: generator?.description ?? '',
+      avatar: generator?.avatar ?? null,
+    }
+  })
 }
 
 export async function fetchProfile(target: AppViewTarget, actor: string): Promise<ProfileModel> {
@@ -96,4 +207,18 @@ export async function fetchThread(target: AppViewTarget, uri: string): Promise<T
     throw new Error('thread unavailable')
   }
   return flattenThread(response.data.thread)
+}
+
+export async function fetchTopComments(target: AppViewTarget, uri: string): Promise<PostModel[]> {
+  const agent = createAgent(target)
+  const response = await agent.getPostThread({ uri, depth: 1, parentHeight: 0 })
+  const thread = response.data.thread
+  if (!AppBskyFeedDefs.isThreadViewPost(thread)) return []
+
+  const replies = thread.replies ?? []
+  return replies
+    .filter(AppBskyFeedDefs.isThreadViewPost)
+    .map((reply) => mapPostView(reply.post))
+    .sort((left, right) => right.likeCount - left.likeCount)
+    .slice(0, 3)
 }

@@ -23,6 +23,7 @@ import type {
   ProfileModel,
   QuotedPostModel,
   QuoteEmbed,
+  ReplyContextModel,
   ThreadEntry,
   ThreadModel,
   UnknownEmbed,
@@ -120,6 +121,24 @@ export function mapFacets(
 
     if (AppBskyRichtextFacet.isTag(feature)) {
       spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'tag', tag: feature.tag } })
+      continue
+    }
+
+    const typeName = typeNameOf(feature)
+    if (typeName === 'app.bsky.richtext.facet#bold') {
+      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'bold' } })
+      continue
+    }
+    if (typeName === 'app.bsky.richtext.facet#italic') {
+      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'italic' } })
+      continue
+    }
+    if (typeName === 'app.bsky.richtext.facet#strikethrough') {
+      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'strikethrough' } })
+      continue
+    }
+    if (typeName === 'app.bsky.richtext.facet#code') {
+      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'code' } })
       continue
     }
 
@@ -235,6 +254,20 @@ function mapReason(reason: AppBskyFeedDefs.FeedViewPost['reason']): PostReason |
   return null
 }
 
+function mapReplyContext(view: AppBskyFeedDefs.PostView): ReplyContextModel {
+  const record = readPostRecord(view.record)
+  const text = record?.text ?? ''
+
+  return {
+    uri: view.uri,
+    cid: view.cid,
+    author: mapAuthor(view.author),
+    text,
+    facets: mapFacets(record?.facets, text),
+    indexedAt: view.indexedAt,
+  }
+}
+
 export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
   const record = readPostRecord(view.record)
   const text = record?.text ?? ''
@@ -254,12 +287,29 @@ export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
     reason: null,
     isReply: record?.reply !== undefined,
     replyRoot: record?.reply?.root ?? null,
+    replyParent: record?.reply?.parent ?? null,
+    replyContext: null,
     labels: (view.labels ?? []).map((label) => label.val),
   }
 }
 
+export function replyContextFromPost(post: PostModel): ReplyContextModel {
+  return {
+    uri: post.uri,
+    cid: post.cid,
+    author: post.author,
+    text: post.text,
+    facets: post.facets,
+    indexedAt: post.indexedAt,
+  }
+}
+
 export function mapFeedViewPost(view: AppBskyFeedDefs.FeedViewPost): PostModel {
-  return { ...mapPostView(view.post), reason: mapReason(view.reason) }
+  const parent = view.reply?.parent
+  const replyContext =
+    parent !== undefined && AppBskyFeedDefs.isPostView(parent) ? mapReplyContext(parent) : null
+
+  return { ...mapPostView(view.post), reason: mapReason(view.reason), replyContext }
 }
 
 export function mapProfile(view: AppBskyActorDefs.ProfileViewDetailed): ProfileModel {
@@ -315,5 +365,13 @@ export function flattenThread(thread: AppBskyFeedDefs.ThreadViewPost): ThreadMod
   entries.push({ post: mapPostView(thread.post), depth: 0, role: 'focus' })
   collectReplies(thread.replies, 1, entries)
 
-  return { focusUri: thread.post.uri, entries }
+  const byUri = new Map(entries.map((entry) => [entry.post.uri, entry.post]))
+  const withContext = entries.map((entry) => {
+    const parentUri = entry.post.replyParent?.uri
+    const parent = parentUri === undefined ? undefined : byUri.get(parentUri)
+    if (parent === undefined) return entry
+    return { ...entry, post: { ...entry.post, replyContext: replyContextFromPost(parent) } }
+  })
+
+  return { focusUri: thread.post.uri, entries: withContext }
 }

@@ -23,6 +23,30 @@ body {
   line-height: 1.55;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
+  cursor: var(--cursor-default, auto);
+}
+
+html[data-input="keyboard"],
+html[data-input="keyboard"] * {
+  cursor: none !important;
+}
+
+a,
+button,
+summary,
+[role="button"] {
+  cursor: var(--cursor-pointer, pointer);
+}
+
+input,
+textarea {
+  cursor: var(--cursor-text, text);
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
 
 body::before,
@@ -72,14 +96,6 @@ select,
 textarea {
   color: inherit;
   font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
 }
 
 img {

@@ -166,6 +166,34 @@ describe('mapFacets', () => {
 
     expect(mapFacets(facets, text)).toEqual([])
   })
+
+  it('maps markdown facet feature types', () => {
+    const facets = [
+      {
+        index: { byteStart: 0, byteEnd: 4 },
+        features: [{ $type: 'app.bsky.richtext.facet#bold' }],
+      },
+      {
+        index: { byteStart: 5, byteEnd: 9 },
+        features: [{ $type: 'app.bsky.richtext.facet#italic' }],
+      },
+      {
+        index: { byteStart: 10, byteEnd: 14 },
+        features: [{ $type: 'app.bsky.richtext.facet#strikethrough' }],
+      },
+      {
+        index: { byteStart: 15, byteEnd: 19 },
+        features: [{ $type: 'app.bsky.richtext.facet#code' }],
+      },
+    ] as AppBskyRichtextFacet.Main[]
+
+    expect(mapFacets(facets, 'bold italic gone code')).toEqual([
+      { start: 0, end: 4, feature: { kind: 'bold' } },
+      { start: 5, end: 9, feature: { kind: 'italic' } },
+      { start: 10, end: 14, feature: { kind: 'strikethrough' } },
+      { start: 15, end: 19, feature: { kind: 'code' } },
+    ])
+  })
 })
 
 describe('mapPostView', () => {
@@ -190,6 +218,8 @@ describe('mapPostView', () => {
       reason: null,
       isReply: false,
       replyRoot: null,
+      replyParent: null,
+      replyContext: null,
       labels: [],
     })
   })
@@ -224,6 +254,7 @@ describe('mapPostView', () => {
     ])
     expect(model.isReply).toBe(true)
     expect(model.replyRoot).toEqual({ uri: 'at://root', cid: 'root-cid' })
+    expect(model.replyParent).toEqual({ uri: 'at://parent', cid: 'parent-cid' })
     expect(model.replyCount).toBe(4)
     expect(model.repostCount).toBe(3)
     expect(model.likeCount).toBe(12)
@@ -480,6 +511,29 @@ describe('mapFeedViewPost', () => {
     })
     expect(mapFeedViewPost(pin).reason).toEqual({ type: 'pin' })
     expect(mapFeedViewPost(plain).reason).toBeNull()
+  })
+
+  it('maps the parent preview for reply items', () => {
+    const parentRef = { uri: 'at://did:plc:ada/app.bsky.feed.post/parent', cid: 'parent-cid' }
+    const parent = postView({
+      uri: parentRef.uri,
+      cid: parentRef.cid,
+      author: profileBasic({ handle: 'parent.world', displayName: 'parent' }),
+      record: postRecord({ text: 'the post being answered' }),
+    })
+    const reply = feedViewPost({
+      post: postView({
+        record: postRecord({ text: 'answer', reply: { root: parentRef, parent: parentRef } }),
+      }),
+      reply: { root: parent, parent },
+    })
+
+    expect(mapFeedViewPost(reply).replyContext).toMatchObject({
+      uri: parentRef.uri,
+      cid: parentRef.cid,
+      text: 'the post being answered',
+      author: { handle: 'parent.world' },
+    })
   })
 })
 

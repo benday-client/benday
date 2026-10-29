@@ -1,6 +1,6 @@
 import type { AtpAgent } from '@atproto/api'
 import { describe, expect, it, vi } from 'vitest'
-import { fetchViewerStates } from './actions'
+import { createPost, fetchViewerStates } from './actions'
 import { getAuthAgent } from './auth'
 
 vi.mock('./auth', () => ({
@@ -35,5 +35,29 @@ describe('fetchViewerStates', () => {
       likeUri: 'at://like/1',
       repostUri: null,
     })
+  })
+
+  it('converts markdown markers into record facets', async () => {
+    const post = vi.fn(async (_record: unknown) => ({ uri: 'at://new', cid: 'new-cid' }))
+    vi.mocked(getAuthAgent).mockReturnValue({ post } as unknown as AtpAgent)
+
+    await createPost('**bold** and ~~gone~~')
+
+    expect(post).toHaveBeenCalledTimes(1)
+    const record = post.mock.calls[0]?.[0] as {
+      text: string
+      facets: { index: { byteStart: number; byteEnd: number }; features: { $type?: string }[] }[]
+    }
+    expect(record.text).toBe('bold and gone')
+    expect(record.facets).toEqual([
+      {
+        index: { byteStart: 0, byteEnd: 4 },
+        features: [{ $type: 'app.bsky.richtext.facet#bold' }],
+      },
+      {
+        index: { byteStart: 9, byteEnd: 13 },
+        features: [{ $type: 'app.bsky.richtext.facet#strikethrough' }],
+      },
+    ])
   })
 })

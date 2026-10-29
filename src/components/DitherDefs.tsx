@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { buildBayerPatternDataUri } from '../lib/dither'
+import { BAYER_TILE_SIZE, buildBayerPatternDataUri } from '../lib/dither'
 
 const PATTERN_URI = buildBayerPatternDataUri()
 
@@ -22,8 +22,8 @@ function DitherFilter({ id, from, to }: DitherFilterProps): ReactElement {
         href={PATTERN_URI}
         x="0"
         y="0"
-        width="16"
-        height="16"
+        width={BAYER_TILE_SIZE}
+        height={BAYER_TILE_SIZE}
         preserveAspectRatio="none"
         result="pattern"
       />
@@ -63,6 +63,41 @@ export function DitherDefs(): ReactElement {
           id="benday-dither-phosphor"
           from={[0.016, 0.04, 0.024]}
           to={[0.45, 1, 0.63]}
+        />
+        <DitherFilter
+          id="benday-dither-catppuccin-mocha"
+          from={[0.118, 0.118, 0.18]}
+          to={[0.537, 0.706, 0.98]}
+        />
+        <DitherFilter
+          id="benday-dither-catppuccin-latte"
+          from={[0.298, 0.31, 0.412]}
+          to={[0.118, 0.4, 0.961]}
+        />
+        <DitherFilter
+          id="benday-dither-dracula"
+          from={[0.157, 0.165, 0.212]}
+          to={[0.741, 0.576, 0.976]}
+        />
+        <DitherFilter
+          id="benday-dither-atom"
+          from={[0.157, 0.173, 0.204]}
+          to={[0.38, 0.686, 0.937]}
+        />
+        <DitherFilter
+          id="benday-dither-github-dark"
+          from={[0.051, 0.067, 0.09]}
+          to={[0.345, 0.651, 1]}
+        />
+        <DitherFilter
+          id="benday-dither-github-light"
+          from={[0.122, 0.137, 0.157]}
+          to={[0.035, 0.412, 0.855]}
+        />
+        <DitherFilter
+          id="benday-dither-duotone"
+          from={[0.043, 0.027, 0.094]}
+          to={[0.133, 0.827, 0.933]}
         />
       </defs>
     </svg>

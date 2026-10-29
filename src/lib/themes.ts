@@ -1,12 +1,45 @@
 import type { Theme } from './types'
 
-export const THEMES: readonly Theme[] = ['void', 'bone', 'oxide', 'phosphor']
+export const THEMES: readonly Theme[] = [
+  'void',
+  'bone',
+  'oxide',
+  'phosphor',
+  'catppuccin-mocha',
+  'catppuccin-latte',
+  'dracula',
+  'atom',
+  'github-dark',
+  'github-light',
+  'duotone',
+]
 
 export const THEME_LABELS: Record<Theme, string> = {
   void: 'void',
   bone: 'bone',
   oxide: 'oxide',
   phosphor: 'phosphor',
+  'catppuccin-mocha': 'catppuccin mocha',
+  'catppuccin-latte': 'catppuccin latte',
+  dracula: 'dracula',
+  atom: 'atom one dark',
+  'github-dark': 'github dark',
+  'github-light': 'github light',
+  duotone: 'duotone',
+}
+
+export const THEME_KEYS: Record<Theme, string> = {
+  void: 'v',
+  bone: 'b',
+  oxide: 'o',
+  phosphor: 'p',
+  'catppuccin-mocha': 'm',
+  'catppuccin-latte': 'l',
+  dracula: 'd',
+  atom: 'a',
+  'github-dark': 'g',
+  'github-light': 'h',
+  duotone: 'u',
 }
 
 export const THEME_COLORS: Record<Theme, string> = {
@@ -14,20 +47,29 @@ export const THEME_COLORS: Record<Theme, string> = {
   bone: '#ddd6c6',
   oxide: '#0b0705',
   phosphor: '#040906',
+  'catppuccin-mocha': '#1e1e2e',
+  'catppuccin-latte': '#eff1f5',
+  dracula: '#282a36',
+  atom: '#282c34',
+  'github-dark': '#0d1117',
+  'github-light': '#ffffff',
+  duotone: '#05030d',
 }
 
-const THEME_LOOKUP: Record<string, true> = {
+const THEME_LOOKUP: Record<Theme, true> = {
   void: true,
   bone: true,
   oxide: true,
   phosphor: true,
+  'catppuccin-mocha': true,
+  'catppuccin-latte': true,
+  dracula: true,
+  atom: true,
+  'github-dark': true,
+  'github-light': true,
+  duotone: true,
 }
 
 export function isTheme(value: unknown): value is Theme {
-  return typeof value === 'string' && THEME_LOOKUP[value] === true
-}
-
-export function nextTheme(theme: Theme): Theme {
-  const index = THEMES.indexOf(theme)
-  return THEMES[(index + 1) % THEMES.length] ?? theme
+  return typeof value === 'string' && Object.hasOwn(THEME_LOOKUP, value)
 }

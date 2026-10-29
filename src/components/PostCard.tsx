@@ -1,4 +1,6 @@
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
+import { useTopComments } from '../hooks/useTopComments'
 import { useActionStore } from '../lib/actionStore'
 import { useAuthStore } from '../lib/auth'
 import type { PostModel } from '../lib/types'
@@ -14,9 +16,10 @@ export interface PostCardProps {
   index?: number
   focused?: boolean
   eyebrow?: string
+  replies?: ReactNode
 }
 
-export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCardProps) {
+export function PostCard({ post, index = 0, focused = false, eyebrow, replies }: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
@@ -24,9 +27,99 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
   const threadHref = `/thread?uri=${encodeURIComponent(post.uri)}`
 
   const authed = useAuthStore((state) => state.status === 'authenticated')
+  const cardRef = useRef<HTMLElement>(null)
+  const [inView, setInView] = useState(false)
+  const topComments = useTopComments(
+    post.uri,
+    replies === undefined && inView && post.replyCount > 0,
+  )
   const entry = useActionStore((state) => state.byUri[post.uri])
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
+
+  useEffect(() => {
+    const node = cardRef.current
+    if (node === null) return
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        setInView(true)
+        observer.disconnect()
+      },
+      { root: node.closest('.b-deck'), rootMargin: '200px 0px' },
+    )
+
+    observer.observe(node)
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!focused) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+
+      const ui = useUiStore.getState()
+      if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
+      if (document.querySelector('dialog[open]') !== null) return
+
+      const authenticated = useAuthStore.getState().status === 'authenticated'
+      const interact = (action: () => void) => {
+        if (!authenticated) {
+          ui.openDialog('login')
+          return
+        }
+        action()
+      }
+
+      switch (event.key) {
+        case 'f':
+          event.preventDefault()
+          interact(() => {
+            void useActionStore.getState().toggleLike(post)
+          })
+          break
+        case 'b':
+          event.preventDefault()
+          interact(() => {
+            void useActionStore.getState().toggleRepost(post)
+          })
+          break
+        case 'r':
+          event.preventDefault()
+          interact(() => {
+            ui.openCompose({ mode: 'reply', post })
+          })
+          break
+        case 'q':
+          event.preventDefault()
+          interact(() => {
+            ui.openCompose({ mode: 'quote', post })
+          })
+          break
+        default:
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [focused, post])
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {
@@ -50,7 +143,7 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
   if (focused) classes.push('b-post-card--focused')
 
   return (
-    <article className={classes.join(' ')}>
+    <article ref={cardRef} className={classes.join(' ')}>
       <header className="b-frame__head b-post-card__head">
         <span className="b-post-card__head-left">
           <span className="b-post-card__index">
@@ -81,6 +174,29 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
           </span>
         </div>
 
+        {post.replyContext !== null ? (
+          <div className="b-post-card__reply-context">
+            <div className="b-post-card__reply-context-head">
+              <span>replying to</span>
+              <Link
+                href={`/thread?uri=${encodeURIComponent(post.replyContext.uri)}`}
+                className="b-post-card__reply-context-author"
+              >
+                @{post.replyContext.author.handle}
+              </Link>
+            </div>
+            {post.replyContext.text.length > 0 ? (
+              <FacetText
+                text={post.replyContext.text}
+                facets={post.replyContext.facets}
+                className="b-post-card__reply-context-text"
+              />
+            ) : (
+              <span className="b-post-card__reply-context-text">[no text]</span>
+            )}
+          </div>
+        ) : null}
+
         {post.text.length > 0 ? (
           <FacetText text={post.text} facets={post.facets} className="b-post-card__text" />
         ) : (
@@ -98,6 +214,40 @@ export function PostCard({ post, index = 0, focused = false, eyebrow }: PostCard
         ) : null}
 
         {post.embed !== null ? <Embeds embed={post.embed} /> : null}
+
+        {replies}
+
+        {replies === undefined && inView && post.replyCount > 0 ? (
+          <section className="b-post-card__comments" aria-label="top comments">
+            <p className="b-post-card__comments-label">top comments</p>
+            {topComments.isPending ? (
+              <p className="b-post-card__comments-note">loading comments</p>
+            ) : topComments.comments.length === 0 ? (
+              <p className="b-post-card__comments-note">no visible comments</p>
+            ) : (
+              <ul className="b-post-card__comment-list">
+                {topComments.comments.map((comment) => (
+                  <li key={comment.uri} className="b-post-card__comment">
+                    <Link
+                      href={`/profile/${encodeURIComponent(comment.author.handle)}`}
+                      className="b-post-card__comment-author"
+                    >
+                      @{comment.author.handle}
+                    </Link>
+                    <FacetText
+                      text={comment.text}
+                      facets={comment.facets}
+                      className="b-post-card__comment-text"
+                    />
+                    {comment.likeCount > 0 ? (
+                      <span className="b-post-card__comment-likes">like {comment.likeCount}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
       </div>
 
       <footer className="b-post-card__foot">

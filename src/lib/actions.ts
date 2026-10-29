@@ -1,6 +1,7 @@
 import type { AppBskyEmbedRecord, AppBskyFeedPost } from '@atproto/api'
 import { RichText } from '@atproto/api'
 import { getAuthAgent } from './auth'
+import { parseMarkdown } from './markdown'
 import type { PostModel } from './types'
 
 export interface ViewerState {
@@ -26,8 +27,10 @@ function requireAgent() {
 }
 
 async function preparedText(text: string): Promise<RichText> {
-  const rich = new RichText({ text })
-  if (text.length > 0) await rich.detectFacets(requireAgent())
+  const parsed = parseMarkdown(text)
+  const rich = new RichText({ text: parsed.text })
+  if (rich.text.length > 0) await rich.detectFacets(requireAgent())
+  rich.facets = [...parsed.facets, ...(rich.facets ?? [])]
   return rich
 }
 

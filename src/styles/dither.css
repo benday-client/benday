@@ -28,6 +28,34 @@
   filter: url(#benday-dither-phosphor);
 }
 
+[data-theme="catppuccin-mocha"] .dither-image {
+  filter: url(#benday-dither-catppuccin-mocha);
+}
+
+[data-theme="catppuccin-latte"] .dither-image {
+  filter: url(#benday-dither-catppuccin-latte);
+}
+
+[data-theme="dracula"] .dither-image {
+  filter: url(#benday-dither-dracula);
+}
+
+[data-theme="atom"] .dither-image {
+  filter: url(#benday-dither-atom);
+}
+
+[data-theme="github-dark"] .dither-image {
+  filter: url(#benday-dither-github-dark);
+}
+
+[data-theme="github-light"] .dither-image {
+  filter: url(#benday-dither-github-light);
+}
+
+[data-theme="duotone"] .dither-image {
+  filter: url(#benday-dither-duotone);
+}
+
 .dither-image--fallback {
   display: grid;
   aspect-ratio: 1;
@@ -46,8 +74,6 @@
   text-transform: uppercase;
 }
 
-[data-theme="bone"] .dither-image--fallback,
-[data-theme="oxide"] .dither-image--fallback,
-[data-theme="phosphor"] .dither-image--fallback {
+[data-theme] .dither-image--fallback {
   filter: none;
 }

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link, Route, Switch, useLocation } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
@@ -9,13 +9,14 @@ import { ComposeDialog } from './components/ComposeDialog'
 import { DitherDefs } from './components/DitherDefs'
 import { HelpDialog } from './components/HelpDialog'
 import { LoginDialog } from './components/LoginDialog'
-import { StatusBar } from './components/StatusBar'
 import { TopBar } from './components/TopBar'
 import { EmptyState } from './components/ui'
 import { type Hotkey, useHotkeys } from './hooks/useHotkeys'
+import { useInputMode } from './hooks/useInputMode'
 import { useAuthStore } from './lib/auth'
+import { installCursors } from './lib/cursors'
 import { useSettings } from './lib/store'
-import { THEME_COLORS } from './lib/themes'
+import { THEME_COLORS, THEME_KEYS, THEMES } from './lib/themes'
 import { useUiStore } from './lib/ui'
 import DiscoverView from './views/DiscoverView'
 import FeedView from './views/FeedView'
@@ -46,17 +47,22 @@ function NotFound() {
 }
 
 function AppShell() {
-  const [, navigate] = useLocation()
+  const [pathname, navigate] = useLocation()
   const dialog = useUiStore((state) => state.dialog)
   const compose = useUiStore((state) => state.compose)
   const openDialog = useUiStore((state) => state.openDialog)
   const closeDialog = useUiStore((state) => state.closeDialog)
   const openCompose = useUiStore((state) => state.openCompose)
   const closeCompose = useUiStore((state) => state.closeCompose)
+  const themeMenuOpen = useUiStore((state) => state.themeMenuOpen)
+  const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
+  const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
+  const lastViewRef = useRef<string | null>(null)
+  useInputMode()
 
   const theme = useSettings((state) => state.theme)
+  const setTheme = useSettings((state) => state.setTheme)
   const flow = useSettings((state) => state.flow)
-  const toggleTheme = useSettings((state) => state.toggleTheme)
   const setFlow = useSettings((state) => state.setFlow)
 
   useEffect(() => {
@@ -64,9 +70,20 @@ function AppShell() {
   }, [])
 
   useEffect(() => {
+    closeThemeMenu()
+  }, [pathname, closeThemeMenu])
+
+  useEffect(() => {
+    if (!pathname.startsWith('/thread')) {
+      lastViewRef.current = `${pathname}${window.location.search}`
+    }
+  }, [pathname])
+
+  useEffect(() => {
     document.documentElement.dataset['theme'] = theme
     const meta = document.querySelector('meta[name="theme-color"]')
     if (meta instanceof HTMLMetaElement) meta.content = THEME_COLORS[theme]
+    installCursors()
   }, [theme])
 
   const cycleFlow = () => {
@@ -90,15 +107,41 @@ function AppShell() {
     }
   }
 
+  const closeOrBack = () => {
+    if (themeMenuOpen) {
+      closeThemeMenu()
+      return
+    }
+    if (pathname.startsWith('/thread')) {
+      if (lastViewRef.current !== null) {
+        window.history.back()
+      } else {
+        navigate('/')
+      }
+    }
+  }
+
+  const themeKeys: Hotkey[] = themeMenuOpen
+    ? THEMES.map((item) => ({
+        key: THEME_KEYS[item],
+        handler: () => {
+          setTheme(item)
+          closeThemeMenu()
+        },
+      }))
+    : []
+
   const hotkeys: readonly Hotkey[] = [
+    ...themeKeys,
     { key: 'k', ctrlOrMeta: true, handler: () => openDialog('palette') },
     { key: '/', handler: () => openDialog('palette') },
     { key: 's', handler: focusSearch },
     { key: 'c', handler: startCompose },
     { key: 'a', handler: () => openDialog('appview') },
     { key: '?', handler: () => openDialog('help') },
-    { key: 't', handler: toggleTheme },
-    { key: 'f', handler: cycleFlow },
+    { key: 't', handler: toggleThemeMenu },
+    { key: 'Escape', handler: closeOrBack },
+    { key: 'v', handler: cycleFlow },
   ]
 
   useHotkeys(hotkeys, dialog === null && compose === null)
@@ -121,8 +164,6 @@ function AppShell() {
           <Route component={NotFound} />
         </Switch>
       </main>
-
-      <StatusBar />
 
       <CommandPalette
         open={dialog === 'palette'}
