@@ -49,8 +49,8 @@ describe('normalizeAppViewHost', () => {
 
 describe('appview targets', () => {
   it('exposes the three known appviews', () => {
-    expect(APPVIEW_PRESETS.map((preset) => preset.id)).toEqual(['public', 'canonical', 'blacksky'])
-    expect(DEFAULT_APPVIEW.host).toBe('https://public.api.bsky.app')
+    expect(APPVIEW_PRESETS.map((preset) => preset.id)).toEqual(['canonical', 'public', 'blacksky'])
+    expect(DEFAULT_APPVIEW.host).toBe('https://api.bsky.app')
   })
 
   it('builds a custom target with a stable id', () => {
@@ -66,7 +66,8 @@ describe('appview targets', () => {
   })
 
   it('knows the capabilities of presets and is optimistic about customs', () => {
-    expect(capabilitiesFor(requirePreset('public'))).toEqual({ search: true, feeds: true })
+    expect(capabilitiesFor(requirePreset('canonical'))).toEqual({ search: true, feeds: true })
+    expect(capabilitiesFor(requirePreset('public'))).toEqual({ search: false, feeds: true })
     expect(capabilitiesFor(requirePreset('blacksky'))).toEqual({ search: false, feeds: true })
 
     const custom = requireTarget(makeCustomAppView('api.example.com'))
@@ -76,7 +77,7 @@ describe('appview targets', () => {
   it('compares targets by host and strips capabilities from presets', () => {
     const target = toAppViewTarget(DEFAULT_APPVIEW)
     expect('capabilities' in target).toBe(false)
-    expect(sameAppView(target, requireTarget(makeCustomAppView('public.api.bsky.app')))).toBe(true)
+    expect(sameAppView(target, requireTarget(makeCustomAppView('api.bsky.app')))).toBe(true)
   })
 })
 

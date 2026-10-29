@@ -2,20 +2,20 @@ import type { AppViewCapabilities, AppViewKind, AppViewPreset, AppViewTarget } f
 
 const PRESETS = [
   {
-    id: 'public',
-    label: 'public',
-    host: 'https://public.api.bsky.app',
-    kind: 'official',
-    note: 'cached official reads',
-    capabilities: { search: true, feeds: true },
-  },
-  {
     id: 'canonical',
     label: 'canonical',
     host: 'https://api.bsky.app',
     kind: 'official',
     note: 'official appview, direct',
     capabilities: { search: true, feeds: true },
+  },
+  {
+    id: 'public',
+    label: 'public',
+    host: 'https://public.api.bsky.app',
+    kind: 'official',
+    note: 'cached official reads · search is not exposed',
+    capabilities: { search: false, feeds: true },
   },
   {
     id: 'blacksky',
