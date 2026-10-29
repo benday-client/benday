@@ -274,6 +274,17 @@ export function Deck<T>({
 
     const key = event.key
 
+    if (/^[1-9]$/.test(key)) {
+      const scroller = scrollerRef.current
+      if (scroller === null || !scroller.contains(document.activeElement)) return
+      if (isInteractiveTarget(event.target)) return
+      const index = Number(key) - 1
+      if (index >= items.length) return
+      event.preventDefault()
+      moveTo(index)
+      return
+    }
+
     if (key === 'g' || key === 'G') {
       event.preventDefault()
       moveTo(key === 'G' ? items.length - 1 : 0)

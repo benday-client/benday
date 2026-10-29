@@ -145,7 +145,7 @@ export function PostCard({
       if (ui.dialog !== null || ui.compose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
 
-      if (event.key === '1' && quotedUri !== null && replies === undefined) {
+      if (event.key === '0' && quotedUri !== null && replies === undefined) {
         event.preventDefault()
         navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
         return

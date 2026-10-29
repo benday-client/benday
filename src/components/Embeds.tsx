@@ -138,7 +138,7 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
       )}
       <div className="b-embed__quote-actions">
         <Link href={`/thread?uri=${encodeURIComponent(post.uri)}`} className="b-embed__quote-open">
-          open quoted post <Kbd>1</Kbd>
+          open quoted post <Kbd>0</Kbd>
         </Link>
       </div>
     </article>

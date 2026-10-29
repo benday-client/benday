@@ -122,8 +122,17 @@ export default function ThreadView() {
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        if (event.target.closest('a, button') !== null) return
       }
       if (document.querySelector('dialog[open]') !== null) return
+      const thread = document.querySelector('.b-thread')
+      const active = document.activeElement
+      if (
+        active !== document.body &&
+        (!(active instanceof HTMLElement) || thread === null || !thread.contains(active))
+      ) {
+        return
+      }
       const reply = replyRefs.current[Number(event.key) - 1]
       if (reply === null || reply === undefined) return
       event.preventDefault()
