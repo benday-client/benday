@@ -420,6 +420,40 @@ export function PostCard({
           >
             quote
           </button>
+          {onFeedback !== undefined ? (
+            <>
+              <button
+                type="button"
+                className="b-post-card__action"
+                title="more like this · +"
+                aria-label="more like this"
+                onClick={() => {
+                  if (!authed) {
+                    openDialog('login')
+                    return
+                  }
+                  onFeedback('more')
+                }}
+              >
+                more
+              </button>
+              <button
+                type="button"
+                className="b-post-card__action"
+                title="less like this · -"
+                aria-label="less like this"
+                onClick={() => {
+                  if (!authed) {
+                    openDialog('login')
+                    return
+                  }
+                  onFeedback('less')
+                }}
+              >
+                less
+              </button>
+            </>
+          ) : null}
           {own ? (
             confirmingDelete ? (
               <>

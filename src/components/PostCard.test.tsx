@@ -79,6 +79,9 @@ describe('PostCard actions', () => {
       </QueryClientProvider>,
     )
 
+    expect(screen.getByRole('button', { name: 'more like this' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'less like this' })).toBeInTheDocument()
+
     fireEvent.keyDown(window, { key: '+' })
     fireEvent.keyDown(window, { key: '-' })
 
