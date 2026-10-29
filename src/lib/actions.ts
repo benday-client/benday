@@ -14,6 +14,10 @@ export interface WriteResult {
 }
 
 const VIEWER_BATCH = 25
+const APPVIEW_PROXY = {
+  serviceType: 'bsky_appview',
+  did: 'did:web:api.bsky.app',
+} as const
 
 function requireAgent() {
   const agent = getAuthAgent()
@@ -86,12 +90,13 @@ export async function fetchViewerStates(
   uris: readonly string[],
 ): Promise<Map<string, ViewerState>> {
   const agent = requireAgent()
+  const appView = agent.withProxy(APPVIEW_PROXY.serviceType, APPVIEW_PROXY.did)
   const unique = [...new Set(uris)]
   const states = new Map<string, ViewerState>()
 
   for (let index = 0; index < unique.length; index += VIEWER_BATCH) {
     const batch = unique.slice(index, index + VIEWER_BATCH)
-    const response = await agent.app.bsky.feed.getPosts({ uris: batch })
+    const response = await appView.app.bsky.feed.getPosts({ uris: batch })
     for (const post of response.data.posts) {
       states.set(post.uri, {
         likeUri: post.viewer?.like ?? null,
