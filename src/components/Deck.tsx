@@ -118,12 +118,20 @@ export function Deck<T>({
 
   const handleKeyDown = (event: globalThis.KeyboardEvent) => {
     if (event.defaultPrevented) return
-    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    if (event.metaKey || event.ctrlKey || event.altKey) return
     if (isTypingTarget(event.target)) return
     if (document.querySelector('dialog[open]') !== null) return
     if (items.length === 0) return
 
     const key = event.key
+
+    if (key === 'g' || key === 'G') {
+      event.preventDefault()
+      moveTo(key === 'G' ? items.length - 1 : 0)
+      return
+    }
+
+    if (event.shiftKey) return
 
     if (key === 'Home') {
       event.preventDefault()
@@ -142,6 +150,15 @@ export function Deck<T>({
       const item = items[focusIndex]
       if (item !== undefined) onActivate?.(item, focusIndex)
       event.preventDefault()
+      return
+    }
+
+    const commentsKey = axis === 'x' ? 'ArrowDown' : 'ArrowRight'
+
+    if (key === commentsKey) {
+      event.preventDefault()
+      const item = items[focusIndex]
+      if (item !== undefined) onActivate?.(item, focusIndex)
       return
     }
 
