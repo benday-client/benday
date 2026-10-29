@@ -253,6 +253,15 @@ export default function FeedView() {
               onExitStart={() => {
                 switchMode(false)
               }}
+              leadingPeek={
+                <FeedCardBack
+                  feedName="posts"
+                  postIndex={0}
+                  postDate={posts[0]?.indexedAt ?? ''}
+                  appview={appView.label}
+                  hint="← posts"
+                />
+              }
               pending={pinned.isPending}
               initialIndex={Math.max(activeFeedIndex, 0)}
               label="feed cards"

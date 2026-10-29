@@ -44,9 +44,16 @@ export interface FeedCardBackProps {
   postIndex: number
   postDate: string
   appview: string
+  hint?: string
 }
 
-export function FeedCardBack({ feedName, postIndex, postDate, appview }: FeedCardBackProps) {
+export function FeedCardBack({
+  feedName,
+  postIndex,
+  postDate,
+  appview,
+  hint = '← feeds',
+}: FeedCardBackProps) {
   const index = String(Math.max(0, postIndex)).padStart(2, '0')
 
   return (
@@ -63,7 +70,7 @@ export function FeedCardBack({ feedName, postIndex, postDate, appview }: FeedCar
           {postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
         </span>
         <span className="b-card-back__appview">{appview}</span>
-        <span className="b-card-back__hint">← feeds</span>
+        <span className="b-card-back__hint">{hint}</span>
       </div>
     </article>
   )

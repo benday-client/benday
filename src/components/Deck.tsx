@@ -1,5 +1,6 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck is a focusable scroll region
 import {
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
   useEffect,
@@ -343,20 +344,37 @@ export function Deck<T>({
 
   const leadingItem =
     horizontal && hasLeadingPeek && items.length > 0 ? (
-      <li className="b-deck__item b-deck__peek" aria-hidden="true">
+      <li
+        className="b-deck__item b-deck__peek"
+        aria-hidden="true"
+        style={
+          {
+            animationDelay: '45ms',
+            '--deal-shift': '100%',
+            '--deal-rotate': '-0.45deg',
+          } as CSSProperties
+        }
+      >
         {leadingPeek}
       </li>
     ) : null
 
   const renderCard = (item: T, index: number) => {
     const isFocused = index === focusIndex
+    const dealOffset = Math.max(-8, Math.min(8, index - focusIndex))
     return (
       <li
         key={getKey(item)}
         className="b-deck__item"
         data-deck-index={index}
         data-focused={isFocused ? 'true' : 'false'}
-        style={{ animationDelay: `${Math.min(Math.abs(index - focusIndex), 6) * 45}ms` }}
+        style={
+          {
+            animationDelay: `${Math.min(Math.abs(dealOffset), 6) * 45}ms`,
+            '--deal-shift': `${-dealOffset * 100}%`,
+            '--deal-rotate': `${dealOffset * 0.45}deg`,
+          } as CSSProperties
+        }
         onFocus={() => setFocused(index)}
       >
         {renderItem(item, index, isFocused)}
