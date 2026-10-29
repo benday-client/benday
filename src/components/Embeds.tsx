@@ -12,7 +12,7 @@ import type {
 } from '../lib/types'
 import { DitherImage } from './DitherImage'
 import { FacetText } from './FacetText'
-import { Tag } from './ui'
+import { Kbd, Tag } from './ui'
 
 export interface EmbedsProps {
   embed: EmbedModel
@@ -28,20 +28,6 @@ function safeExternalUrl(uri: string): string | null {
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
   return uri
-}
-
-function embedTypeLabel(typeName: string): string {
-  const marker = '.embed.'
-  const markerIndex = typeName.indexOf(marker)
-  if (markerIndex >= 0) {
-    const rest = typeName.slice(markerIndex + marker.length)
-    const hash = rest.indexOf('#')
-    return hash >= 0 ? rest.slice(0, hash) : rest
-  }
-  const hash = typeName.lastIndexOf('#')
-  const tail = hash >= 0 ? typeName.slice(hash + 1) : typeName
-  const dot = tail.lastIndexOf('.')
-  return dot >= 0 ? tail.slice(dot + 1) : tail
 }
 
 function ImageGrid({ images }: { images: readonly ImageModel[] }) {
@@ -133,7 +119,6 @@ function ExternalCard({ embed }: { embed: ExternalEmbed }) {
 function QuoteCard({ post }: { post: QuotedPostModel }) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const name = post.author.displayName.length > 0 ? post.author.displayName : handle
-  const label = post.embedType === null ? '' : embedTypeLabel(post.embedType)
 
   return (
     <article className="b-embed b-embed--quote">
@@ -145,13 +130,17 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
           <span>{name}</span>
         </Link>
         <span className="b-embed__quote-meta">@{handle}</span>
-        {label.length > 0 ? <Tag tone="default">{label}</Tag> : null}
       </header>
       {post.text.length > 0 ? (
         <FacetText text={post.text} facets={post.facets} className="b-embed__quote-text" />
       ) : (
         <span className="b-embed__quote-empty">[no text]</span>
       )}
+      <div className="b-embed__quote-actions">
+        <Link href={`/thread?uri=${encodeURIComponent(post.uri)}`} className="b-embed__quote-open">
+          open quoted post <Kbd>1</Kbd>
+        </Link>
+      </div>
     </article>
   )
 }

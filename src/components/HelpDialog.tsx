@@ -37,6 +37,7 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: '← at first post', what: 'open the feeds deck' },
       { keys: '← at first feed', what: 'back to posts' },
       { keys: 'enter / space', what: 'open replies' },
+      { keys: '1', what: 'open the quoted post' },
       { keys: '↓ wide · → narrow', what: 'open the full post' },
     ],
   },

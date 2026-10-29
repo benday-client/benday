@@ -622,14 +622,31 @@
   white-space: nowrap;
 }
 
-.b-embed__quote-head .b-tag {
-  margin-left: auto;
-}
-
 .b-embed__quote-text {
   color: var(--ink-dim);
   font-size: var(--step-0);
   line-height: 1.55;
+}
+
+.b-embed__quote-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.b-embed__quote-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-dim);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.b-embed__quote-open:hover {
+  color: var(--blue);
+  text-decoration: none;
 }
 
 .b-embed__quote-empty {

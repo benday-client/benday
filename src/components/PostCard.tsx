@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
@@ -25,6 +25,13 @@ export interface PostCardProps {
   onDismiss?: () => void
 }
 
+function quotedPostUri(post: PostModel): string | null {
+  if (post.embed === null) return null
+  if (post.embed.type === 'quote') return post.embed.post.uri
+  if (post.embed.type === 'recordWithMedia') return post.embed.quote.uri
+  return null
+}
+
 function isOwnPostUri(uri: string, did: string): boolean {
   const prefix = `at://${did}/app.bsky.feed.post/`
   if (!uri.startsWith(prefix)) return false
@@ -41,6 +48,8 @@ export function PostCard({
   onFeedback,
   onDismiss,
 }: PostCardProps) {
+  const [, navigate] = useLocation()
+  const quotedUri = quotedPostUri(post)
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
@@ -135,6 +144,12 @@ export function PostCard({
       const ui = useUiStore.getState()
       if (ui.dialog !== null || ui.compose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
+
+      if (event.key === '1' && quotedUri !== null) {
+        event.preventDefault()
+        navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
+        return
+      }
 
       const authenticated = useAuthStore.getState().status === 'authenticated'
       const interact = (action: () => void) => {
@@ -234,7 +249,7 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, own, confirmingDelete, deleting, post])
+  }, [focused, own, confirmingDelete, deleting, post, quotedUri, navigate])
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {
