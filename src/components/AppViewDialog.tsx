@@ -81,8 +81,8 @@ export function AppViewDialog({ open, onClose }: AppViewDialogProps) {
   const [host, setHost] = useState('')
 
   useEffect(() => {
-    if (open) setHost('')
-  }, [open])
+    if (open) setHost(appView.kind === 'custom' ? appView.host : '')
+  }, [open, appView])
 
   const custom = makeCustomAppView(host)
   const invalid = host.trim().length > 0 && custom === null
