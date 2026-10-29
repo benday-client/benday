@@ -17,6 +17,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'enter / space', what: 'open replies' },
   { keys: 'esc', what: 'back out of replies' },
   { keys: '/ or ctrl/cmd+k', what: 'jump' },
+  { keys: 'ctrl/cmd ← →', what: 'switch tabs' },
   { keys: 's', what: 'search' },
   { keys: 'c', what: 'compose' },
   { keys: 'a', what: 'appviews' },
@@ -27,7 +28,6 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: 'r', what: 'reply to the focused card' },
   { keys: 'q', what: 'quote the focused card' },
   { keys: 'd d', what: 'delete your focused post' },
-  { keys: 'v', what: 'cycle flow' },
   { keys: '?', what: 'help' },
 ]
 

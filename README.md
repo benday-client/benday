@@ -4,17 +4,18 @@ a dithered tensorpunk reader for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
 square-edged index card with an ordered-dither portrait or image. on a wide
-screen the deck shows a two-by-two page of four cards and scrolls horizontally;
-narrow screens use a vertical card list. appviews are switchable. the interface
+screen one card fills the deck and the deck scrolls horizontally; narrow
+screens use a vertical card list. appviews are switchable. the interface
 is a small TUI: monospace, one-pixel borders, lowercase labels, keyboard-first,
 no rounded corners.
 
 reading is public and needs no account. signing in adds likes, reposts, quotes,
-replies, a composer and the account's pinned feeds. the client talks to the pds
-that owns the account and uses the selected appview for public reads.
+replies, a composer, own-post deletion and the account's pinned feeds. the
+client talks to the pds that owns the account and uses the selected appview for
+public reads.
 
 no account data is stored on a server owned by this project. ui settings live in
-localStorage under `benday:settings` (theme, flow and the selected appview).
+localStorage under `benday:settings` (theme and the selected appview).
 password session tokens live under `benday:session`; portal sessions live in the
 browser's indexedDB. the password is never stored. search terms are sent to the
 selected appview when you search.
@@ -63,6 +64,7 @@ where the portal cannot.
 | ------------------------- | -------------------------------------- |
 | `left` `right` or `h` `l` | scan cards on a wide screen            |
 | `up` `down` or `j` `k`    | scan cards on a narrow screen          |
+| `ctrl`/`cmd` + `←` `→`    | switch feeds / search tabs             |
 | `g` / `G`                 | first / last card                      |
 | `enter` / `space`         | open the focused card's replies        |
 | `esc`                     | close a dialog or back out of replies  |
@@ -77,7 +79,6 @@ where the portal cannot.
 | `a`                       | switch appview                         |
 | `t`                       | open the theme menu                    |
 | `v b o p m l d a g h u c` | pick a theme while the menu is open    |
-| `v`                       | cycle flow on narrow screens           |
 | `?`                       | keyboard help                          |
 
 the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
@@ -85,7 +86,7 @@ your own posts a two-step `delete` action appears beside them. signed-out clicks
 open the sign-in dialog. the top bar has a compose button for signed-in
 accounts. the jump palette accepts `@handle`, post and feed `at://` uris,
 `#tags` and plain search text, and lists the account's pinned feeds when the
-session exposes them.
+session exposes them. the palette keeps the last five jumps for a quick return.
 
 ## themes
 
@@ -106,10 +107,12 @@ markers are removed before publishing and converted to atproto facets with
 UTF-8 byte offsets. mentions, hashtags and bare urls are still detected by the
 atproto rich-text layer. the counter counts the stripped text.
 
-typing `@` in the composer opens handle suggestions from the selected appview.
-the search field offers the same handle suggestions for `@` queries. the feeds
-page lists pinned feeds from the signed-in account and the jump palette indexes
-them; a feed at-uri can still be pasted directly.
+typing `@` or `#` in the composer or jump palette opens handle or hashtag
+suggestions from the selected appview. the search field offers the same
+suggestions. the feeds tab is home: logged-out readers see the discover feed
+only; signed-in accounts also get pinned feeds and the `+ add` feed dialog. the
+profile view splits identity and posts horizontally on wide screens. single
+images keep their natural aspect ratio so text stays readable.
 
 ## stack
 
@@ -165,11 +168,11 @@ src/
   lib/          appviews, atproto reads, model mapping, facets, markdown, time,
                 dither, themes, auth, oauth, actions, action store, ui store,
                 command parsing
-  hooks/        bsky queries, pinned feeds, actor suggestions, appview probe,
-                media query, hotkeys, input mode, viewer sync
+  hooks/        bsky queries, pinned feeds, actor and tag suggestions, appview
+                probe, media query, hotkeys, input mode, viewer sync
   components/   TUI primitives, DitherImage, Deck, PostCard, ProfileCard,
                 embeds, auth/account/compose dialogs, bars and palette
-  views/        discover, search, profile, thread, feed
+  views/        feeds, search, profile, thread
   styles/       tokens, base, layout, components, cards, views, dialogs, account,
                 dither
 public/         pixel favicon
@@ -181,7 +184,7 @@ puts the appview host and viewer in every relevant query key. `auth.ts` resolves
 the pds, keeps the signed-in agent and persists the session; `oauth.ts` owns the
 loopback portal. `actions.ts` owns likes, reposts, replies, quotes and
 viewer-state fetches; `markdown.ts` turns composer markers into facets. `Deck`
-owns two-by-two pages, focus and position memory. `ThreadView` is one full card
+owns full-card horizontal focus and position memory. `ThreadView` is one full card
 with the post and replies inside it. `PostCard` and `ProfileCard` are
 presentation.
 
@@ -190,15 +193,15 @@ route semantics without adding chrome.
 
 ## verification
 
-- 112 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 114 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
   the reply composer and the appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths; the
-  wide deck is checked as horizontal two-by-two pages, and the thread view is
+  wide deck is checked as full-width horizontal cards, and the thread view is
   checked as one full card with replies inside it
-- theme letters and the 11-theme dither filters are checked in the browser
+- theme letters and the 12-theme dither filters are checked in the browser
 - the portal button is checked through a live pds authorization redirect; the
   consent page is completed manually, not by the headless harness
 - appview switching is checked against the live canonical, public, and
@@ -218,16 +221,17 @@ route semantics without adding chrome.
   and links; headings, lists and tables are plain text. benday renders the
   formatting facets itself; the public facet vocabulary is mention/link/tag so
   other clients may only show the stripped text
-- autocomplete covers `@handle` mentions in the composer and search field, not
-  hashtag or feed-uri completion
+- autocomplete covers `@handle` mentions and `#hashtag` suggestions in the
+  composer and search field; feed URIs use the pinned `+ add` dialog
 - pinned feeds appear when the signed-in pds returns saved-feed preferences
 - no notifications, dms, follows, bookmarks or feed management
-- quoted posts show text and the embed kind, not the full quoted media
+- quoted posts show text and the embed kind, not the full quoted media; blocked
+  or missing quoted posts show a small unavailable placeholder
 - video posts show the poster and alt text; there is no player
 - labeler services are not rendered beyond label tags on cards and profiles
 - a thread is flattened to depth 3 and capped at 80 replies
-- wide screens always use horizontal two-by-two pages; the flow setting only
-  changes narrow-screen flow
+- wide screens show one full card at a time and scan horizontally; narrow
+  screens use a vertical card list
 - custom appviews and self-hosted pds instances must allow browser cors
 - password session tokens live in localStorage; portal tokens live in
   indexedDB. sign out clears both

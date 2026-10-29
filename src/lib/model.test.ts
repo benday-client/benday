@@ -441,6 +441,27 @@ describe('mapPostView embeds', () => {
     })
   })
 
+  it('maps a blocked quoted post to an unavailable placeholder', () => {
+    const blocked = postView({
+      embed: {
+        $type: 'app.bsky.embed.record#view',
+        record: {
+          $type: 'app.bsky.embed.record#viewBlocked',
+          uri: 'at://did:plc:bob/app.bsky.feed.post/blocked',
+          blocked: true,
+          author: { did: 'did:plc:bob' },
+        },
+      },
+    })
+
+    expect(mapPostView(blocked).embed).toEqual({
+      type: 'unavailable',
+      reason: 'blocked',
+      uri: 'at://did:plc:bob/app.bsky.feed.post/blocked',
+      label: 'blocked post',
+    })
+  })
+
   it('maps recordWithMedia quotes and media together', () => {
     const quoted = {
       $type: 'app.bsky.embed.record#viewRecord',

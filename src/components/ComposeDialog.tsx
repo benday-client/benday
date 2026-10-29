@@ -1,7 +1,8 @@
 import { RichText } from '@atproto/api'
 import { useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import { mentionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
+import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
+import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { createPost, createQuote, createReply } from '../lib/actions'
 import { errorInfo } from '../lib/errors'
 import { markdownText } from '../lib/markdown'
@@ -34,7 +35,7 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cursor, setCursor] = useState(0)
-  const [mentionOpen, setMentionOpen] = useState(false)
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formId = useId()
@@ -44,16 +45,56 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
     setPending(false)
     setError(null)
     setCursor(0)
-    setMentionOpen(false)
+    setSuggestOpen(false)
     setSelectedSuggestion(0)
   }, [open, request])
 
   const mode: ComposeMode = request === null ? 'post' : request.mode
   const target = request === null ? null : request.post
-  const mention = mentionOpen ? mentionAt(text, cursor) : null
-  const actorSuggestions = useActorSuggestions(mention?.query ?? '', mention !== null)
-  const showSuggestions =
-    mention !== null && (actorSuggestions.isPending || actorSuggestions.suggestions.length > 0)
+  const token = suggestOpen ? suggestionAt(text, cursor) : null
+  const actorSuggestions = useActorSuggestions(
+    token?.kind === 'mention' ? token.query : '',
+    token?.kind === 'mention',
+  )
+  const tagSuggestions = useTagSuggestions(
+    token?.kind === 'tag' ? token.query : '',
+    token?.kind === 'tag',
+  )
+
+  const suggestions =
+    token?.kind === 'tag'
+      ? (tagSuggestions.tags.length > 0
+          ? tagSuggestions.tags
+          : token.query.length > 0
+            ? [token.query]
+            : []
+        ).map((tag) => ({
+          key: `tag:${tag}`,
+          value: tag,
+          label: `#${tag}`,
+          detail: 'tag',
+        }))
+      : token?.kind === 'mention' && token.query.length > 0
+        ? actorSuggestions.suggestions.length > 0
+          ? actorSuggestions.suggestions.map((actor) => ({
+              key: actor.did,
+              value: actor.handle,
+              label: `@${actor.handle}`,
+              detail: actor.displayName,
+            }))
+          : [
+              {
+                key: 'literal-handle',
+                value: token.query,
+                label: `@${token.query}`,
+                detail: 'handle',
+              },
+            ]
+        : []
+
+  const suggestionsPending =
+    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
+  const showSuggestions = token !== null && (suggestionsPending || suggestions.length > 0)
   const plain = markdownText(text)
   const count = new RichText({ text: plain }).graphemeLength
   const empty = mode !== 'quote' && plain.trim().length === 0
@@ -61,16 +102,17 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const missingTarget = mode !== 'post' && target === null
   const disabled = pending || empty || overLimit || missingTarget
 
-  const applySuggestion = (handle: string) => {
-    const token = mentionAt(text, cursor)
-    if (token === null) return
+  const applySuggestion = (value: string) => {
+    const activeToken = suggestionAt(text, cursor)
+    if (activeToken === null) return
 
-    const inserted = `@${handle} `
+    const inserted = `${activeToken.kind === 'tag' ? '#' : '@'}${value} `
+    const token = activeToken
     const next = `${text.slice(0, token.start)}${inserted}${text.slice(token.end)}`
     const position = token.start + inserted.length
     setText(next)
     setCursor(position)
-    setMentionOpen(false)
+    setSuggestOpen(false)
     setSelectedSuggestion(0)
 
     window.requestAnimationFrame(() => {
@@ -163,18 +205,18 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
             const position = event.target.selectionStart ?? next.length
             setText(next)
             setCursor(position)
-            setMentionOpen(mentionAt(next, position) !== null)
+            setSuggestOpen(suggestionAt(next, position) !== null)
             setSelectedSuggestion(0)
           }}
           onSelect={(event) => {
             const position = event.currentTarget.selectionStart ?? 0
             setCursor(position)
-            setMentionOpen(mentionAt(text, position) !== null)
+            setSuggestOpen(suggestionAt(text, position) !== null)
           }}
           onKeyDown={(event) => {
             if (!showSuggestions) return
 
-            const count = actorSuggestions.suggestions.length
+            const count = suggestions.length
             if (event.key === 'ArrowDown' && count > 0) {
               event.preventDefault()
               setSelectedSuggestion((index) => (index + 1) % count)
@@ -187,25 +229,25 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
             }
             if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {
               event.preventDefault()
-              const selected = actorSuggestions.suggestions[selectedSuggestion]
-              if (selected !== undefined) applySuggestion(selected.handle)
+              const selected = suggestions[selectedSuggestion]
+              if (selected !== undefined) applySuggestion(selected.value)
               return
             }
             if (event.key === 'Escape') {
               event.preventDefault()
-              setMentionOpen(false)
+              setSuggestOpen(false)
             }
           }}
         />
 
-        {mention !== null && showSuggestions ? (
-          <div className="b-compose__suggestions" role="listbox" aria-label="mention suggestions">
-            {actorSuggestions.isPending ? (
-              <p className="b-compose__suggestion-note">searching handles</p>
+        {token !== null && showSuggestions ? (
+          <div className="b-compose__suggestions" role="listbox" aria-label="suggestions">
+            {suggestionsPending && suggestions.length === 0 ? (
+              <p className="b-compose__suggestion-note">searching</p>
             ) : (
-              actorSuggestions.suggestions.map((actor, index) => (
+              suggestions.map((suggestion, index) => (
                 <button
-                  key={actor.did}
+                  key={suggestion.key}
                   type="button"
                   role="option"
                   aria-selected={index === selectedSuggestion}
@@ -214,11 +256,11 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
                     event.preventDefault()
                   }}
                   onClick={() => {
-                    applySuggestion(actor.handle)
+                    applySuggestion(suggestion.value)
                   }}
                 >
-                  <span>@{actor.handle}</span>
-                  {actor.displayName.length > 0 ? <span>{actor.displayName}</span> : null}
+                  <span>{suggestion.label}</span>
+                  {suggestion.detail.length > 0 ? <span>{suggestion.detail}</span> : null}
                 </button>
               ))
             )}
@@ -226,7 +268,7 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
         ) : null}
         <div className="b-compose__meta">
           <span className="b-compose__markdown">
-            markdown: **bold**, *italic*, ~~strike~~, `code`, [link](url)
+            markdown: **bold**, *italic*, ~~strike~~, `code`, [link](url) · @/# suggestions
           </span>
           <span className="b-compose__count" data-over={overLimit ? 'true' : 'false'}>
             {count}/{MAX_GRAPHEMES}

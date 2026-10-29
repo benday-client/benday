@@ -2,28 +2,42 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
-import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
+import { Button, Dialog, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
 import { usePostFeed } from '../hooks/useBskyQueries'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
+import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
 import { useSettings } from '../lib/store'
+import { useUiStore } from '../lib/ui'
 
 export default function FeedView() {
   const [, navigate] = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const uri = (searchParams.get('uri') ?? '').trim()
   const [draft, setDraft] = useState(uri)
+  const addOpen = useUiStore((state) => state.dialog === 'feed-add')
+  const authenticated = useAuthStore((state) => state.status === 'authenticated')
+  const openDialog = useUiStore((state) => state.openDialog)
+  const closeDialog = useUiStore((state) => state.closeDialog)
 
   useEffect(() => {
     setDraft(uri)
   }, [uri])
 
+  useEffect(() => {
+    return () => {
+      if (useUiStore.getState().dialog === 'feed-add') closeDialog()
+    }
+  }, [closeDialog])
+
   const appView = useSettings((state) => state.appView)
   const supported = capabilitiesFor(appView).feeds
   const pinned = usePinnedFeeds()
-  const feed = usePostFeed({ kind: 'feed', uri: supported ? uri : '' })
+  const showingCustom = authenticated && uri.length > 0
+  const source = showingCustom ? ({ kind: 'feed', uri } as const) : ({ kind: 'discover' } as const)
+  const feed = usePostFeed(source)
   const posts = feed.data ?? []
   useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
@@ -36,27 +50,14 @@ export default function FeedView() {
     } else {
       setSearchParams({}, { replace: true })
     }
+    closeDialog()
   }
 
   return (
     <section className="b-view">
-      <h1 className="visually-hidden">feed</h1>
-      <div className="b-view__tools">
-        <form className="b-view__form" onSubmit={handleSubmit}>
-          <TextInput
-            label="feed at-uri"
-            placeholder="at://…/app.bsky.feed.generator/…"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <Button type="submit" variant="solid">
-            open
-          </Button>
-        </form>
-
-        {pinned.feeds.length > 0 || pinned.isPending ? (
+      <h1 className="visually-hidden">feeds</h1>
+      {authenticated ? (
+        <div className="b-view__tools">
           <fieldset className="b-view__pinned">
             <legend className="mono-label">pinned</legend>
             {pinned.isPending ? (
@@ -76,19 +77,24 @@ export default function FeedView() {
                 </button>
               ))
             )}
+            <button
+              type="button"
+              className="b-pinned-add"
+              onClick={() => {
+                setDraft('')
+                openDialog('feed-add')
+              }}
+            >
+              + add
+            </button>
           </fieldset>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className="b-view__body">
         {!supported ? (
           <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
           </Frame>
-        ) : uri.length === 0 ? (
-          <EmptyState
-            title="no feed loaded"
-            hint="pick a pinned feed or paste a feed generator at-uri"
-          />
         ) : info !== null && posts.length === 0 ? (
           <ErrorNotice title={info.title} message={info.detail} onRetry={feed.retry} />
         ) : (
@@ -103,12 +109,43 @@ export default function FeedView() {
             hasMore={feed.hasMore}
             loadingMore={feed.isLoadingMore}
             onLoadMore={feed.loadMore}
-            label="feed cards"
-            stateKey={`feed:${uri}`}
-            empty={<EmptyState title="no feed cards" hint="the feed generator returned nothing" />}
+            label={showingCustom ? 'feed cards' : 'discover cards'}
+            stateKey={showingCustom ? `feed:${uri}` : 'discover'}
+            empty={
+              <EmptyState
+                title={showingCustom ? 'no feed cards' : 'no signal'}
+                hint={
+                  showingCustom
+                    ? 'the feed generator returned nothing'
+                    : 'the discover feed returned nothing'
+                }
+              />
+            }
           />
         )}
       </div>
+
+      <Dialog open={addOpen} title="add feed" onClose={closeDialog} className="b-feed-dialog">
+        <form className="b-feed-add" onSubmit={handleSubmit}>
+          <TextInput
+            label="feed at-uri"
+            placeholder="at://…/app.bsky.feed.generator/…"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            autoFocus
+          />
+          <div className="b-feed-add__actions">
+            <Button variant="ghost" type="button" onClick={closeDialog}>
+              cancel
+            </Button>
+            <Button type="submit" variant="solid">
+              open feed
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </section>
   )
 }

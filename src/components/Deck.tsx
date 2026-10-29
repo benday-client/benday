@@ -1,7 +1,6 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck is a focusable scroll region
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 import { EmptyState } from './ui'
 
@@ -29,13 +28,10 @@ interface DeckPosition {
 
 const deckPositions = new Map<string, DeckPosition>()
 
-const PAGE_SIZE = 4
-
 const SKELETONS = [
   { key: 'skeleton-1', label: 'loading card' },
   { key: 'skeleton-2', label: 'loading card' },
   { key: 'skeleton-3', label: 'loading card' },
-  { key: 'skeleton-4', label: 'loading card' },
 ] as const
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -64,11 +60,10 @@ export function Deck<T>({
   initialIndex,
   stateKey,
 }: DeckProps<T>): ReactElement {
-  const flow = useSettings((state) => state.flow)
   const wide = useMediaQuery('(min-width: 900px)')
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
-  const horizontal = wide || flow === 'horizontal'
+  const horizontal = wide
   const axis = horizontal ? 'x' : 'y'
 
   const remembered = stateKey === undefined ? undefined : deckPositions.get(stateKey)
@@ -174,9 +169,7 @@ export function Deck<T>({
     const scroller = scrollerRef.current
     if (scroller === null) return
 
-    const target = horizontal
-      ? scroller.querySelector<HTMLElement>(`[data-deck-page="${Math.floor(index / PAGE_SIZE)}"]`)
-      : scroller.querySelector<HTMLElement>(`[data-deck-index="${index}"]`)
+    const target = scroller.querySelector<HTMLElement>(`[data-deck-index="${index}"]`)
     if (target === null || typeof target.scrollIntoView !== 'function') return
 
     target.scrollIntoView({
@@ -267,44 +260,13 @@ export function Deck<T>({
 
   let content: ReactNode
   if (items.length > 0) {
-    if (horizontal) {
-      const pages: T[][] = []
-      for (let index = 0; index < items.length; index += PAGE_SIZE) {
-        pages.push(items.slice(index, index + PAGE_SIZE))
-      }
-      content = pages.map((page, pageIndex) => (
-        <li
-          key={`page:${pageIndex}`}
-          className="b-deck__page"
-          data-deck-page={pageIndex}
-          role="presentation"
-        >
-          <ol className="b-deck__grid" aria-label={`${label} page ${pageIndex + 1}`}>
-            {page.map((item, offset) => renderCard(item, pageIndex * PAGE_SIZE + offset))}
-          </ol>
-        </li>
-      ))
-    } else {
-      content = items.map(renderCard)
-    }
+    content = items.map(renderCard)
   } else if (pending) {
-    content = horizontal ? (
-      <li className="b-deck__page" data-deck-page="0" role="presentation">
-        <ol className="b-deck__grid" aria-label={`${label} loading`}>
-          {SKELETONS.map((skeleton) => (
-            <li key={skeleton.key} className="b-deck__skeleton" aria-hidden="true">
-              <span className="b-deck__skeleton-label">{skeleton.label}</span>
-            </li>
-          ))}
-        </ol>
+    content = SKELETONS.map((skeleton) => (
+      <li key={skeleton.key} className="b-deck__skeleton" aria-hidden="true">
+        <span className="b-deck__skeleton-label">{skeleton.label}</span>
       </li>
-    ) : (
-      SKELETONS.map((skeleton) => (
-        <li key={skeleton.key} className="b-deck__skeleton" aria-hidden="true">
-          <span className="b-deck__skeleton-label">{skeleton.label}</span>
-        </li>
-      ))
-    )
+    ))
   } else {
     content = (
       <li className="b-deck__empty">

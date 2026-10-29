@@ -2,34 +2,26 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_APPVIEW, isAppViewTarget, toAppViewTarget } from './appviews'
 import { isTheme } from './themes'
-import type { AppViewTarget, FlowPreference, Theme } from './types'
+import type { AppViewTarget, Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
 
 interface SettingsState {
   appView: AppViewTarget
   theme: Theme
-  flow: FlowPreference
   setAppView: (appView: AppViewTarget) => void
   setTheme: (theme: Theme) => void
-  setFlow: (flow: FlowPreference) => void
 }
 
 const INITIAL_APPVIEW = toAppViewTarget(DEFAULT_APPVIEW)
-
-function isFlowPreference(value: unknown): value is FlowPreference {
-  return value === 'auto' || value === 'horizontal' || value === 'vertical'
-}
 
 export const useSettings = create<SettingsState>()(
   persist(
     (set) => ({
       appView: INITIAL_APPVIEW,
       theme: 'void',
-      flow: 'auto',
       setAppView: (appView) => set({ appView }),
       setTheme: (theme) => set({ theme }),
-      setFlow: (flow) => set({ flow }),
     }),
     {
       name: SETTINGS_STORAGE_KEY,
@@ -37,7 +29,6 @@ export const useSettings = create<SettingsState>()(
       partialize: (state) => ({
         appView: state.appView,
         theme: state.theme,
-        flow: state.flow,
       }),
       merge: (persisted, current) => {
         if (typeof persisted !== 'object' || persisted === null) return current
@@ -45,9 +36,7 @@ export const useSettings = create<SettingsState>()(
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
         const appView = isAppViewTarget(stored['appView']) ? stored['appView'] : current.appView
         const theme = isTheme(stored['theme']) ? stored['theme'] : current.theme
-        const flow = isFlowPreference(stored['flow']) ? stored['flow'] : current.flow
-
-        return { ...current, appView, theme, flow }
+        return { ...current, appView, theme }
       },
     },
   ),

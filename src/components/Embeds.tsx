@@ -6,6 +6,7 @@ import type {
   MediaEmbed,
   QuotedPostModel,
   RecordWithMediaEmbed,
+  UnavailableEmbed,
   UnknownEmbed,
   VideoEmbed,
 } from '../lib/types'
@@ -58,7 +59,7 @@ function ImageGrid({ images }: { images: readonly ImageModel[] }) {
             <>
               <span className="b-embed__image-frame">
                 <DitherImage
-                  src={image.thumb.length > 0 ? image.thumb : null}
+                  src={image.fullsize.length > 0 ? image.fullsize : image.thumb || null}
                   alt={alt}
                   loading="lazy"
                 />
@@ -175,6 +176,22 @@ function VideoCard({ embed }: { embed: VideoEmbed }) {
   )
 }
 
+function UnavailableCard({ embed }: { embed: UnavailableEmbed }) {
+  const note =
+    embed.reason === 'blocked'
+      ? 'this quoted post is blocked'
+      : embed.reason === 'detached'
+        ? 'this quoted post was removed'
+        : 'this quoted post was not found'
+
+  return (
+    <div className="b-embed b-embed--unavailable">
+      <Tag tone="default">{embed.label}</Tag>
+      <span className="b-embed__unavailable-note">{note}</span>
+    </div>
+  )
+}
+
 function UnknownCard({ embed }: { embed: UnknownEmbed }) {
   return (
     <div className="b-embed b-embed--unknown">
@@ -212,6 +229,8 @@ export function Embeds({ embed }: EmbedsProps) {
   switch (embed.type) {
     case 'quote':
       return <QuoteCard post={embed.post} />
+    case 'unavailable':
+      return <UnavailableCard embed={embed} />
     case 'recordWithMedia':
       return <RecordCard embed={embed} />
     case 'images':

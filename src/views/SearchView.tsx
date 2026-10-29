@@ -1,10 +1,11 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
-import { useActorSuggestions } from '../hooks/useActorSuggestions'
+import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { usePostFeed } from '../hooks/useBskyQueries'
+import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
 import { errorInfo } from '../lib/errors'
@@ -15,15 +16,66 @@ export default function SearchView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = (searchParams.get('q') ?? '').trim()
   const [draft, setDraft] = useState(query)
+  const [cursor, setCursor] = useState(0)
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setDraft(query)
   }, [query])
 
+  useEffect(() => {
+    searchRef.current?.focus()
+  }, [])
+
   const appView = useSettings((state) => state.appView)
   const supported = capabilitiesFor(appView).search
-  const actorQuery = draft.startsWith('@') ? draft.slice(1) : ''
-  const actorHints = useActorSuggestions(actorQuery, actorQuery.length > 0)
+  const token = suggestOpen ? suggestionAt(draft, cursor) : null
+  const actorSuggestions = useActorSuggestions(
+    token?.kind === 'mention' ? token.query : '',
+    token?.kind === 'mention',
+  )
+  const tagSuggestions = useTagSuggestions(
+    token?.kind === 'tag' ? token.query : '',
+    token?.kind === 'tag',
+  )
+
+  const suggestions =
+    token?.kind === 'tag'
+      ? (tagSuggestions.tags.length > 0
+          ? tagSuggestions.tags
+          : token.query.length > 0
+            ? [token.query]
+            : []
+        ).map((tag) => ({
+          key: `tag:${tag}`,
+          value: tag,
+          label: `#${tag}`,
+          detail: 'tag',
+        }))
+      : token?.kind === 'mention' && token.query.length > 0
+        ? actorSuggestions.suggestions.length > 0
+          ? actorSuggestions.suggestions.map((actor) => ({
+              key: actor.did,
+              value: actor.handle,
+              label: `@${actor.handle}`,
+              detail: actor.displayName,
+            }))
+          : [
+              {
+                key: 'literal-handle',
+                value: token.query,
+                label: `@${token.query}`,
+                detail: 'handle',
+              },
+            ]
+        : []
+
+  const suggestionsPending =
+    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
+  const showSuggestions = token !== null && (suggestionsPending || suggestions.length > 0)
+
   const feed = usePostFeed({ kind: 'search', query: supported ? query : '' })
   const posts = feed.data ?? []
   useViewerSync(posts)
@@ -39,6 +91,27 @@ export default function SearchView() {
     }
   }
 
+  const applySuggestion = (value: string) => {
+    const active = suggestionAt(draft, cursor)
+    if (active === null) return
+
+    const inserted = `${active.kind === 'tag' ? '#' : '@'}${value} `
+    const next = `${draft.slice(0, active.start)}${inserted}${draft.slice(active.end)}`
+    const position = active.start + inserted.length
+    setDraft(next)
+    setCursor(position)
+    setSuggestOpen(false)
+    setSelectedSuggestion(0)
+    setSearchParams({ q: next.trim() }, { replace: true })
+
+    window.requestAnimationFrame(() => {
+      const input = searchRef.current
+      if (input === null) return
+      input.focus()
+      input.setSelectionRange(position, position)
+    })
+  }
+
   return (
     <section className="b-view">
       <h1 className="visually-hidden">search</h1>
@@ -47,23 +120,80 @@ export default function SearchView() {
           <TextInput
             label="query"
             placeholder="words, #tag, @handle"
+            inputRef={searchRef}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              const position = event.target.selectionStart ?? next.length
+              setDraft(next)
+              setCursor(position)
+              setSuggestOpen(suggestionAt(next, position) !== null)
+              setSelectedSuggestion(0)
+            }}
+            onSelect={(event) => {
+              const position = event.currentTarget.selectionStart ?? 0
+              setCursor(position)
+              setSuggestOpen(suggestionAt(draft, position) !== null)
+            }}
+            onKeyDown={(event) => {
+              if (!showSuggestions) return
+
+              const count = suggestions.length
+              if (event.key === 'ArrowDown' && count > 0) {
+                event.preventDefault()
+                setSelectedSuggestion((index) => (index + 1) % count)
+                return
+              }
+              if (event.key === 'ArrowUp' && count > 0) {
+                event.preventDefault()
+                setSelectedSuggestion((index) => (index - 1 + count) % count)
+                return
+              }
+              if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {
+                event.preventDefault()
+                const selected = suggestions[selectedSuggestion]
+                if (selected !== undefined) applySuggestion(selected.value)
+                return
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setSuggestOpen(false)
+              }
+            }}
             autoComplete="off"
             spellCheck={false}
-            list="search-actors"
           />
-          <datalist id="search-actors">
-            {actorHints.suggestions.map((actor) => (
-              <option key={actor.did} value={`@${actor.handle}`}>
-                {actor.displayName.length > 0 ? actor.displayName : actor.handle}
-              </option>
-            ))}
-          </datalist>
           <Button type="submit" variant="solid">
             scan
           </Button>
         </form>
+
+        {token !== null && showSuggestions ? (
+          <div className="b-compose__suggestions" role="listbox" aria-label="suggestions">
+            {suggestionsPending && suggestions.length === 0 ? (
+              <p className="b-compose__suggestion-note">searching</p>
+            ) : (
+              suggestions.map((suggestion, index) => (
+                <button
+                  key={suggestion.key}
+                  type="button"
+                  role="option"
+                  aria-selected={index === selectedSuggestion}
+                  className="b-compose__suggestion"
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={() => {
+                    applySuggestion(suggestion.value)
+                  }}
+                >
+                  <span>{suggestion.label}</span>
+                  {suggestion.detail.length > 0 ? <span>{suggestion.detail}</span> : null}
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
       </div>
       <div className="b-view__body">
         {!supported ? (

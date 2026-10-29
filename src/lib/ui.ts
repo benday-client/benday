@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { PostModel } from './types'
 
-export type DialogKind = 'palette' | 'appview' | 'help' | 'login' | 'account' | null
+export type DialogKind = 'palette' | 'appview' | 'help' | 'login' | 'account' | 'feed-add' | null
 
 export type ComposeMode = 'post' | 'reply' | 'quote'
 

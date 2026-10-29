@@ -1,11 +1,49 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
+import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
+import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
-import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 import { Dialog, Kbd } from './ui'
+
+const HISTORY_KEY = 'benday:jump-history'
+const HISTORY_LIMIT = 5
+
+interface JumpEntry {
+  href: string
+  label: string
+  meta: string
+}
+
+function readHistory(): JumpEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (raw === null) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (entry): entry is JumpEntry =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          typeof (entry as Record<string, unknown>)['href'] === 'string' &&
+          typeof (entry as Record<string, unknown>)['label'] === 'string',
+      )
+      .slice(0, HISTORY_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+function writeHistory(entries: JumpEntry[]): void {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, HISTORY_LIMIT)))
+  } catch {
+    // history is an enhancement; storage failures are harmless
+  }
+}
 
 export interface CommandPaletteProps {
   open: boolean
@@ -24,8 +62,6 @@ interface PaletteCommand {
 
 export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: CommandPaletteProps) {
   const [, navigate] = useLocation()
-  const setFlow = useSettings((state) => state.setFlow)
-  const flow = useSettings((state) => state.flow)
   const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
   const pinned = usePinnedFeeds()
@@ -34,12 +70,61 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
   const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
 
   const [input, setInput] = useState('')
+  const [cursor, setCursor] = useState(0)
   const [selected, setSelected] = useState(0)
+  const [history, setHistory] = useState<JumpEntry[]>(readHistory)
   const inputRef = useRef<HTMLInputElement>(null)
+  const token = suggestionAt(input, cursor)
+  const actorSuggestions = useActorSuggestions(
+    token?.kind === 'mention' ? token.query : '',
+    token?.kind === 'mention',
+  )
+  const tagSuggestions = useTagSuggestions(
+    token?.kind === 'tag' ? token.query : '',
+    token?.kind === 'tag',
+  )
+
+  const suggestions =
+    token?.kind === 'tag'
+      ? (tagSuggestions.tags.length > 0
+          ? tagSuggestions.tags
+          : token.query.length > 0
+            ? [token.query]
+            : []
+        ).map((tag) => ({
+          key: `tag:${tag}`,
+          value: tag,
+          label: `#${tag}`,
+          detail: 'tag',
+          kind: 'tag' as const,
+        }))
+      : token?.kind === 'mention' && token.query.length > 0
+        ? actorSuggestions.suggestions.length > 0
+          ? actorSuggestions.suggestions.map((actor) => ({
+              key: actor.did,
+              value: actor.handle,
+              label: `@${actor.handle}`,
+              detail: actor.displayName,
+              kind: 'mention' as const,
+            }))
+          : [
+              {
+                key: 'literal-handle',
+                value: token.query,
+                label: `@${token.query}`,
+                detail: 'handle',
+                kind: 'mention' as const,
+              },
+            ]
+        : []
+
+  const suggestionsPending =
+    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
 
   useEffect(() => {
     if (!open) return
     setInput('')
+    setCursor(0)
     setSelected(0)
     const frame = window.requestAnimationFrame(() => {
       inputRef.current?.focus()
@@ -49,14 +134,20 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     }
   }, [open])
 
-  const go = (href: string) => {
-    navigate(href)
-    onClose()
+  const remember = (href: string, label: string) => {
+    setHistory((current) => {
+      const next = [
+        { href, label, meta: 'recent' },
+        ...current.filter((entry) => entry.href !== href),
+      ].slice(0, HISTORY_LIMIT)
+      writeHistory(next)
+      return next
+    })
   }
 
-  const cycleFlow = () => {
-    const next = flow === 'auto' ? 'horizontal' : flow === 'horizontal' ? 'vertical' : 'auto'
-    setFlow(next)
+  const go = (href: string, label = href) => {
+    remember(href, label)
+    navigate(href)
     onClose()
   }
 
@@ -102,7 +193,7 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     meta: 'pinned',
     keywords: `feed ${feed.description}`,
     run: () => {
-      go(`/feed?uri=${encodeURIComponent(feed.uri)}`)
+      go(`/feed?uri=${encodeURIComponent(feed.uri)}`, feed.name)
     },
   }))
 
@@ -110,12 +201,12 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     ...authCommands,
     ...pinnedCommands,
     {
-      id: 'discover',
-      label: 'discover',
-      meta: '/',
-      keywords: 'home timeline feed',
+      id: 'feeds',
+      label: 'feeds',
+      meta: '/feed',
+      keywords: 'home discover timeline feed',
       run: () => {
-        go('/')
+        go('/feed', 'feeds')
       },
     },
     {
@@ -124,7 +215,7 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
       meta: '/search',
       keywords: 'find query',
       run: () => {
-        go('/search')
+        go('/search', 'search the network')
       },
     },
     {
@@ -145,13 +236,6 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
       },
     },
     {
-      id: 'flow',
-      label: 'cycle flow',
-      meta: 'v',
-      keywords: 'horizontal vertical auto layout',
-      run: cycleFlow,
-    },
-    {
       id: 'help',
       label: 'keyboard help',
       meta: '?',
@@ -160,20 +244,62 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     },
   ]
 
+  const recentCommands: PaletteCommand[] =
+    input.trim().length === 0
+      ? history.map((entry) => ({
+          id: `recent:${entry.href}`,
+          label: entry.label,
+          meta: 'recent',
+          keywords: 'history jump back',
+          run: () => {
+            go(entry.href, entry.label)
+          },
+        }))
+      : []
+
+  const autocompleteCommands: PaletteCommand[] = suggestions.map((suggestion) => ({
+    id: `jump-suggestion:${suggestion.kind}:${suggestion.value}`,
+    label: suggestion.label,
+    meta: suggestion.detail,
+    keywords: '',
+    run: () => {
+      const parsed = parseCommand(
+        suggestion.kind === 'tag' ? `#${suggestion.value}` : `@${suggestion.value}`,
+      )
+      if (parsed !== null) {
+        remember(parsed.href, parsed.label)
+        navigate(parsed.href)
+      }
+      onClose()
+    },
+  }))
+
+  const autocompleteActive =
+    token !== null && (suggestionsPending || autocompleteCommands.length > 0)
   const needle = input.trim().toLowerCase()
-  const filtered =
-    needle.length === 0
-      ? commands
+  const filtered = autocompleteActive
+    ? autocompleteCommands
+    : needle.length === 0
+      ? [...recentCommands, ...commands]
       : commands.filter((command) =>
           `${command.label} ${command.keywords}`.toLowerCase().includes(needle),
         )
 
   const onChange = (value: string) => {
     setInput(value)
+    setCursor(value.length)
     setSelected(0)
   }
 
   const runSelected = () => {
+    if (autocompleteActive) {
+      const command = filtered[selected] ?? filtered[0]
+      if (command !== undefined) {
+        command.run()
+        return
+      }
+    }
+
     const trimmed = input.trim()
     const explicitTarget =
       trimmed.startsWith('@') || trimmed.startsWith('at://') || trimmed.startsWith('#')
@@ -181,6 +307,7 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     if (trimmed.length > 0 && explicitTarget) {
       const parsed = parseCommand(trimmed)
       if (parsed !== null) {
+        remember(parsed.href, parsed.label)
         navigate(parsed.href)
         onClose()
         return
@@ -196,6 +323,7 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     if (trimmed.length > 0) {
       const parsed = parseCommand(trimmed)
       if (parsed !== null) {
+        remember(parsed.href, parsed.label)
         navigate(parsed.href)
         onClose()
       }
@@ -241,12 +369,19 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
           onChange={(event) => {
             onChange(event.target.value)
           }}
+          onSelect={(event) => {
+            setCursor(event.currentTarget.selectionStart ?? 0)
+          }}
           onKeyDown={handleKeyDown}
         />
       </div>
 
       {filtered.length === 0 ? (
-        <p className="b-palette__empty">no matching command · enter searches the network</p>
+        <p className="b-palette__empty">
+          {suggestionsPending
+            ? 'searching handles and tags'
+            : 'no matching command · enter searches the network'}
+        </p>
       ) : (
         <ul className="b-palette__list" aria-label="commands">
           {filtered.map((command, index) => {

@@ -14,15 +14,27 @@ export interface MentionToken {
   query: string
 }
 
-export function mentionAt(text: string, cursor: number): MentionToken | null {
+export interface SuggestionToken extends MentionToken {
+  kind: 'mention' | 'tag'
+}
+
+export function suggestionAt(text: string, cursor: number): SuggestionToken | null {
   const before = text.slice(0, cursor)
-  const match = /(^|\s)@([a-zA-Z0-9._-]*)$/.exec(before)
+  const match = /(^|\s)([@#])([\p{L}\p{N}._-]*)$/u.exec(before)
   if (match === null) return null
 
-  const query = match[2] ?? ''
-  const at = before.lastIndexOf('@')
-  if (at < 0) return null
-  return { start: at, end: cursor, query }
+  const marker = match[2]
+  if (marker !== '@' && marker !== '#') return null
+  const query = match[3] ?? ''
+  const start = before.lastIndexOf(marker)
+  if (start < 0) return null
+  return { start, end: cursor, query, kind: marker === '@' ? 'mention' : 'tag' }
+}
+
+export function mentionAt(text: string, cursor: number): MentionToken | null {
+  const token = suggestionAt(text, cursor)
+  if (token === null || token.kind !== 'mention') return null
+  return { start: token.start, end: token.end, query: token.query }
 }
 
 function useDebouncedValue(value: string, delay: number): string {

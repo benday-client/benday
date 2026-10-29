@@ -17,8 +17,6 @@ export interface StrongRefModel {
   cid: string
 }
 
-export type FlowPreference = 'auto' | 'horizontal' | 'vertical'
-
 export type AppViewKind = 'official' | 'community' | 'custom'
 
 export interface AppViewCapabilities {
@@ -112,13 +110,20 @@ export interface UnknownEmbed {
 
 export type MediaEmbed = ImageEmbed | ExternalEmbed | VideoEmbed | UnknownEmbed
 
+export interface UnavailableEmbed {
+  type: 'unavailable'
+  reason: 'blocked' | 'notFound' | 'detached'
+  uri: string
+  label: string
+}
+
 export interface RecordWithMediaEmbed {
   type: 'recordWithMedia'
   quote: QuotedPostModel
   media: MediaEmbed
 }
 
-export type EmbedModel = MediaEmbed | QuoteEmbed | RecordWithMediaEmbed
+export type EmbedModel = MediaEmbed | QuoteEmbed | UnavailableEmbed | RecordWithMediaEmbed
 
 export type PostReason = { type: 'repost'; by: AuthorModel } | { type: 'pin' }
 

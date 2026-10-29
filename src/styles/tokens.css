@@ -45,7 +45,7 @@
   --selection-ink: #07090c;
 
   --topbar-height: 46px;
-  --card-width: calc(100% - 96px);
+  --card-width: 100%;
   --card-min-height: 320px;
   --deck-gap: var(--space-4);
   --page-gutter: var(--space-4);

@@ -165,6 +165,36 @@ export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): strin
   return [...new Set(uris)]
 }
 
+export async function fetchTagSuggestions(target: AppViewTarget, query: string): Promise<string[]> {
+  const agent = createAgent(target)
+
+  try {
+    const response = await agent.app.bsky.feed.searchPosts({
+      q: `#${query}`,
+      limit: 30,
+      sort: 'latest',
+    })
+
+    const counts = new Map<string, number>()
+    for (const post of response.data.posts.map(mapPostView)) {
+      for (const facet of post.facets) {
+        if (facet.feature.kind !== 'tag') continue
+        const tag = facet.feature.tag
+        if (!tag.toLowerCase().startsWith(query.toLowerCase())) continue
+        counts.set(tag, (counts.get(tag) ?? 0) + 1)
+      }
+    }
+
+    const tags = [...counts.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([tag]) => tag)
+      .slice(0, 6)
+    return tags.length > 0 ? tags : [query]
+  } catch {
+    return query.length > 0 ? [query] : []
+  }
+}
+
 export async function fetchPinnedFeeds(target: AppViewTarget): Promise<PinnedFeedModel[]> {
   const agent = getAuthAgent()
   if (agent === null) return []

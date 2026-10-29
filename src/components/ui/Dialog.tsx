@@ -24,6 +24,12 @@ export function Dialog({ open, title, onClose, footer, className, children }: Di
         dialog.open = true
       }
     } else if (!open && dialog.open) {
+      if (
+        document.activeElement instanceof HTMLElement &&
+        dialog.contains(document.activeElement)
+      ) {
+        document.activeElement.blur()
+      }
       if (typeof dialog.close === 'function') {
         dialog.close()
       } else {

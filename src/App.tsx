@@ -18,11 +18,12 @@ import { installCursors } from './lib/cursors'
 import { useSettings } from './lib/store'
 import { THEME_COLORS, THEME_KEYS, THEMES } from './lib/themes'
 import { useUiStore } from './lib/ui'
-import DiscoverView from './views/DiscoverView'
 import FeedView from './views/FeedView'
 import ProfileView from './views/ProfileView'
 import SearchView from './views/SearchView'
 import ThreadView from './views/ThreadView'
+
+const TAB_ROUTES = ['/feed', '/search'] as const
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,7 +41,7 @@ function NotFound() {
       <EmptyState
         title="nothing here"
         hint="that route does not exist in this reader."
-        action={<Link href="/">back to discover</Link>}
+        action={<Link href="/feed">back to feeds</Link>}
       />
     </div>
   )
@@ -62,8 +63,6 @@ function AppShell() {
 
   const theme = useSettings((state) => state.theme)
   const setTheme = useSettings((state) => state.setTheme)
-  const flow = useSettings((state) => state.flow)
-  const setFlow = useSettings((state) => state.setFlow)
 
   useEffect(() => {
     void useAuthStore.getState().restore()
@@ -86,17 +85,18 @@ function AppShell() {
     installCursors()
   }, [theme])
 
-  const cycleFlow = () => {
-    const next = flow === 'auto' ? 'horizontal' : flow === 'horizontal' ? 'vertical' : 'auto'
-    setFlow(next)
-  }
-
   const focusSearch = () => {
     navigate('/search')
     window.setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.b-view__form .b-input__control')
       input?.focus()
     }, 0)
+  }
+
+  const changeTab = (direction: number) => {
+    const current = pathname.startsWith('/search') ? 1 : 0
+    const next = (current + direction + TAB_ROUTES.length) % TAB_ROUTES.length
+    navigate(TAB_ROUTES[next] ?? '/feed')
   }
 
   const startCompose = () => {
@@ -106,6 +106,23 @@ function AppShell() {
       openDialog('login')
     }
   }
+
+  useEffect(() => {
+    if (dialog !== null || compose !== null) return
+
+    const handleTabKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+
+      event.preventDefault()
+      changeTab(event.key === 'ArrowLeft' ? -1 : 1)
+    }
+
+    window.addEventListener('keydown', handleTabKey, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', handleTabKey, true)
+    }
+  }, [dialog, compose, pathname])
 
   const closeOrBack = () => {
     if (themeMenuOpen) {
@@ -141,7 +158,6 @@ function AppShell() {
     { key: '?', handler: () => openDialog('help') },
     { key: 't', handler: toggleThemeMenu },
     { key: 'Escape', handler: closeOrBack },
-    { key: 'v', handler: cycleFlow },
   ]
 
   useHotkeys(hotkeys, dialog === null && compose === null)
@@ -156,7 +172,7 @@ function AppShell() {
 
       <main id="main" className="b-main">
         <Switch>
-          <Route path="/" component={DiscoverView} />
+          <Route path="/" component={FeedView} />
           <Route path="/search" component={SearchView} />
           <Route path="/profile/:actor" component={ProfileView} />
           <Route path="/thread" component={ThreadView} />

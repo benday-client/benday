@@ -30,7 +30,7 @@ export default function ProfileView() {
   return (
     <section className="b-view">
       <h1 className="visually-hidden">profile</h1>
-      <div className="b-view__body">
+      <div className="b-view__body b-view__body--profile">
         {actor.length === 0 ? (
           <EmptyState title="no profile selected" hint="open a card or name a handle to resolve" />
         ) : (
@@ -51,27 +51,33 @@ export default function ProfileView() {
                 </Frame>
               )}
             </div>
-            {feedInfo !== null && posts.length === 0 ? (
-              <ErrorNotice title={feedInfo.title} message={feedInfo.detail} onRetry={feed.retry} />
-            ) : (
-              <Deck
-                items={posts}
-                getKey={(post) => post.uri}
-                renderItem={(post, index, focused) => (
-                  <PostCard post={post} index={index} focused={focused} />
-                )}
-                onActivate={(post) => navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)}
-                pending={feed.isPending}
-                hasMore={feed.hasMore}
-                loadingMore={feed.isLoadingMore}
-                onLoadMore={feed.loadMore}
-                label={`posts by ${actor}`}
-                stateKey={`profile:${actor}`}
-                empty={
-                  <EmptyState title="no posts" hint="this actor has no posts in the appview" />
-                }
-              />
-            )}
+            <div className="b-profile-feed">
+              {feedInfo !== null && posts.length === 0 ? (
+                <ErrorNotice
+                  title={feedInfo.title}
+                  message={feedInfo.detail}
+                  onRetry={feed.retry}
+                />
+              ) : (
+                <Deck
+                  items={posts}
+                  getKey={(post) => post.uri}
+                  renderItem={(post, index, focused) => (
+                    <PostCard post={post} index={index} focused={focused} />
+                  )}
+                  onActivate={(post) => navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)}
+                  pending={feed.isPending}
+                  hasMore={feed.hasMore}
+                  loadingMore={feed.isLoadingMore}
+                  onLoadMore={feed.loadMore}
+                  label={`posts by ${actor}`}
+                  stateKey={`profile:${actor}`}
+                  empty={
+                    <EmptyState title="no posts" hint="this actor has no posts in the appview" />
+                  }
+                />
+              )}
+            </div>
           </>
         )}
       </div>

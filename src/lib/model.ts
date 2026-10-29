@@ -26,6 +26,7 @@ import type {
   ReplyContextModel,
   ThreadEntry,
   ThreadModel,
+  UnavailableEmbed,
   UnknownEmbed,
 } from './types'
 
@@ -152,7 +153,16 @@ export function mapFacets(
   return spans
 }
 
-function mapQuotedRecord(record: QuotedRecord): QuoteEmbed | UnknownEmbed {
+function mapQuotedRecord(record: QuotedRecord): QuoteEmbed | UnavailableEmbed | UnknownEmbed {
+  if (AppBskyEmbedRecord.isViewBlocked(record)) {
+    return { type: 'unavailable', reason: 'blocked', uri: record.uri, label: 'blocked post' }
+  }
+  if (AppBskyEmbedRecord.isViewNotFound(record)) {
+    return { type: 'unavailable', reason: 'notFound', uri: record.uri, label: 'post not found' }
+  }
+  if (AppBskyEmbedRecord.isViewDetached(record)) {
+    return { type: 'unavailable', reason: 'detached', uri: record.uri, label: 'detached post' }
+  }
   if (!AppBskyEmbedRecord.isViewRecord(record)) {
     return { type: 'unknown', typeName: typeNameOf(record) }
   }

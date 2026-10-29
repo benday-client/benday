@@ -21,9 +21,8 @@ export function TopBar() {
   const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
   const themeWrapRef = useRef<HTMLDivElement>(null)
 
-  const discoverActive = pathname === '/'
   const searchActive = pathname.startsWith('/search')
-  const feedsActive = pathname.startsWith('/feed')
+  const feedsActive = pathname === '/' || pathname.startsWith('/feed')
   const authenticated = authStatus === 'authenticated' && account !== null
   const accountLabel = authenticated
     ? `@${account.handle}`
@@ -48,19 +47,19 @@ export function TopBar() {
 
   return (
     <header className="b-topbar">
-      <Link href="/" className="b-brand" aria-label="benday home">
+      <Link href="/feed" className="b-brand" aria-label="benday home">
         <span className="b-brand__mark" aria-hidden="true" />
         <span className="b-brand__name">benday</span>
       </Link>
 
       <nav className="b-topbar__nav" aria-label="primary">
         <Link
-          href="/"
+          href="/feed"
           className="b-topbar__link"
-          data-active={discoverActive ? 'true' : 'false'}
-          aria-current={discoverActive ? 'page' : undefined}
+          data-active={feedsActive ? 'true' : 'false'}
+          aria-current={feedsActive ? 'page' : undefined}
         >
-          discover
+          feeds
         </Link>
         <Link
           href="/search"
@@ -69,14 +68,6 @@ export function TopBar() {
           aria-current={searchActive ? 'page' : undefined}
         >
           search
-        </Link>
-        <Link
-          href="/feed"
-          className="b-topbar__link"
-          data-active={feedsActive ? 'true' : 'false'}
-          aria-current={feedsActive ? 'page' : undefined}
-        >
-          feeds
         </Link>
       </nav>
 
