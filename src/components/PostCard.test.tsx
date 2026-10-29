@@ -136,7 +136,7 @@ describe('PostCard actions', () => {
       text: 'quoted text',
       facets: [],
       indexedAt: '2026-10-29T12:00:00.000Z',
-      embedType: null,
+      embedType: 'app.bsky.embed.record#view',
     }
     const post = postFixture({ embed: { type: 'quote', post: quoted } })
 

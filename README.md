@@ -285,7 +285,7 @@ route semantics without adding chrome.
   composer and search field; feed URIs use the pinned `+ add` dialog
 - pinned feeds appear when the signed-in pds returns saved-feed preferences
 - no notifications, dms, follows, bookmarks or feed management
-- quoted posts show text and the embed kind, not the full quoted media; blocked
+- quoted posts show author text and an open link, not the full quoted media; blocked
   or missing quoted posts show a small unavailable placeholder
 - video posts show the poster and alt text; there is no player
 - labeler services are not rendered beyond label tags on cards and profiles
