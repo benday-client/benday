@@ -253,7 +253,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 149 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 150 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
