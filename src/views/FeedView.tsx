@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, type FeedChoice } from '../components/FeedCard'
@@ -30,6 +31,7 @@ export default function FeedView() {
   const [draft, setDraft] = useState(uri)
   const [feedsMode, setFeedsMode] = useState(false)
   const wide = useMediaQuery('(min-width: 900px)')
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const addOpen = useUiStore((state) => state.dialog === 'feed-add')
   const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const openDialog = useUiStore((state) => state.openDialog)
@@ -117,18 +119,51 @@ export default function FeedView() {
         ? (activeUri.split('/').at(-1) ?? 'custom feed')
         : 'discover'
 
+  const withModeTransition = (update: () => void) => {
+    const doc = document as Document & {
+      startViewTransition?: (update: () => void) => { finished?: Promise<void> }
+    }
+    const start = doc.startViewTransition
+    if (reduceMotion || start === undefined) {
+      update()
+      return
+    }
+
+    const root = document.documentElement
+    root.classList.add('b-mode-transition')
+    try {
+      const transition = start.call(doc, () => {
+        flushSync(update)
+      })
+      void Promise.resolve(transition.finished).finally(() => {
+        root.classList.remove('b-mode-transition')
+      })
+    } catch {
+      root.classList.remove('b-mode-transition')
+      update()
+    }
+  }
+
+  const switchMode = (next: boolean) => {
+    withModeTransition(() => {
+      setFeedsMode(next)
+    })
+  }
+
   const selectFeed = (choice: FeedChoice) => {
     if (choice.kind === 'add') {
       setDraft('')
       openDialog('feed-add')
       return
     }
-    if (choice.kind === 'discover') {
-      setSearchParams({}, { replace: true })
-    } else {
-      setSearchParams({ uri: choice.uri }, { replace: true })
-    }
-    setFeedsMode(false)
+    withModeTransition(() => {
+      if (choice.kind === 'discover') {
+        setSearchParams({}, { replace: true })
+      } else {
+        setSearchParams({ uri: choice.uri }, { replace: true })
+      }
+      setFeedsMode(false)
+    })
   }
 
   useEffect(() => {
@@ -139,7 +174,7 @@ export default function FeedView() {
       const ui = useUiStore.getState()
       if (ui.dialog !== null || ui.compose !== null || ui.themeMenuOpen) return
       event.preventDefault()
-      setFeedsMode(false)
+      switchMode(false)
     }
 
     window.addEventListener('keydown', handleEscape)
@@ -199,35 +234,37 @@ export default function FeedView() {
       ) : null}
       <div className="b-view__body">
         {showingFeeds ? (
-          <Deck
-            key="feeds-deck"
-            items={feedChoices}
-            getKey={(choice) => choice.key}
-            renderItem={(choice, _index, focused) => (
-              <FeedCard
-                choice={choice}
-                active={
-                  choice.kind === 'feed'
-                    ? choice.uri === activeUri
-                    : choice.kind === 'discover'
-                      ? activeUri.length === 0
-                      : false
-                }
-                focused={focused}
-                onSelect={() => {
-                  selectFeed(choice)
-                }}
-              />
-            )}
-            onActivate={selectFeed}
-            onExitStart={() => {
-              setFeedsMode(false)
-            }}
-            pending={pinned.isPending}
-            initialIndex={Math.max(activeFeedIndex, 0)}
-            label="feed cards"
-            empty={<EmptyState title="no feeds" hint="add a feed to get started" />}
-          />
+          <div className="b-deck-stage b-deck-stage--feeds">
+            <Deck
+              key="feeds-deck"
+              items={feedChoices}
+              getKey={(choice) => choice.key}
+              renderItem={(choice, _index, focused) => (
+                <FeedCard
+                  choice={choice}
+                  active={
+                    choice.kind === 'feed'
+                      ? choice.uri === activeUri
+                      : choice.kind === 'discover'
+                        ? activeUri.length === 0
+                        : false
+                  }
+                  focused={focused}
+                  onSelect={() => {
+                    selectFeed(choice)
+                  }}
+                />
+              )}
+              onActivate={selectFeed}
+              onExitStart={() => {
+                switchMode(false)
+              }}
+              pending={pinned.isPending}
+              initialIndex={Math.max(activeFeedIndex, 0)}
+              label="feed cards"
+              empty={<EmptyState title="no feeds" hint="add a feed to get started" />}
+            />
+          </div>
         ) : authenticated && !supported ? (
           <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
@@ -240,53 +277,55 @@ export default function FeedView() {
         ) : info !== null && posts.length === 0 ? (
           <ErrorNotice title={info.title} message={info.detail} onRetry={feed.retry} />
         ) : (
-          <Deck
-            key="posts-deck"
-            items={posts}
-            getKey={(post) => post.uri}
-            renderItem={(post, index, focused) => (
-              <PostCard post={post} index={index} focused={focused} />
-            )}
-            onActivate={(post) => {
-              openPost(post)
-              navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
-            }}
-            {...(canPickFeeds
-              ? {
-                  onExitStart: () => {
-                    setFeedsMode(true)
-                  },
-                }
-              : {})}
-            leadingPeek={
-              canPickFeeds && peekChoice !== undefined ? (
-                <FeedCardBack
-                  feedName={activeFeedName}
-                  postIndex={0}
-                  postDate={posts[0]?.indexedAt ?? ''}
-                  appview={appView.label}
+          <div className="b-deck-stage b-deck-stage--posts">
+            <Deck
+              key="posts-deck"
+              items={posts}
+              getKey={(post) => post.uri}
+              renderItem={(post, index, focused) => (
+                <PostCard post={post} index={index} focused={focused} />
+              )}
+              onActivate={(post) => {
+                openPost(post)
+                navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+              }}
+              {...(canPickFeeds
+                ? {
+                    onExitStart: () => {
+                      switchMode(true)
+                    },
+                  }
+                : {})}
+              leadingPeek={
+                canPickFeeds && peekChoice !== undefined ? (
+                  <FeedCardBack
+                    feedName={activeFeedName}
+                    postIndex={0}
+                    postDate={posts[0]?.indexedAt ?? ''}
+                    appview={appView.label}
+                  />
+                ) : undefined
+              }
+              pending={feed.isPending}
+              hasMore={feed.hasMore}
+              loadingMore={feed.isLoadingMore}
+              loadMoreError={feed.loadMoreError}
+              onLoadMore={feed.loadMore}
+              onRetryLoadMore={feed.retryLoadMore}
+              label={showingCustom ? 'feed cards' : 'discover cards'}
+              stateKey={showingCustom ? `feed:${activeUri}` : 'discover'}
+              empty={
+                <EmptyState
+                  title={showingCustom ? 'no feed cards' : 'no signal'}
+                  hint={
+                    showingCustom
+                      ? 'the feed generator returned nothing'
+                      : 'the discover feed returned nothing'
+                  }
                 />
-              ) : undefined
-            }
-            pending={feed.isPending}
-            hasMore={feed.hasMore}
-            loadingMore={feed.isLoadingMore}
-            loadMoreError={feed.loadMoreError}
-            onLoadMore={feed.loadMore}
-            onRetryLoadMore={feed.retryLoadMore}
-            label={showingCustom ? 'feed cards' : 'discover cards'}
-            stateKey={showingCustom ? `feed:${activeUri}` : 'discover'}
-            empty={
-              <EmptyState
-                title={showingCustom ? 'no feed cards' : 'no signal'}
-                hint={
-                  showingCustom
-                    ? 'the feed generator returned nothing'
-                    : 'the discover feed returned nothing'
-                }
-              />
-            }
-          />
+              }
+            />
+          </div>
         )}
       </div>
 
