@@ -89,7 +89,15 @@ export interface UnknownEmbed {
   typeName: string
 }
 
-export type EmbedModel = ImageEmbed | ExternalEmbed | QuoteEmbed | VideoEmbed | UnknownEmbed
+export type MediaEmbed = ImageEmbed | ExternalEmbed | VideoEmbed | UnknownEmbed
+
+export interface RecordWithMediaEmbed {
+  type: 'recordWithMedia'
+  quote: QuotedPostModel
+  media: MediaEmbed
+}
+
+export type EmbedModel = MediaEmbed | QuoteEmbed | RecordWithMediaEmbed
 
 export type PostReason = { type: 'repost'; by: AuthorModel } | { type: 'pin' }
 
