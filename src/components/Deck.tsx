@@ -356,6 +356,7 @@ export function Deck<T>({
         className="b-deck__item"
         data-deck-index={index}
         data-focused={isFocused ? 'true' : 'false'}
+        style={{ animationDelay: `${Math.min(Math.abs(index - focusIndex), 6) * 45}ms` }}
         onFocus={() => setFocused(index)}
       >
         {renderItem(item, index, isFocused)}

@@ -1,5 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, type FeedChoice } from '../components/FeedCard'
@@ -30,8 +29,9 @@ export default function FeedView() {
   const uri = (searchParams.get('uri') ?? '').trim()
   const [draft, setDraft] = useState(uri)
   const [feedsMode, setFeedsMode] = useState(false)
+  const [dealMode, setDealMode] = useState<'posts' | 'feeds' | null>(null)
+  const dealTimerRef = useRef<number | null>(null)
   const wide = useMediaQuery('(min-width: 900px)')
-  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const addOpen = useUiStore((state) => state.dialog === 'feed-add')
   const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const openDialog = useUiStore((state) => state.openDialog)
@@ -119,35 +119,24 @@ export default function FeedView() {
         ? (activeUri.split('/').at(-1) ?? 'custom feed')
         : 'discover'
 
-  const withModeTransition = (update: () => void) => {
-    const doc = document as Document & {
-      startViewTransition?: (update: () => void) => { finished?: Promise<void> }
+  useEffect(() => {
+    return () => {
+      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
     }
-    const start = doc.startViewTransition
-    if (reduceMotion || start === undefined) {
-      update()
-      return
-    }
+  }, [])
 
-    const root = document.documentElement
-    root.classList.add('b-mode-transition')
-    try {
-      const transition = start.call(doc, () => {
-        flushSync(update)
-      })
-      void Promise.resolve(transition.finished).finally(() => {
-        root.classList.remove('b-mode-transition')
-      })
-    } catch {
-      root.classList.remove('b-mode-transition')
-      update()
-    }
+  const playDeal = (mode: 'posts' | 'feeds') => {
+    setDealMode(mode)
+    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+    dealTimerRef.current = window.setTimeout(() => {
+      setDealMode(null)
+      dealTimerRef.current = null
+    }, 900)
   }
 
   const switchMode = (next: boolean) => {
-    withModeTransition(() => {
-      setFeedsMode(next)
-    })
+    setFeedsMode(next)
+    playDeal(next ? 'feeds' : 'posts')
   }
 
   const selectFeed = (choice: FeedChoice) => {
@@ -156,14 +145,12 @@ export default function FeedView() {
       openDialog('feed-add')
       return
     }
-    withModeTransition(() => {
-      if (choice.kind === 'discover') {
-        setSearchParams({}, { replace: true })
-      } else {
-        setSearchParams({ uri: choice.uri }, { replace: true })
-      }
-      setFeedsMode(false)
-    })
+    if (choice.kind === 'discover') {
+      setSearchParams({}, { replace: true })
+    } else {
+      setSearchParams({ uri: choice.uri }, { replace: true })
+    }
+    switchMode(false)
   }
 
   useEffect(() => {
@@ -191,7 +178,11 @@ export default function FeedView() {
     } else {
       setSearchParams({}, { replace: true })
     }
-    setFeedsMode(false)
+    if (feedsMode) {
+      switchMode(false)
+    } else {
+      setFeedsMode(false)
+    }
     closeDialog()
   }
 
@@ -234,7 +225,10 @@ export default function FeedView() {
       ) : null}
       <div className="b-view__body">
         {showingFeeds ? (
-          <div className="b-deck-stage b-deck-stage--feeds">
+          <div
+            className="b-deck-stage b-deck-stage--feeds"
+            data-deal={dealMode === 'feeds' ? 'true' : undefined}
+          >
             <Deck
               key="feeds-deck"
               items={feedChoices}
@@ -277,7 +271,10 @@ export default function FeedView() {
         ) : info !== null && posts.length === 0 ? (
           <ErrorNotice title={info.title} message={info.detail} onRetry={feed.retry} />
         ) : (
-          <div className="b-deck-stage b-deck-stage--posts">
+          <div
+            className="b-deck-stage b-deck-stage--posts"
+            data-deal={dealMode === 'posts' ? 'true' : undefined}
+          >
             <Deck
               key="posts-deck"
               items={posts}
