@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'wouter'
 import { appViewHostname } from '../lib/appviews'
 import { useSettings } from '../lib/store'
 import { formatClock } from '../lib/time'
+import { useUiStore } from '../lib/ui'
 
-export interface StatusBarProps {
-  onOpenHelp: () => void
-}
-
-export function StatusBar({ onOpenHelp }: StatusBarProps) {
-  const [pathname] = useLocation()
+export function StatusBar() {
   const appView = useSettings((state) => state.appView)
-  const flow = useSettings((state) => state.flow)
+  const openDialog = useUiStore((state) => state.openDialog)
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
@@ -25,35 +20,28 @@ export function StatusBar({ onOpenHelp }: StatusBarProps) {
 
   return (
     <footer className="b-statusbar">
-      <div className="b-statusbar__group">
-        <span className="b-statusbar__item">
-          <span className="b-statusbar__label">read-only</span>
+      <span className="b-statusbar__item">
+        <span className="b-statusbar__label">appview</span>
+        <span
+          className="b-statusbar__value"
+          title={`${appView.label} // ${appViewHostname(appView)}`}
+        >
+          {appView.label}
+          <span className="b-statusbar__host">{` // ${appViewHostname(appView)}`}</span>
         </span>
-        <span className="b-statusbar__item">
-          <span className="b-statusbar__label">appview</span>
-          <span
-            className="b-statusbar__value"
-            title={`${appView.label} // ${appViewHostname(appView)}`}
-          >
-            {appView.label}
-            <span className="b-statusbar__host">{` // ${appViewHostname(appView)}`}</span>
-          </span>
-        </span>
-        <span className="b-statusbar__item b-statusbar__flow">
-          <span className="b-statusbar__label">flow</span>
-          <span className="b-statusbar__value">{flow}</span>
-        </span>
-      </div>
-
-      <span className="b-statusbar__path" title={pathname}>
-        {pathname}
       </span>
 
       <div className="b-statusbar__group b-statusbar__group--end">
         <time className="b-statusbar__clock" dateTime={now.toISOString()}>
           {formatClock(now)}
         </time>
-        <button type="button" className="b-statusbar__keys" onClick={onOpenHelp}>
+        <button
+          type="button"
+          className="b-statusbar__keys"
+          onClick={() => {
+            openDialog('help')
+          }}
+        >
           <span className="b-statusbar__glyph" aria-hidden="true">
             ?
           </span>

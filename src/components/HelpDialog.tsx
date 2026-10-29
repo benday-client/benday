@@ -13,11 +13,14 @@ interface Shortcut {
 const SHORTCUTS: readonly Shortcut[] = [
   { keys: '← → / h l', what: 'scan cards on laptop' },
   { keys: '↑ ↓ / j k', what: 'scan cards on mobile' },
-  { keys: 'home end', what: 'jump to deck edges' },
+  { keys: '↓ wide · → narrow', what: 'open comments' },
+  { keys: 'g / G', what: 'first / last card' },
   { keys: 'enter', what: 'open thread' },
   { keys: '/ or ctrl/cmd+k', what: 'jump' },
+  { keys: 's', what: 'search' },
+  { keys: 'c', what: 'compose' },
   { keys: 'a', what: 'appviews' },
-  { keys: 't', what: 'theme' },
+  { keys: 't', what: 'themes' },
   { keys: 'f', what: 'flow' },
   { keys: '?', what: 'help' },
   { keys: 'esc', what: 'close' },
@@ -37,8 +40,8 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
       }
     >
       <p className="b-help__note">
-        read-only. switch appviews in the top bar. cards flow horizontally on wide screens and
-        vertically on mobile.
+        sign in to like, repost, quote and reply. sessions stay local. themes cycle void, bone,
+        oxide and phosphor.
       </p>
 
       <dl className="b-help__grid">

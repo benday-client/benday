@@ -132,12 +132,6 @@
   letter-spacing: 0.04em;
 }
 
-.b-brand__tagline {
-  color: var(--ink-faint);
-  font-size: var(--step--1);
-  letter-spacing: 0.04em;
-}
-
 .b-topbar__nav {
   display: flex;
   align-items: center;
@@ -184,27 +178,18 @@
   min-width: 0;
 }
 
-.b-topbar .b-topbar__jump,
-.b-topbar .b-topbar__action {
+.b-topbar__icon {
+  min-width: 26px;
   min-height: 24px;
-  padding: 2px var(--space-2);
+  padding: 2px var(--space-1);
   font-size: var(--step--1);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 .b-topbar__glyph {
   color: var(--blue);
   font-size: var(--step-1);
   line-height: 1;
-}
-
-.b-topbar__action-label {
-  color: var(--ink-dim);
-}
-
-.b-topbar__help {
-  min-width: 26px;
-  color: var(--ink-dim);
 }
 
 .b-appview-chip {
@@ -233,18 +218,35 @@
   transform: translate(-1px, -1px);
 }
 
+.b-account-chip {
+  max-width: 24ch;
+  min-height: 24px;
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b-account-chip:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--panel-raised);
+  color: var(--ink);
+}
+
+.b-account-chip:disabled {
+  opacity: 0.5;
+}
+
 .b-appview-chip__label {
   color: var(--blue);
   text-transform: lowercase;
-}
-
-.b-appview-chip__host {
-  max-width: 20ch;
-  overflow: hidden;
-  color: var(--ink-faint);
-  font-size: var(--step--2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* status bar -------------------------------------------------------- */
@@ -298,18 +300,6 @@
   overflow: hidden;
   color: var(--ink-dim);
   letter-spacing: 0.04em;
-  text-overflow: ellipsis;
-  text-transform: none;
-  white-space: nowrap;
-}
-
-.b-statusbar__path {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-faint);
-  letter-spacing: 0.06em;
-  text-align: center;
   text-overflow: ellipsis;
   text-transform: none;
   white-space: nowrap;
@@ -384,10 +374,8 @@
     padding: var(--space-1) var(--space-2);
   }
 
-  .b-brand__tagline,
-  .b-appview-chip__host,
-  .b-topbar__action-label {
-    display: none;
+  .b-account-chip {
+    max-width: 16ch;
   }
 
   .b-topbar__actions {
@@ -399,8 +387,6 @@
     padding: 0 var(--space-2);
   }
 
-  .b-statusbar__path,
-  .b-statusbar__flow,
   .b-statusbar__host {
     display: none;
   }

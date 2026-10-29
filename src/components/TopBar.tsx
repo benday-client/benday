@@ -1,29 +1,33 @@
 import { Link, useLocation } from 'wouter'
 import { appViewHostname } from '../lib/appviews'
+import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
+import { useUiStore } from '../lib/ui'
 import { Button, Kbd } from './ui'
 
-export interface TopBarProps {
-  onOpenPalette: () => void
-  onOpenAppView: () => void
-  onOpenHelp: () => void
-}
-
-export function TopBar({ onOpenPalette, onOpenAppView, onOpenHelp }: TopBarProps) {
+export function TopBar() {
   const [pathname] = useLocation()
   const appView = useSettings((state) => state.appView)
   const theme = useSettings((state) => state.theme)
   const toggleTheme = useSettings((state) => state.toggleTheme)
+  const authStatus = useAuthStore((state) => state.status)
+  const account = useAuthStore((state) => state.account)
+  const openDialog = useUiStore((state) => state.openDialog)
 
   const discoverActive = pathname === '/'
   const searchActive = pathname.startsWith('/search')
+  const authenticated = authStatus === 'authenticated' && account !== null
+  const accountLabel = authenticated
+    ? `@${account.handle}`
+    : authStatus === 'restoring'
+      ? '...'
+      : 'sign in'
 
   return (
     <header className="b-topbar">
       <Link href="/" className="b-brand" aria-label="benday home">
         <span className="b-brand__mark" aria-hidden="true" />
         <span className="b-brand__name">benday</span>
-        <span className="b-brand__tagline">{'// bluesky reader'}</span>
       </Link>
 
       <nav className="b-topbar__nav" aria-label="primary">
@@ -49,38 +53,46 @@ export function TopBar({ onOpenPalette, onOpenAppView, onOpenHelp }: TopBarProps
         <button
           type="button"
           className="b-appview-chip"
-          onClick={onOpenAppView}
-          title="switch appview"
+          onClick={() => {
+            openDialog('appview')
+          }}
+          title={`switch appview: ${appViewHostname(appView)}`}
         >
           <span className="b-appview-chip__label">{appView.label}</span>
-          <span className="b-appview-chip__host">{appViewHostname(appView)}</span>
         </button>
 
-        <Button variant="ghost" className="b-topbar__jump" onClick={onOpenPalette}>
-          jump <Kbd>/</Kbd>
+        <button
+          type="button"
+          className="b-account-chip"
+          onClick={() => {
+            openDialog(authenticated ? 'account' : 'login')
+          }}
+          disabled={authStatus === 'restoring'}
+          title={authenticated ? 'account' : 'sign in with a password or app password'}
+        >
+          {accountLabel}
+        </button>
+
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={() => {
+            openDialog('palette')
+          }}
+          aria-label="jump"
+          title="jump"
+        >
+          <Kbd>/</Kbd>
         </Button>
 
         <Button
           variant="ghost"
-          className="b-topbar__action"
+          className="b-topbar__icon"
           onClick={toggleTheme}
-          aria-label="toggle theme"
-          title={`theme: ${theme}`}
+          aria-label="cycle theme"
+          title={`theme ${theme}`}
         >
-          <span className="b-topbar__glyph" aria-hidden="true">
-            ◐
-          </span>
-          <span className="b-topbar__action-label">theme</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="b-topbar__action b-topbar__help"
-          onClick={onOpenHelp}
-          aria-label="keyboard help"
-          title="keyboard help"
-        >
-          ?
+          <span aria-hidden="true">◐</span>
         </Button>
       </div>
     </header>

@@ -1,7 +1,9 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
+import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { useSettings } from '../lib/store'
+import { useUiStore } from '../lib/ui'
 import { Dialog, Kbd } from './ui'
 
 export interface CommandPaletteProps {
@@ -24,6 +26,10 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
   const toggleTheme = useSettings((state) => state.toggleTheme)
   const setFlow = useSettings((state) => state.setFlow)
   const flow = useSettings((state) => state.flow)
+  const authStatus = useAuthStore((state) => state.status)
+  const account = useAuthStore((state) => state.account)
+  const openDialog = useUiStore((state) => state.openDialog)
+  const openCompose = useUiStore((state) => state.openCompose)
 
   const [input, setInput] = useState('')
   const [selected, setSelected] = useState(0)
@@ -52,7 +58,44 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
     onClose()
   }
 
+  const authCommands: PaletteCommand[] =
+    authStatus === 'authenticated'
+      ? [
+          {
+            id: 'compose',
+            label: 'compose a post',
+            meta: 'c',
+            keywords: 'write post new',
+            run: () => {
+              openCompose({ mode: 'post', post: null })
+            },
+          },
+          {
+            id: 'account',
+            label: account ? `@${account.handle}` : 'account',
+            meta: 'login',
+            keywords: 'account sign out profile',
+            run: () => {
+              openDialog('account')
+            },
+          },
+        ]
+      : authStatus === 'anonymous'
+        ? [
+            {
+              id: 'login',
+              label: 'sign in',
+              meta: 'login',
+              keywords: 'app password auth account',
+              run: () => {
+                openDialog('login')
+              },
+            },
+          ]
+        : []
+
   const commands: PaletteCommand[] = [
+    ...authCommands,
     {
       id: 'discover',
       label: 'discover',
