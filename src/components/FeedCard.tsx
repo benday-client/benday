@@ -3,7 +3,6 @@ import { useFeedPreview } from '../hooks/useFeedPreview'
 import { formatAbsoluteTime } from '../lib/time'
 import type { FeedSource } from '../lib/types'
 import { DitherImage } from './DitherImage'
-import { RefreshCard } from './RefreshCard'
 import { Tag } from './ui'
 
 export type FeedChoice =
@@ -32,21 +31,11 @@ export type FeedChoice =
       avatar: null
       source: null
     }
-  | {
-      kind: 'refresh'
-      key: 'refresh'
-      name: string
-      description: string
-      avatar: null
-      source: null
-    }
 
 export interface FeedCardProps {
   choice: FeedChoice
   active: boolean
   focused: boolean
-  index?: number
-  refreshing?: boolean
   onSelect: () => void
 }
 
@@ -56,6 +45,8 @@ export interface FeedCardBackProps {
   postDate: string
   appview: string
   hint?: string
+  onRefresh?: (() => void) | undefined
+  refreshing?: boolean | undefined
 }
 
 export function FeedCardBack({
@@ -64,11 +55,16 @@ export function FeedCardBack({
   postDate,
   appview,
   hint = '← feeds',
+  onRefresh,
+  refreshing = false,
 }: FeedCardBackProps) {
   const index = String(Math.max(0, postIndex)).padStart(2, '0')
 
   return (
-    <article className="b-frame b-card-back" aria-hidden="true">
+    <article
+      className="b-frame b-card-back"
+      aria-hidden={onRefresh === undefined ? 'true' : undefined}
+    >
       <header className="b-frame__head b-card-back__head">
         <span className="b-frame__label mono-label">card back</span>
       </header>
@@ -82,6 +78,20 @@ export function FeedCardBack({
         <span className="b-card-back__appview">{appview}</span>
         <span className="b-card-back__hint">{hint}</span>
       </div>
+      {onRefresh !== undefined ? (
+        <footer className="b-post-card__foot b-card-back__foot">
+          <div className="b-post-card__actions">
+            <button
+              type="button"
+              className="b-post-card__action"
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              {refreshing ? 'refreshing' : 'refresh'}
+            </button>
+          </div>
+        </footer>
+      ) : null}
     </article>
   )
 }
@@ -114,13 +124,7 @@ function FeedPreview({ source }: { source: FeedSource }) {
   )
 }
 
-export function FeedCard({ choice, active, focused, index, refreshing, onSelect }: FeedCardProps) {
-  if (choice.kind === 'refresh') {
-    return (
-      <RefreshCard index={index} focused={focused} refreshing={refreshing} onRefresh={onSelect} />
-    )
-  }
-
+export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
   const initial = (choice.name.length > 0 ? choice.name : '?').slice(0, 1).toUpperCase()
 
   return (

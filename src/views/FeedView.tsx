@@ -120,14 +120,6 @@ export default function FeedView() {
       avatar: null,
       source: null,
     })
-    feedChoices.push({
-      kind: 'refresh',
-      key: 'refresh',
-      name: 'refresh',
-      description: 'reload the first page',
-      avatar: null,
-      source: null,
-    })
   }
 
   const activeFeedIndex = feedChoices.findIndex((choice) => {
@@ -167,11 +159,6 @@ export default function FeedView() {
   }
 
   const selectFeed = (choice: FeedChoice) => {
-    if (choice.kind === 'refresh') {
-      feed.retry()
-      switchMode(false)
-      return
-    }
     if (choice.kind === 'add') {
       setDraft('')
       openDialog('feed-add')
@@ -277,8 +264,6 @@ export default function FeedView() {
               renderItem={(choice, _index, focused) => (
                 <FeedCard
                   choice={choice}
-                  index={_index}
-                  refreshing={feed.isFetching}
                   active={
                     choice.kind === 'feed'
                       ? choice.uri === activeUri
@@ -359,6 +344,7 @@ export default function FeedView() {
                     },
                   }
                 : {})}
+              leadingPeekInteractive={canPickFeeds}
               leadingPeek={
                 canPickFeeds && peekChoice !== undefined ? (
                   <FeedCardBack
@@ -366,6 +352,8 @@ export default function FeedView() {
                     postIndex={0}
                     postDate={posts[0]?.indexedAt ?? ''}
                     appview={appView.label}
+                    onRefresh={feed.retry}
+                    refreshing={feed.isFetching}
                   />
                 ) : undefined
               }

@@ -20,6 +20,7 @@ export interface DeckProps<T> {
   onActivate?: (item: T, index: number) => void
   onExitStart?: () => void
   leadingPeek?: ReactNode
+  leadingPeekInteractive?: boolean
   pending?: boolean
   hasMore?: boolean
   loadingMore?: boolean
@@ -66,6 +67,7 @@ export function Deck<T>({
   onActivate,
   onExitStart,
   leadingPeek,
+  leadingPeekInteractive = false,
   pending = false,
   hasMore = false,
   loadingMore = false,
@@ -346,7 +348,7 @@ export function Deck<T>({
     horizontal && hasLeadingPeek && items.length > 0 ? (
       <li
         className="b-deck__item b-deck__peek"
-        aria-hidden="true"
+        aria-hidden={leadingPeekInteractive ? undefined : 'true'}
         style={
           {
             animationDelay: '45ms',

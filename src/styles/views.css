@@ -68,6 +68,10 @@
   text-align: left;
 }
 
+.b-card-back__foot .b-post-card__actions {
+  justify-content: flex-end;
+}
+
 .b-card-back__index {
   color: var(--blue);
   font-size: var(--step-5);
