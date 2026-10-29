@@ -10,6 +10,7 @@ import './styles/layout.css'
 import './styles/components.css'
 import './styles/cards.css'
 import './styles/dialogs.css'
+import './styles/account.css'
 import './styles/views.css'
 import './styles/dither.css'
 
