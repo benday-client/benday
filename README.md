@@ -136,9 +136,9 @@ supplied. cards from author and search decks do not send feedback.
 
 feed and discover decks do not refetch themselves. restoring a cached deck, moving
 between tabs, letting a labeler change, or invalidating after a write leaves the
-cards alone. the refresh card at the end of the feeds deck, the profile strip
-refresh and submitting the same search again are the explicit reloads. refresh
-resets to the first page and leaves further paging to scroll.
+cards alone. the refresh cards at the end of the feeds and profile decks and
+submitting the same search again are the explicit reloads. refresh resets to the
+first page and leaves further paging to scroll.
 
 ## settings
 

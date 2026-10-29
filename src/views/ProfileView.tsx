@@ -2,6 +2,7 @@ import { useLocation, useParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
 import { ProfileCard } from '../components/ProfileCard'
+import { RefreshCard } from '../components/RefreshCard'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
 import { useViewerSync } from '../hooks/useViewerSync'
@@ -32,19 +33,6 @@ export default function ProfileView() {
   return (
     <section className="b-view">
       <h1 className="visually-hidden">profile</h1>
-      {actor.length > 0 ? (
-        <div className="b-view__tools b-view__tools--feed">
-          <button
-            type="button"
-            className="b-pinned-add b-view__refresh"
-            onClick={feed.retry}
-            disabled={feed.isFetching}
-            aria-label="refresh profile feed"
-          >
-            {feed.isFetching ? 'refreshing' : 'refresh'}
-          </button>
-        </div>
-      ) : null}
       <div className="b-view__body b-view__body--profile">
         {actor.length === 0 ? (
           <EmptyState title="no profile selected" hint="open a card or name a handle to resolve" />
@@ -90,6 +78,13 @@ export default function ProfileView() {
                   loadMoreError={feed.loadMoreError}
                   onLoadMore={feed.loadMore}
                   onRetryLoadMore={feed.retryLoadMore}
+                  footer={
+                    <RefreshCard
+                      label="refresh profile feed"
+                      refreshing={feed.isFetching}
+                      onRefresh={feed.retry}
+                    />
+                  }
                   label={`posts by ${actor}`}
                   stateKey={`profile:${actor}`}
                   empty={

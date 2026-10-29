@@ -27,6 +27,7 @@ export interface DeckProps<T> {
   onLoadMore?: () => void
   onRetryLoadMore?: () => void
   empty?: ReactNode
+  footer?: ReactNode
   label: string
   className?: string
   initialIndex?: number
@@ -72,6 +73,7 @@ export function Deck<T>({
   onLoadMore,
   onRetryLoadMore,
   empty,
+  footer,
   label,
   className,
   initialIndex,
@@ -410,6 +412,7 @@ export function Deck<T>({
     >
       {leadingItem}
       {content}
+      {footer !== undefined ? <li className="b-deck__item b-deck__footer">{footer}</li> : null}
       {loadMoreError ? (
         <li className="b-deck__load-error">
           <span className="b-deck__load-error-text">couldn&apos;t load more cards</span>

@@ -277,6 +277,8 @@ export default function FeedView() {
               renderItem={(choice, _index, focused) => (
                 <FeedCard
                   choice={choice}
+                  index={_index}
+                  refreshing={feed.isFetching}
                   active={
                     choice.kind === 'feed'
                       ? choice.uri === activeUri

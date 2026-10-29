@@ -3,6 +3,7 @@ import { useFeedPreview } from '../hooks/useFeedPreview'
 import { formatAbsoluteTime } from '../lib/time'
 import type { FeedSource } from '../lib/types'
 import { DitherImage } from './DitherImage'
+import { RefreshCard } from './RefreshCard'
 import { Tag } from './ui'
 
 export type FeedChoice =
@@ -44,6 +45,8 @@ export interface FeedCardProps {
   choice: FeedChoice
   active: boolean
   focused: boolean
+  index?: number
+  refreshing?: boolean
   onSelect: () => void
 }
 
@@ -111,7 +114,13 @@ function FeedPreview({ source }: { source: FeedSource }) {
   )
 }
 
-export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
+export function FeedCard({ choice, active, focused, index, refreshing, onSelect }: FeedCardProps) {
+  if (choice.kind === 'refresh') {
+    return (
+      <RefreshCard index={index} focused={focused} refreshing={refreshing} onRefresh={onSelect} />
+    )
+  }
+
   const initial = (choice.name.length > 0 ? choice.name : '?').slice(0, 1).toUpperCase()
 
   return (
@@ -119,13 +128,7 @@ export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
       className="b-frame b-feed-card"
       data-kind={choice.kind}
       data-active={active ? 'true' : 'false'}
-      aria-label={
-        choice.kind === 'add'
-          ? 'add feed'
-          : choice.kind === 'refresh'
-            ? 'refresh feed'
-            : `open ${choice.name}`
-      }
+      aria-label={choice.kind === 'add' ? 'add feed' : `open ${choice.name}`}
       onClick={onSelect}
       onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
@@ -135,11 +138,9 @@ export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
     >
       <header className="b-frame__head b-feed-card__head">
         <span className="b-frame__label mono-label">
-          {choice.kind === 'add' || choice.kind === 'refresh' ? 'action' : 'feed'}
+          {choice.kind === 'add' ? 'action' : 'feed'}
         </span>
-        <span className="b-frame__meta">
-          {active ? 'active' : choice.kind === 'add' ? 'enter' : 'enter'}
-        </span>
+        <span className="b-frame__meta">{active ? 'active' : 'enter'}</span>
       </header>
 
       <div className="b-frame__body b-feed-card__body">
@@ -150,14 +151,6 @@ export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
             </span>
             <span className="b-feed-card__add-title">add feed</span>
             <span className="b-feed-card__add-note">open a generator or paste an at-uri</span>
-          </div>
-        ) : choice.kind === 'refresh' ? (
-          <div className="b-feed-card__add b-feed-card__add--refresh">
-            <span className="b-feed-card__add-mark" aria-hidden="true">
-              ↻
-            </span>
-            <span className="b-feed-card__add-title">refresh</span>
-            <span className="b-feed-card__add-note">reload the first page</span>
           </div>
         ) : (
           <>

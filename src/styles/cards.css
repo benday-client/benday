@@ -212,6 +212,14 @@
   white-space: nowrap;
 }
 
+.b-refresh-card__mark {
+  display: grid;
+  color: var(--accent-2);
+  font-size: var(--step-3);
+  line-height: 1;
+  place-items: center;
+}
+
 .b-post-card__text {
   color: var(--ink);
   font-size: var(--step-1);
