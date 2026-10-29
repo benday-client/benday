@@ -99,55 +99,55 @@ export function mapFacets(
     const { byteStart, byteEnd } = facet.index
     if (!Number.isInteger(byteStart) || !Number.isInteger(byteEnd)) continue
     if (byteStart < 0 || byteEnd <= byteStart || byteEnd > bytes.length) continue
-    const feature = facet.features[0]
-    if (!feature) continue
 
-    if (AppBskyRichtextFacet.isMention(feature)) {
-      const slice = decoder.decode(bytes.slice(byteStart, byteEnd))
-      const withoutPrefix = slice.startsWith('@') ? slice.slice(1) : slice
-      const handle = withoutPrefix.trim()
-      const resolved = handle.length > 0 ? handle : feature.did
+    for (const feature of facet.features) {
+      if (AppBskyRichtextFacet.isMention(feature)) {
+        const slice = decoder.decode(bytes.slice(byteStart, byteEnd))
+        const withoutPrefix = slice.startsWith('@') ? slice.slice(1) : slice
+        const handle = withoutPrefix.trim()
+        const resolved = handle.length > 0 ? handle : feature.did
+        spans.push({
+          start: byteStart,
+          end: byteEnd,
+          feature: { kind: 'mention', did: feature.did, handle: resolved },
+        })
+        continue
+      }
+
+      if (AppBskyRichtextFacet.isLink(feature)) {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'link', uri: feature.uri } })
+        continue
+      }
+
+      if (AppBskyRichtextFacet.isTag(feature)) {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'tag', tag: feature.tag } })
+        continue
+      }
+
+      const typeName = typeNameOf(feature)
+      if (typeName === 'app.bsky.richtext.facet#bold') {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'bold' } })
+        continue
+      }
+      if (typeName === 'app.bsky.richtext.facet#italic') {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'italic' } })
+        continue
+      }
+      if (typeName === 'app.bsky.richtext.facet#strikethrough') {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'strikethrough' } })
+        continue
+      }
+      if (typeName === 'app.bsky.richtext.facet#code') {
+        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'code' } })
+        continue
+      }
+
       spans.push({
         start: byteStart,
         end: byteEnd,
-        feature: { kind: 'mention', did: feature.did, handle: resolved },
+        feature: { kind: 'unknown', typeName: typeNameOf(feature) },
       })
-      continue
     }
-
-    if (AppBskyRichtextFacet.isLink(feature)) {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'link', uri: feature.uri } })
-      continue
-    }
-
-    if (AppBskyRichtextFacet.isTag(feature)) {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'tag', tag: feature.tag } })
-      continue
-    }
-
-    const typeName = typeNameOf(feature)
-    if (typeName === 'app.bsky.richtext.facet#bold') {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'bold' } })
-      continue
-    }
-    if (typeName === 'app.bsky.richtext.facet#italic') {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'italic' } })
-      continue
-    }
-    if (typeName === 'app.bsky.richtext.facet#strikethrough') {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'strikethrough' } })
-      continue
-    }
-    if (typeName === 'app.bsky.richtext.facet#code') {
-      spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'code' } })
-      continue
-    }
-
-    spans.push({
-      start: byteStart,
-      end: byteEnd,
-      feature: { kind: 'unknown', typeName: typeNameOf(feature) },
-    })
   }
 
   return spans
@@ -243,6 +243,7 @@ export function mapEmbed(embed: EmbedView): EmbedModel {
 
   if (AppBskyEmbedRecordWithMedia.isView(embed)) {
     const quote = mapQuotedRecord(embed.record.record)
+    if (quote.type === 'unavailable') return quote
     const media = mapEmbed(embed.media)
     if (quote.type === 'quote' && isMediaEmbed(media)) {
       return { type: 'recordWithMedia', quote: quote.post, media }

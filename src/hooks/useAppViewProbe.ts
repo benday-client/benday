@@ -17,6 +17,7 @@ interface ProbeSnapshot {
 }
 
 const IDLE_SNAPSHOT: ProbeSnapshot = { status: 'idle', latencyMs: null, detail: '' }
+const PROBE_TIMEOUT = 8000
 
 export function useAppViewProbe(target: AppViewTarget, enabled = true): AppViewProbeState {
   const host = target.host
@@ -32,7 +33,10 @@ export function useAppViewProbe(target: AppViewTarget, enabled = true): AppViewP
     const run = async (): Promise<void> => {
       try {
         const agent = new AtpAgent({ service: host })
-        await agent.app.bsky.actor.getProfile({ actor: 'bsky.app' })
+        await agent.app.bsky.actor.getProfile(
+          { actor: 'bsky.app' },
+          { signal: AbortSignal.timeout(PROBE_TIMEOUT) },
+        )
         if (generation.current !== current) return
         setSnapshot({
           status: 'ok',

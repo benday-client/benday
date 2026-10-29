@@ -40,13 +40,15 @@ version.
 
 ## auth
 
-the sign-in dialog offers the bluesky portal first on a loopback development
-origin. it uses the atproto loopback oauth client with
+the sign-in dialog offers the bluesky portal only on the `127.0.0.1` and `[::1]`
+loopback origins. it uses the atproto loopback oauth client with
 `atproto transition:generic`, so the browser is sent to the pds authorization
 page and the password stays with the pds. open the dev server at
-`http://127.0.0.1:5173/` for this flow; the oauth client redirects a
-`localhost` origin to the loopback IP. a public deployment needs hosted oauth
-client metadata before the portal can work there.
+`http://127.0.0.1:5173/` or `http://[::1]:5173/` for this flow; a `localhost`
+origin keeps the password form, because the oauth client would rewrite it to
+the loopback IP and orphan the localhost origin's stored session and settings.
+a public deployment needs hosted oauth client metadata before the portal can
+work there.
 
 the password and app-password form remains as a fallback. this is usually an
 app password; some pds implementations do not expose app passwords and require
@@ -55,8 +57,8 @@ portal sessions live in indexedDB. the password is never stored. sign out clears
 the session and viewer state. a successful post closes the composer and
 refreshes active queries without opening a thread that may not be indexed yet.
 
-portal login is loopback-only in this static build. the password fallback works
-where the portal cannot.
+portal login is loopback-only (`127.0.0.1` and `[::1]`) in this static build.
+the password fallback works everywhere else, including `localhost`.
 
 ## keys and gestures
 
@@ -107,7 +109,8 @@ dithered through an inline svg filter with one duotone table per theme, not
 canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
 tile. newer themes use their secondary palette colours for active navigation,
 likes, comments and repost marks. image effects are themed too, defaulting to
-`grunge` with a clean ordered option on the light and github palettes.
+`grunge`; `phosphor`, `catppuccin latte`, `atom one dark`, `github dark` and
+`github light` use the clean ordered option.
 
 ## composing
 
@@ -159,8 +162,9 @@ pnpm install
 pnpm dev
 ```
 
-the dev server listens on `0.0.0.0:5173`. open `http://127.0.0.1:5173/` for the
-loopback portal flow; the production build is a static bundle in `dist/`.
+the dev server listens on `0.0.0.0:5173`. open `http://127.0.0.1:5173/` or
+`http://[::1]:5173/` for the loopback portal flow; `localhost` serves the
+password form. the production build is a static bundle in `dist/`.
 
 ```sh
 pnpm dev        # vite dev server
@@ -204,7 +208,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 120 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 138 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,

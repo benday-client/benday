@@ -559,6 +559,34 @@
   width: 100%;
 }
 
+.b-deck__load-error {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+}
+
+.b-deck[data-axis="x"] .b-deck__load-error {
+  align-self: center;
+  flex-direction: column;
+  width: min(100%, 28ch);
+}
+
+.b-deck[data-axis="y"] .b-deck__load-error {
+  width: 100%;
+}
+
+.b-deck__load-error-text {
+  text-align: center;
+}
+
 /* responsive -------------------------------------------------------- */
 
 @media (max-width: 899px) {

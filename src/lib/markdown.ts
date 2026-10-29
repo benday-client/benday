@@ -13,8 +13,12 @@ export interface ParsedMarkdown {
   facets: AppBskyRichtextFacet.Main[]
 }
 
+// Emphasis delimiters are only meaningful at word boundaries: `snake_case_name`
+// and `2*3*4` must stay literal, while standalone and nested emphasis still
+// parse. Link destinations may contain balanced parentheses, and bare URLs are
+// captured as literal text so their underscores are never read as emphasis.
 const TOKEN =
-  /(?<bold>\*\*(?<boldText>[\s\S]+?)\*\*)|(?<italic>\*(?<italicText>[^*\n]+?)\*)|(?<underscore>_(?<underscoreText>[^_\n]+?)_)|(?<strike>~~(?<strikeText>[\s\S]+?)~~)|(?<code>`(?<codeText>[^`\n]+?)`)|(?<link>\[(?<linkText>[^\]]+)\]\((?<linkUrl>https?:\/\/[^\s)]+)\))/g
+  /(?<![\p{L}\p{N}])\*\*(?<boldText>[\s\S]+?)\*\*(?![\p{L}\p{N}])|(?<!\*)(?<![\p{L}\p{N}])\*(?<italicText>[^*\n]+?)\*(?!\*)(?![\p{L}\p{N}])|(?<!_)(?<![\p{L}\p{N}])_(?<underscoreText>[^_\n]+?)_(?!_)(?![\p{L}\p{N}])|~~(?<strikeText>[\s\S]+?)~~|`(?<codeText>[^`\n]+?)`|\[(?<linkText>[^\]]+)\]\((?<linkUrl>https?:\/\/[^\s()]*(?:\([^\s()]*\)[^\s()]*)*)\)|(?<url>https?:\/\/[^\s]+)/gu
 
 function parsePieces(input: string, marks: readonly Mark[], link: string | null): Piece[] {
   const pieces: Piece[] = []
@@ -39,6 +43,8 @@ function parsePieces(input: string, marks: readonly Mark[], link: string | null)
       pieces.push({ text: groups['codeText'], marks: [...marks, 'code'], link })
     } else if (groups?.['linkText'] !== undefined && groups?.['linkUrl'] !== undefined) {
       pieces.push(...parsePieces(groups['linkText'], marks, groups['linkUrl']))
+    } else {
+      pieces.push({ text: match[0], marks, link })
     }
 
     cursor = index + match[0].length

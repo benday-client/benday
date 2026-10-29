@@ -74,7 +74,8 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
   const [selected, setSelected] = useState(0)
   const [history, setHistory] = useState<JumpEntry[]>(readHistory)
   const inputRef = useRef<HTMLInputElement>(null)
-  const token = suggestionAt(input, cursor)
+  const listRef = useRef<HTMLUListElement>(null)
+  const token = open ? suggestionAt(input, cursor) : null
   const actorSuggestions = useActorSuggestions(
     token?.kind === 'mention' ? token.query : '',
     token?.kind === 'mention',
@@ -229,7 +230,8 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
       id: 'theme',
       label: 'themes',
       meta: 't',
-      keywords: 'void bone oxide phosphor color',
+      keywords:
+        'void bone oxide phosphor catppuccin-mocha catppuccin-latte dracula atom one dark github-dark github-light cyberpunk 2077 cottagecore catppuccin mocha latte color',
       run: () => {
         onClose()
         toggleThemeMenu()
@@ -284,6 +286,15 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
       : commands.filter((command) =>
           `${command.label} ${command.keywords}`.toLowerCase().includes(needle),
         )
+
+  useEffect(() => {
+    const list = listRef.current
+    if (list === null) return
+    const row = list.children[selected]
+    if (!(row instanceof HTMLElement)) return
+    if (typeof row.scrollIntoView !== 'function') return
+    row.scrollIntoView({ block: 'nearest' })
+  }, [selected, filtered.length])
 
   const onChange = (value: string) => {
     setInput(value)
@@ -383,7 +394,7 @@ export function CommandPalette({ open, onClose, onOpenAppView, onOpenHelp }: Com
             : 'no matching command · enter searches the network'}
         </p>
       ) : (
-        <ul className="b-palette__list" aria-label="commands">
+        <ul ref={listRef} className="b-palette__list" aria-label="commands">
           {filtered.map((command, index) => {
             const isSelected = index === selected
             return (

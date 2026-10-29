@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
-import { useActionStore } from '../lib/actionStore'
+import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
@@ -22,6 +22,13 @@ export interface PostCardProps {
   replies?: ReactNode
 }
 
+function isOwnPostUri(uri: string, did: string): boolean {
+  const prefix = `at://${did}/app.bsky.feed.post/`
+  if (!uri.startsWith(prefix)) return false
+  const rkey = uri.slice(prefix.length)
+  return rkey.length > 0 && !rkey.includes('/')
+}
+
 export function PostCard({ post, index, focused = false, eyebrow, replies }: PostCardProps) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
@@ -37,7 +44,11 @@ export function PostCard({ post, index, focused = false, eyebrow, replies }: Pos
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const own = authed && accountDid !== null && accountDid === post.author.did
+  const own =
+    authed &&
+    accountDid !== null &&
+    accountDid === post.author.did &&
+    isOwnPostUri(post.uri, accountDid)
   const topComments = useTopComments(
     post.uri,
     replies === undefined && inView && post.replyCount > 0,
@@ -45,6 +56,11 @@ export function PostCard({ post, index, focused = false, eyebrow, replies }: Pos
   const entry = useActionStore((state) => state.byUri[post.uri])
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
+
+  useEffect(() => {
+    setConfirmingDelete(false)
+    setDeleteError(null)
+  }, [post.uri, own])
 
   useEffect(() => {
     const node = cardRef.current
@@ -191,8 +207,16 @@ export function PostCard({ post, index, focused = false, eyebrow, replies }: Pos
   const reposted = entry?.repostUri != null
   const pending = entry?.pending != null
   const error = entry?.error ?? null
-  const likeCount = post.likeCount + (entry?.likeDelta ?? 0)
-  const repostCount = post.repostCount + (entry?.repostDelta ?? 0)
+  const likeCount = displayedCount(
+    post.likeCount,
+    entry?.likeBaseCount ?? null,
+    entry?.likeDelta ?? 0,
+  )
+  const repostCount = displayedCount(
+    post.repostCount,
+    entry?.repostBaseCount ?? null,
+    entry?.repostDelta ?? 0,
+  )
 
   const classes = ['b-frame', 'b-post-card']
   if (focused) classes.push('b-post-card--focused')

@@ -20,6 +20,7 @@ export function TopBar() {
   const toggleThemeMenu = useUiStore((state) => state.toggleThemeMenu)
   const closeThemeMenu = useUiStore((state) => state.closeThemeMenu)
   const themeWrapRef = useRef<HTMLDivElement>(null)
+  const themeMenuWasOpenRef = useRef(false)
 
   const searchActive = pathname.startsWith('/search')
   const feedsActive = pathname === '/' || pathname.startsWith('/feed')
@@ -53,6 +54,18 @@ export function TopBar() {
       document.removeEventListener('pointerdown', closeOnOutside)
     }
   }, [themeMenuOpen, closeThemeMenu])
+
+  useEffect(() => {
+    const wrap = themeWrapRef.current
+    if (wrap !== null) {
+      if (themeMenuOpen) {
+        wrap.querySelector<HTMLButtonElement>('.b-theme-menu__item')?.focus()
+      } else if (themeMenuWasOpenRef.current) {
+        wrap.querySelector<HTMLButtonElement>('button')?.focus()
+      }
+    }
+    themeMenuWasOpenRef.current = themeMenuOpen
+  }, [themeMenuOpen])
 
   return (
     <header className="b-topbar">

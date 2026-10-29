@@ -29,6 +29,10 @@ export function useInputMode(): void {
     const root = document.documentElement
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        root.dataset['input'] = 'keyboard'
+        return
+      }
       if (isTypingTarget(event.target)) return
       if (!NAVIGATION_KEYS.has(event.key)) return
       root.dataset['input'] = 'keyboard'

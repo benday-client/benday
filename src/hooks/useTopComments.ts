@@ -15,7 +15,7 @@ export function useTopComments(uri: string, enabled: boolean): TopCommentsState 
     queryFn: () => fetchTopComments(target, uri),
     enabled: enabled && uri.length > 0,
     staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
+    gcTime: 10 * 60_000,
     retry: 1,
     refetchOnMount: false,
     refetchOnReconnect: false,

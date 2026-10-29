@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { scrollPostBody } from '../lib/scroll'
 import { useUiStore } from '../lib/ui'
-import { EmptyState } from './ui'
+import { Button, EmptyState } from './ui'
 
 export interface DeckProps<T> {
   items: readonly T[]
@@ -14,7 +14,9 @@ export interface DeckProps<T> {
   pending?: boolean
   hasMore?: boolean
   loadingMore?: boolean
+  loadMoreError?: boolean
   onLoadMore?: () => void
+  onRetryLoadMore?: () => void
   empty?: ReactNode
   label: string
   className?: string
@@ -55,7 +57,9 @@ export function Deck<T>({
   pending = false,
   hasMore = false,
   loadingMore = false,
+  loadMoreError = false,
   onLoadMore,
+  onRetryLoadMore,
   empty,
   label,
   className,
@@ -91,6 +95,12 @@ export function Deck<T>({
     lastPositionRef.current = position ?? null
     initialAppliedRef.current = position !== undefined || index === undefined
     setFocused(position?.index ?? index ?? 0)
+
+    const scroller = scrollerRef.current
+    if (position === undefined && scroller !== null) {
+      scroller.scrollLeft = 0
+      scroller.scrollTop = 0
+    }
   }, [stateKey])
 
   useEffect(() => {
@@ -332,6 +342,19 @@ export function Deck<T>({
       tabIndex={0}
     >
       {content}
+      {loadMoreError ? (
+        <li className="b-deck__load-error">
+          <span className="b-deck__load-error-text">couldn&apos;t load more cards</span>
+          <Button
+            variant="ghost"
+            className="b-deck__load-error-retry"
+            onClick={onRetryLoadMore}
+            disabled={onRetryLoadMore === undefined}
+          >
+            retry
+          </Button>
+        </li>
+      ) : null}
       {hasMore ? <li ref={sentinelRef} className="b-deck__sentinel" aria-hidden="true" /> : null}
     </ol>
   )

@@ -2,7 +2,7 @@ import type { FacetFeature, FacetSpan } from './types'
 
 export interface TextSegment {
   text: string
-  feature: FacetFeature | null
+  features: readonly FacetFeature[]
 }
 
 export interface FacetLink {
@@ -59,20 +59,30 @@ export function segmentText(text: string, facets: readonly FacetSpan[]): TextSeg
     const resolved = resolveSpan(facet, map, byteLength)
     if (resolved !== null) spans.push(resolved)
   }
+  if (spans.length === 0) return [{ text, features: [] }]
+
   spans.sort((left, right) => left.start - right.start || left.end - right.end)
 
-  const segments: TextSegment[] = []
-  let cursor = 0
+  const boundaries = new Set<number>([0, text.length])
   for (const span of spans) {
-    if (span.start < cursor) continue
-    if (span.start > cursor) {
-      segments.push({ text: text.slice(cursor, span.start), feature: null })
-    }
-    segments.push({ text: text.slice(span.start, span.end), feature: span.feature })
-    cursor = span.end
+    boundaries.add(span.start)
+    boundaries.add(span.end)
   }
-  if (cursor < text.length) {
-    segments.push({ text: text.slice(cursor), feature: null })
+  const points = [...boundaries].sort((left, right) => left - right)
+
+  const segments: TextSegment[] = []
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index] ?? 0
+    const end = points[index + 1] ?? start
+    const features: FacetFeature[] = []
+    const seen = new Set<FacetFeature>()
+    for (const span of spans) {
+      if (span.start > start || span.end < end) continue
+      if (seen.has(span.feature)) continue
+      seen.add(span.feature)
+      features.push(span.feature)
+    }
+    segments.push({ text: text.slice(start, end), features })
   }
   return segments
 }

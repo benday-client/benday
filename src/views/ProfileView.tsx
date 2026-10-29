@@ -74,7 +74,9 @@ export default function ProfileView() {
                   pending={feed.isPending}
                   hasMore={feed.hasMore}
                   loadingMore={feed.isLoadingMore}
+                  loadMoreError={feed.loadMoreError}
                   onLoadMore={feed.loadMore}
+                  onRetryLoadMore={feed.retryLoadMore}
                   label={`posts by ${actor}`}
                   stateKey={`profile:${actor}`}
                   empty={

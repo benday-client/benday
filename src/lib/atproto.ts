@@ -195,7 +195,7 @@ export async function fetchTagSuggestions(target: AppViewTarget, query: string):
   }
 }
 
-export async function fetchPinnedFeeds(target: AppViewTarget): Promise<PinnedFeedModel[]> {
+export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFeedModel[]> {
   const agent = getAuthAgent()
   if (agent === null) return []
 
@@ -205,7 +205,10 @@ export async function fetchPinnedFeeds(target: AppViewTarget): Promise<PinnedFee
 
   const generators = new Map<string, AppBskyFeedDefs.GeneratorView>()
   try {
-    const response = await createAgent(target).app.bsky.feed.getFeedGenerators({
+    // Keep the private pinned-feed URI list away from a user-selected custom
+    // appview. The canonical appview already serves public generator metadata.
+    const reader = agent.withProxy('bsky_appview', 'did:web:api.bsky.app')
+    const response = await reader.app.bsky.feed.getFeedGenerators({
       feeds: unique,
     })
     for (const feed of response.data.feeds) generators.set(feed.uri, feed)

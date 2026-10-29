@@ -16,6 +16,14 @@ function replyHandle(entry: ThreadEntry): string {
   return entry.post.author.handle.length > 0 ? entry.post.author.handle : 'unknown'
 }
 
+let hasAppHistory = false
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pushState', () => {
+    hasAppHistory = true
+  })
+}
+
 export default function ThreadView() {
   const [, navigate] = useLocation()
   const [searchParams] = useSearchParams()
@@ -37,6 +45,10 @@ export default function ThreadView() {
       <p className="b-thread__replies-empty">loading replies</p>
     </div>
   )
+
+  useEffect(() => {
+    setFocusedReply(null)
+  }, [uri])
 
   useEffect(() => {
     const handleScrollKey = (event: globalThis.KeyboardEvent) => {
@@ -84,7 +96,11 @@ export default function ThreadView() {
 
       if (event.key === 'ArrowUp' || event.key === 'k') {
         event.preventDefault()
-        window.history.back()
+        if (hasAppHistory) {
+          window.history.back()
+        } else {
+          navigate('/feed')
+        }
         return
       }
 

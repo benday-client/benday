@@ -34,8 +34,12 @@ interface AuthState {
 }
 
 let activeAgent: AtpAgent | Agent | null = null
-let authMode: 'password' | 'oauth' | null = null
 let restorePromise: Promise<void> | null = null
+// Monotonic counter bumped by every action that changes who is signed in. An
+// action captures it before awaiting and refuses to commit if it moved, so a
+// slow restore can never overwrite a fresh sign-in and a stale agent can never
+// resurrect a session that was signed out.
+let authEpoch = 0
 
 function isSessionData(value: unknown): value is AtpSessionData {
   if (typeof value !== 'object' || value === null) return false
@@ -148,18 +152,23 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
 }
 
 function makeAgent(service: string): AtpAgent {
+  const createdEpoch = authEpoch
   return new AtpAgent({
     service,
     persistSession: (event: AtpSessionEvent, session: AtpSessionData | undefined) => {
+      // A session event from an agent that a newer auth action superseded must
+      // not write storage or collapse the current account.
+      if (authEpoch !== createdEpoch) return
+
       if (event === 'create' || event === 'update') {
         if (session !== undefined) writeStoredAuth(service, session)
         return
       }
 
       if (event === 'expired') {
+        authEpoch += 1
         clearStoredAuth()
         activeAgent = null
-        authMode = null
         useAuthStore.setState({ status: 'anonymous', account: null, pending: false })
       }
     },
@@ -185,14 +194,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return
     }
 
+    authEpoch += 1
+    const epoch = authEpoch
+
     restorePromise = (async () => {
       set({ status: 'restoring', error: null })
 
       try {
         const oauth = await restoreOAuth()
+        if (epoch !== authEpoch) return
         if (oauth !== null) {
           activeAgent = oauth.agent
-          authMode = 'oauth'
           clearStoredAuth()
           set({
             status: 'authenticated',
@@ -204,9 +216,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }
       } catch {
         // portal sessions are optional; password sessions remain the fallback
+        if (epoch !== authEpoch) return
       }
 
       const stored = readStoredAuth()
+      if (epoch !== authEpoch) return
       if (stored === null) {
         set({ status: 'anonymous', account: null })
         return
@@ -215,9 +229,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
       const candidate = makeAgent(stored.service)
       try {
         await candidate.resumeSession(stored.session)
+        if (epoch !== authEpoch) return
         const session = candidate.session
         activeAgent = candidate
-        authMode = 'password'
         if (session !== undefined) writeStoredAuth(stored.service, session)
         set({
           status: 'authenticated',
@@ -226,10 +240,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
           error: null,
         })
       } catch (error) {
+        if (epoch !== authEpoch) return
         const info = errorInfo(error)
         if (info.status === 400 || info.status === 401) clearStoredAuth()
         activeAgent = null
-        authMode = null
         set({ status: 'anonymous', account: null, pending: false, error: null })
       }
     })()
@@ -248,6 +262,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return false
     }
 
+    authEpoch += 1
+    const epoch = authEpoch
     set({ pending: true, error: null, status: 'anonymous', account: null })
 
     try {
@@ -259,14 +275,20 @@ export const useAuthStore = create<AuthState>()((set) => ({
       } else {
         service = (await resolvePds(cleaned)).service
       }
+      if (epoch !== authEpoch) return false
 
       const candidate = makeAgent(service)
       await candidate.login({ identifier: cleaned, password })
+      if (epoch !== authEpoch) return false
       const session = candidate.session
       if (session === undefined) throw new Error('login did not return a session')
 
+      // A password sign-in owns the account now: drop any portal session so a
+      // later restore cannot quietly switch back to the previous account.
+      await signOutOAuth()
+      if (epoch !== authEpoch) return false
+
       activeAgent = candidate
-      authMode = 'password'
       writeStoredAuth(service, session)
       set({
         status: 'authenticated',
@@ -276,8 +298,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
       })
       return true
     } catch (error) {
+      if (epoch !== authEpoch) return false
+      // A rejected explicit sign-in discards the stored refresh token too so an
+      // old account cannot be restored on the next load.
+      clearStoredAuth()
       activeAgent = null
-      authMode = null
       set({
         status: 'anonymous',
         account: null,
@@ -295,13 +320,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return false
     }
 
+    authEpoch += 1
+    const epoch = authEpoch
     set({ pending: true, error: null, status: 'anonymous', account: null })
 
     try {
       await signInOAuth(cleaned)
+      if (epoch !== authEpoch) return false
       set({ pending: false })
       return false
     } catch (error) {
+      if (epoch !== authEpoch) return false
       set({
         status: 'anonymous',
         account: null,
@@ -313,23 +342,29 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   signOut: async () => {
+    authEpoch += 1
+    const epoch = authEpoch
     set({ pending: true })
     const current = activeAgent
-    const mode = authMode
     activeAgent = null
-    authMode = null
+    clearStoredAuth()
 
+    // Revoke both mechanisms when present, not only whichever one is active.
     try {
-      if (mode === 'oauth') {
-        await signOutOAuth()
-      } else if (current instanceof AtpAgent) {
-        await current.logout()
-      }
+      await signOutOAuth()
     } catch {
-      // clearing the local session is the source of truth
+      // the local auth state is cleared even if revocation fails
     }
 
-    clearStoredAuth()
+    if (current instanceof AtpAgent) {
+      try {
+        await current.logout()
+      } catch {
+        // clearing the local session is the source of truth
+      }
+    }
+
+    if (epoch !== authEpoch) return
     set({ status: 'anonymous', account: null, pending: false, error: null })
   },
 }))

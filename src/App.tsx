@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { Link, Route, Switch, useLocation } from 'wouter'
+import { Link, Route, Switch, useLocation, useSearch } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AppViewDialog } from './components/AppViewDialog'
@@ -11,7 +11,7 @@ import { HelpDialog } from './components/HelpDialog'
 import { LoginDialog } from './components/LoginDialog'
 import { TopBar } from './components/TopBar'
 import { EmptyState } from './components/ui'
-import { type Hotkey, useHotkeys } from './hooks/useHotkeys'
+import { type Hotkey, isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
 import { useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
@@ -49,6 +49,7 @@ function NotFound() {
 
 function AppShell() {
   const [pathname, navigate] = useLocation()
+  const search = useSearch()
   const dialog = useUiStore((state) => state.dialog)
   const compose = useUiStore((state) => state.compose)
   const openDialog = useUiStore((state) => state.openDialog)
@@ -74,13 +75,14 @@ function AppShell() {
   }, [pathname, closeThemeMenu])
 
   useEffect(() => {
+    const view = `${pathname}${search.length > 0 ? `?${search}` : ''}`
     if (!pathname.startsWith('/thread')) {
-      lastViewRef.current = `${pathname}${window.location.search}`
+      lastViewRef.current = view
     }
     if (pathname === '/' || pathname.startsWith('/feed') || pathname.startsWith('/search')) {
-      baseViewRef.current = `${pathname}${window.location.search}`
+      baseViewRef.current = view
     }
-  }, [pathname])
+  }, [pathname, search])
 
   useEffect(() => {
     document.documentElement.dataset['theme'] = theme
@@ -119,6 +121,7 @@ function AppShell() {
     const handleTabKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      if (isEditableTarget(event.target)) return
 
       event.preventDefault()
       changeTab(event.key === 'ArrowLeft' ? -1 : 1)

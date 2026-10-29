@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useId, useState } from 'react'
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { useAuthStore } from '../lib/auth'
 import { canUseOAuth } from '../lib/oauth'
 import { Button, Dialog, Tag, TextInput } from './ui'
@@ -15,11 +15,17 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
   const signInWithPortal = useAuthStore((state) => state.signInWithPortal)
   const clearError = useAuthStore((state) => state.clearError)
   const pending = useAuthStore((state) => state.pending)
+  const status = useAuthStore((state) => state.status)
   const error = useAuthStore((state) => state.error)
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [pds, setPds] = useState('')
   const formId = useId()
+  // Survives across the await of a sign-in so a completion only closes the
+  // dialog it started in, never one the user opened afterwards.
+  const openRef = useRef(open)
+  openRef.current = open
+  const restoring = status === 'restoring'
 
   useEffect(() => {
     if (open) {
@@ -39,20 +45,20 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (pending) return
+    if (pending || restoring) return
 
     const host = pds.trim()
     const ok = await signIn(identifier, password, host.length > 0 ? host : undefined)
-    if (ok) close()
+    if (ok && openRef.current) close()
   }
 
   const handlePortal = async () => {
-    if (pending || identifier.trim().length === 0) return
+    if (pending || restoring || identifier.trim().length === 0) return
     await signInWithPortal(identifier)
   }
 
   const portal = canUseOAuth()
-  const disabled = pending || identifier.trim().length === 0 || password.length === 0
+  const disabled = pending || restoring || identifier.trim().length === 0 || password.length === 0
 
   return (
     <Dialog
@@ -87,7 +93,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
               <Button
                 type="button"
                 variant="solid"
-                disabled={pending || identifier.trim().length === 0}
+                disabled={pending || restoring || identifier.trim().length === 0}
                 onClick={() => {
                   void handlePortal()
                 }}

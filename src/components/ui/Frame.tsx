@@ -16,7 +16,7 @@ export function Frame({ label, meta, tone = 'default', className, children }: Fr
   const hasHeader = label !== undefined || meta !== undefined
 
   return (
-    <section className={classes.join(' ')}>
+    <section className={classes.join(' ')} aria-label={label}>
       {hasHeader ? (
         <header className="b-frame__head">
           {label !== undefined ? <span className="b-frame__label mono-label">{label}</span> : null}

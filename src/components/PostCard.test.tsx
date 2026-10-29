@@ -3,10 +3,27 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
+import { displayedCount, useActionStore } from '../lib/actionStore'
 import { useAuthStore } from '../lib/auth'
 import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
 import { PostCard } from './PostCard'
+
+describe('displayedCount', () => {
+  it('applies the optimistic delta while the post count matches the base', () => {
+    expect(displayedCount(10, 10, 1)).toBe(11)
+    expect(displayedCount(10, 10, -1)).toBe(9)
+  })
+
+  it('trusts a refreshed post count over a stale delta', () => {
+    expect(displayedCount(12, 10, 1)).toBe(12)
+    expect(displayedCount(8, 10, -1)).toBe(8)
+  })
+
+  it('uses the post count when there is no optimistic base', () => {
+    expect(displayedCount(7, null, 0)).toBe(7)
+  })
+})
 
 describe('PostCard actions', () => {
   beforeEach(() => {
@@ -17,6 +34,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     useUiStore.setState({ dialog: null, compose: null })
+    useActionStore.setState({ byUri: {} })
   })
 
   it('shows its feed position only when given an index', () => {
@@ -167,5 +185,102 @@ describe('PostCard actions', () => {
     expect(screen.getByText('replying to')).toBeInTheDocument()
     expect(screen.getByText('the post being answered')).toBeInTheDocument()
     expect(screen.getByText('@parent.bsky.social')).toBeInTheDocument()
+  })
+
+  it('does not offer deletion when the post uri belongs to another repo', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const post = postFixture({ uri: 'at://did:plc:other/app.bsky.feed.post/1' })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={post} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'delete' })).not.toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'd' })
+    expect(screen.queryByRole('button', { name: 'confirm delete' })).not.toBeInTheDocument()
+  })
+
+  it('clears an armed delete confirmation when the card switches posts', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture({ uri: 'at://did:plc:test/app.bsky.feed.post/1' })} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: 'd' })
+    expect(screen.getByRole('button', { name: 'confirm delete' })).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture({ uri: 'at://did:plc:test/app.bsky.feed.post/2' })} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'confirm delete' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'delete' })).toBeInTheDocument()
+  })
+
+  it('drops the optimistic delta once the post count is refreshed', () => {
+    const post = postFixture({ likeCount: 2, repostCount: 1 })
+    useActionStore.setState({
+      byUri: {
+        [post.uri]: {
+          likeUri: 'at://like/1',
+          repostUri: null,
+          likeDelta: 1,
+          repostDelta: 0,
+          likeBaseCount: 2,
+          repostBaseCount: null,
+          likeLocal: true,
+          repostLocal: false,
+          pending: null,
+          error: null,
+          checked: true,
+        },
+      },
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={post} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'like, 3' })).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={{ ...post, likeCount: 5 }} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'like, 5' })).toBeInTheDocument()
   })
 })

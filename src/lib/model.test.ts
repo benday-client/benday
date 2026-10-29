@@ -194,6 +194,26 @@ describe('mapFacets', () => {
       { start: 15, end: 19, feature: { kind: 'code' } },
     ])
   })
+
+  it('maps every feature in a facet at the same range', () => {
+    const text = 'bold link'
+    const facets = [
+      facetAt(text, 'bold link', [
+        { $type: 'app.bsky.richtext.facet#bold' },
+        { $type: 'app.bsky.richtext.facet#link', uri: 'https://example.com' },
+      ]),
+    ]
+    const range = byteRange(text, 'bold link')
+
+    expect(mapFacets(facets, text)).toEqual([
+      { start: range.byteStart, end: range.byteEnd, feature: { kind: 'bold' } },
+      {
+        start: range.byteStart,
+        end: range.byteEnd,
+        feature: { kind: 'link', uri: 'https://example.com' },
+      },
+    ])
+  })
 })
 
 describe('mapPostView', () => {
@@ -451,6 +471,31 @@ describe('mapPostView embeds', () => {
           blocked: true,
           author: { did: 'did:plc:bob' },
         },
+      },
+    })
+
+    expect(mapPostView(blocked).embed).toEqual({
+      type: 'unavailable',
+      reason: 'blocked',
+      uri: 'at://did:plc:bob/app.bsky.feed.post/blocked',
+      label: 'blocked post',
+    })
+  })
+
+  it('keeps the unavailable placeholder for a blocked recordWithMedia quote', () => {
+    const blocked = postView({
+      embed: {
+        $type: 'app.bsky.embed.recordWithMedia#view',
+        record: {
+          $type: 'app.bsky.embed.record#view',
+          record: {
+            $type: 'app.bsky.embed.record#viewBlocked',
+            uri: 'at://did:plc:bob/app.bsky.feed.post/blocked',
+            blocked: true,
+            author: { did: 'did:plc:bob' },
+          },
+        },
+        media: { $type: 'app.bsky.embed.images#view', images: [] },
       },
     })
 

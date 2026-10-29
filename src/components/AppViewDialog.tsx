@@ -43,6 +43,7 @@ function AppViewRow({ preset, active, open, onSelect }: AppViewRowProps) {
         type="button"
         className="b-appview__select"
         data-active={active ? 'true' : 'false'}
+        aria-current={active ? 'true' : undefined}
         onClick={() => {
           onSelect(preset)
         }}

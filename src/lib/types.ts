@@ -199,7 +199,9 @@ export interface QueryState<T> {
 export interface PostFeedState extends QueryState<PostModel[]> {
   hasMore: boolean
   isLoadingMore: boolean
+  loadMoreError: boolean
   loadMore: () => void
+  retryLoadMore: () => void
 }
 
 export type FeedSource =

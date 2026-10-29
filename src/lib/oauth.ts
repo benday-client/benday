@@ -14,6 +14,9 @@ export interface OAuthAccount {
 let clientPromise: Promise<BrowserOAuthClient | null> | null = null
 let session: OAuthSession | null = null
 let initPromise: Promise<OAuthAccount | null> | null = null
+// Bumped whenever the portal session is cleared or replaced. An in-flight
+// restore that started under an older epoch must not repopulate `session`.
+let oauthEpoch = 0
 
 function isLoopbackHost(host: string): boolean {
   // The oauth library rewrites localhost to 127.0.0.1. Do not start that
@@ -53,15 +56,26 @@ async function getClient(): Promise<BrowserOAuthClient | null> {
 }
 
 async function restore(): Promise<OAuthAccount | null> {
+  const epoch = oauthEpoch
   const client = await getClient()
   if (client === null) return null
 
   const result = await client.init()
   if (result === undefined) return null
+  if (epoch !== oauthEpoch) {
+    // A sign-out or a newer sign-in happened while init was resolving.
+    await result.session.signOut().catch(() => null)
+    return null
+  }
 
   session = result.session
   const agent = new Agent(result.session)
   const profile = await agent.getProfile({ actor: result.session.sub }).catch(() => null)
+  if (epoch !== oauthEpoch) {
+    session = null
+    await result.session.signOut().catch(() => null)
+    return null
+  }
 
   return {
     agent,
@@ -74,10 +88,11 @@ export function restoreOAuth(): Promise<OAuthAccount | null> {
   if (!canUseOAuth()) return Promise.resolve(null)
 
   if (initPromise === null) {
-    initPromise = restore().catch((error: unknown) => {
-      initPromise = null
+    const attempt: Promise<OAuthAccount | null> = restore().catch((error: unknown) => {
+      if (initPromise === attempt) initPromise = null
       throw error
     })
+    initPromise = attempt
   }
 
   return initPromise
@@ -108,10 +123,18 @@ export async function signInOAuth(identifier: string): Promise<void> {
   if (client === null) throw new Error('portal sign in needs a loopback address')
 
   const did = await resolveOAuthIdentifier(identifier)
+
+  // A pending restore or a previous session must not answer for the account
+  // the user is signing into now; re-init once the redirect lands.
+  oauthEpoch += 1
+  session = null
+  initPromise = null
+
   await client.signIn(did)
 }
 
 export async function signOutOAuth(): Promise<void> {
+  oauthEpoch += 1
   const current = session
   session = null
   initPromise = Promise.resolve(null)

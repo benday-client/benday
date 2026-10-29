@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
@@ -22,6 +22,7 @@ export default function SearchView() {
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
+  const listboxId = useId()
 
   useEffect(() => {
     setDraft(query)
@@ -77,6 +78,8 @@ export default function SearchView() {
   const suggestionsPending =
     token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
   const showSuggestions = token !== null && (suggestionsPending || suggestions.length > 0)
+  const activeSuggestion =
+    suggestions.length > 0 ? Math.min(selectedSuggestion, suggestions.length - 1) : 0
 
   const feed = usePostFeed({ kind: 'search', query: supported ? query : '' })
   const posts = feed.data ?? []
@@ -85,6 +88,8 @@ export default function SearchView() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setSuggestOpen(false)
+    setSelectedSuggestion(0)
     const next = draft.trim()
     if (next.length > 0) {
       setSearchParams({ q: next }, { replace: true })
@@ -123,6 +128,15 @@ export default function SearchView() {
             label="query"
             placeholder="words, #tag, @handle"
             inputRef={searchRef}
+            role="combobox"
+            aria-expanded={showSuggestions}
+            aria-controls={showSuggestions ? listboxId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={
+              showSuggestions && suggestions.length > 0
+                ? `${listboxId}-option-${activeSuggestion}`
+                : undefined
+            }
             value={draft}
             onChange={(event) => {
               const next = event.target.value
@@ -136,6 +150,9 @@ export default function SearchView() {
               const position = event.currentTarget.selectionStart ?? 0
               setCursor(position)
               setSuggestOpen(suggestionAt(draft, position) !== null)
+            }}
+            onBlur={() => {
+              setSuggestOpen(false)
             }}
             onKeyDown={(event) => {
               if (!showSuggestions) return
@@ -153,7 +170,7 @@ export default function SearchView() {
               }
               if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {
                 event.preventDefault()
-                const selected = suggestions[selectedSuggestion]
+                const selected = suggestions[activeSuggestion]
                 if (selected !== undefined) applySuggestion(selected.value)
                 return
               }
@@ -171,7 +188,12 @@ export default function SearchView() {
         </form>
 
         {token !== null && showSuggestions ? (
-          <div className="b-compose__suggestions" role="listbox" aria-label="suggestions">
+          <div
+            className="b-compose__suggestions"
+            role="listbox"
+            id={listboxId}
+            aria-label="suggestions"
+          >
             {suggestionsPending && suggestions.length === 0 ? (
               <p className="b-compose__suggestion-note">searching</p>
             ) : (
@@ -180,7 +202,8 @@ export default function SearchView() {
                   key={suggestion.key}
                   type="button"
                   role="option"
-                  aria-selected={index === selectedSuggestion}
+                  id={`${listboxId}-option-${index}`}
+                  aria-selected={index === activeSuggestion}
                   className="b-compose__suggestion"
                   onMouseDown={(event) => {
                     event.preventDefault()
@@ -221,6 +244,8 @@ export default function SearchView() {
             hasMore={feed.hasMore}
             loadingMore={feed.isLoadingMore}
             onLoadMore={feed.loadMore}
+            loadMoreError={feed.loadMoreError}
+            onRetryLoadMore={feed.retryLoadMore}
             label="search results"
             stateKey={`search:${query}`}
             empty={

@@ -20,14 +20,14 @@ describe('segmentText', () => {
   })
 
   it('returns one unfaceted segment when there are no facets', () => {
-    expect(segmentText('plain text', [])).toEqual([{ text: 'plain text', feature: null }])
+    expect(segmentText('plain text', [])).toEqual([{ text: 'plain text', features: [] }])
   })
 
   it('splits ascii text around a mention', () => {
     const text = 'hello @ada.world'
     expect(segmentText(text, [spanAt(text, '@ada.world', mention)])).toEqual([
-      { text: 'hello ', feature: null },
-      { text: '@ada.world', feature: mention },
+      { text: 'hello ', features: [] },
+      { text: '@ada.world', features: [mention] },
     ])
   })
 
@@ -36,18 +36,18 @@ describe('segmentText', () => {
     const segments = segmentText(text, [spanAt(text, '@ada.world', mention)])
     expect(segments.map((segment) => segment.text).join('')).toBe(text)
     expect(segments).toEqual([
-      { text: 'zażółć ', feature: null },
-      { text: '@ada.world', feature: mention },
-      { text: ' 🚀', feature: null },
+      { text: 'zażółć ', features: [] },
+      { text: '@ada.world', features: [mention] },
+      { text: ' 🚀', features: [] },
     ])
   })
 
   it('covers a multi-byte emoji without splitting its surrogate pair', () => {
     const text = 'a🚀b'
     expect(segmentText(text, [spanAt(text, '🚀', tag)])).toEqual([
-      { text: 'a', feature: null },
-      { text: '🚀', feature: tag },
-      { text: 'b', feature: null },
+      { text: 'a', features: [] },
+      { text: '🚀', features: [tag] },
+      { text: 'b', features: [] },
     ])
   })
 
@@ -55,13 +55,29 @@ describe('segmentText', () => {
     const text = 'one two three'
     const segments = segmentText(text, [spanAt(text, 'three', tag), spanAt(text, 'one', mention)])
     expect(segments).toEqual([
-      { text: 'one', feature: mention },
-      { text: ' two ', feature: null },
-      { text: 'three', feature: tag },
+      { text: 'one', features: [mention] },
+      { text: ' two ', features: [] },
+      { text: 'three', features: [tag] },
     ])
   })
 
-  it('keeps the earlier span and never splits an overlapping facet', () => {
+  it('keeps every feature when facets share a range', () => {
+    const text = 'abcdef'
+    const bold: FacetFeature = { kind: 'bold' }
+    const link: FacetFeature = { kind: 'link', uri: 'https://example.com' }
+    expect(
+      segmentText(text, [
+        { start: 1, end: 4, feature: bold },
+        { start: 1, end: 4, feature: link },
+      ]),
+    ).toEqual([
+      { text: 'a', features: [] },
+      { text: 'bcd', features: [bold, link] },
+      { text: 'ef', features: [] },
+    ])
+  })
+
+  it('splits overlapping facets at every boundary and keeps both active', () => {
     const text = 'abcdef'
     const first: FacetFeature = { kind: 'tag', tag: 'first' }
     const second: FacetFeature = { kind: 'tag', tag: 'second' }
@@ -71,9 +87,20 @@ describe('segmentText', () => {
         { start: 3, end: 6, feature: second },
       ]),
     ).toEqual([
-      { text: 'a', feature: null },
-      { text: 'bcd', feature: first },
-      { text: 'ef', feature: null },
+      { text: 'a', features: [] },
+      { text: 'bc', features: [first] },
+      { text: 'd', features: [first, second] },
+      { text: 'ef', features: [second] },
+    ])
+  })
+
+  it('composes a bold link in the same range', () => {
+    const text = 'click here'
+    const bold: FacetFeature = { kind: 'bold' }
+    const link: FacetFeature = { kind: 'link', uri: 'https://example.com' }
+    expect(segmentText(text, [spanAt(text, 'here', bold), spanAt(text, 'here', link)])).toEqual([
+      { text: 'click ', features: [] },
+      { text: 'here', features: [bold, link] },
     ])
   })
 
@@ -87,14 +114,14 @@ describe('segmentText', () => {
       { start: 0, end: 5, feature: mention },
     ])
     expect(segments).toEqual([
-      { text: 'hello', feature: mention },
-      { text: ' world', feature: null },
+      { text: 'hello', features: [mention] },
+      { text: ' world', features: [] },
     ])
   })
 
   it('drops spans whose byte offsets fall inside a multi-byte code point', () => {
     expect(segmentText('🚀', [{ start: 0, end: 2, feature: tag }])).toEqual([
-      { text: '🚀', feature: null },
+      { text: '🚀', features: [] },
     ])
   })
 })

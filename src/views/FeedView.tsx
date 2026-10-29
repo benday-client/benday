@@ -51,7 +51,7 @@ export default function FeedView() {
   const source = showingCustom
     ? ({ kind: 'feed', uri: activeUri } as const)
     : ({ kind: 'discover' } as const)
-  const feed = usePostFeed(source)
+  const feed = usePostFeed(source, !waitingForPinned)
   const posts = feed.data ?? []
   useViewerSync(posts)
   const info = feed.error !== null ? errorInfo(feed.error) : null
@@ -130,9 +130,11 @@ export default function FeedView() {
             pending={feed.isPending}
             hasMore={feed.hasMore}
             loadingMore={feed.isLoadingMore}
+            loadMoreError={feed.loadMoreError}
             onLoadMore={feed.loadMore}
+            onRetryLoadMore={feed.retryLoadMore}
             label={showingCustom ? 'feed cards' : 'discover cards'}
-            stateKey={showingCustom ? `feed:${uri}` : 'discover'}
+            stateKey={showingCustom ? `feed:${activeUri}` : 'discover'}
             empty={
               <EmptyState
                 title={showingCustom ? 'no feed cards' : 'no signal'}

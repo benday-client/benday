@@ -13,10 +13,32 @@
     <title>benday // bluesky reader</title>
     <script>
       try {
+        const colors = {
+          void: '#07090c',
+          bone: '#ddd6c6',
+          oxide: '#0b0705',
+          phosphor: '#040906',
+          'catppuccin-mocha': '#1e1e2e',
+          'catppuccin-latte': '#eff1f5',
+          dracula: '#282a36',
+          atom: '#282c34',
+          'github-dark': '#0d1117',
+          'github-light': '#ffffff',
+          cyberpunk: '#05030d',
+          cottagecore: '#f3ead8',
+        }
         const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
-        const theme = stored?.state?.theme
-        const themes = ['void', 'bone', 'oxide', 'phosphor']
-        if (themes.includes(theme)) document.documentElement.dataset.theme = theme
+        let theme = stored?.state?.theme
+        if (theme === 'duotone') {
+          theme = 'cyberpunk'
+          stored.state.theme = theme
+          localStorage.setItem('benday:settings', JSON.stringify(stored))
+        }
+        if (typeof theme === 'string' && Object.hasOwn(colors, theme)) {
+          document.documentElement.dataset.theme = theme
+          const meta = document.querySelector('meta[name="theme-color"]')
+          if (meta !== null) meta.setAttribute('content', colors[theme])
+        }
       } catch {}
     </script>
   </head>

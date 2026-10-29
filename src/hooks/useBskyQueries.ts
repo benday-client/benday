@@ -67,17 +67,17 @@ function flattenPosts(pages: FeedPage[]): PostModel[] {
   return posts
 }
 
-export function usePostFeed(source: FeedSource): PostFeedState {
+export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
   const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
-  const enabled = feedEnabled(source)
+  const active = enabled && feedEnabled(source)
 
   const query = useInfiniteQuery({
     queryKey: feedKey(target, source, viewerDid),
     queryFn: ({ pageParam }) => fetchFeedPage(target, source, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
-    enabled,
+    enabled: active,
     staleTime: STALE_TIME,
     retry: 1,
     refetchOnWindowFocus: false,
@@ -85,15 +85,21 @@ export function usePostFeed(source: FeedSource): PostFeedState {
 
   return {
     data: query.data ? flattenPosts(query.data.pages) : null,
-    isPending: enabled ? query.isPending : false,
+    isPending: active ? query.isPending : false,
     isFetching: query.isFetching,
     error: normalizeError(query.error),
     retry: () => {
       void query.refetch()
     },
-    hasMore: query.hasNextPage,
+    hasMore: active && query.hasNextPage && !query.isFetchNextPageError,
     isLoadingMore: query.isFetchingNextPage,
+    loadMoreError: query.isFetchNextPageError,
     loadMore: () => {
+      if (!active || !query.hasNextPage) return
+      if (query.isFetchingNextPage || query.isFetchNextPageError) return
+      void query.fetchNextPage()
+    },
+    retryLoadMore: () => {
       if (!query.hasNextPage || query.isFetchingNextPage) return
       void query.fetchNextPage()
     },

@@ -17,6 +17,10 @@ describe('mentionAt', () => {
     expect(mentionAt('@ada and @bea', 13)).toEqual({ start: 9, end: 13, query: 'bea' })
   })
 
+  it('extends a mid-token mention over the remaining handle characters', () => {
+    expect(mentionAt('@alice', 4)).toEqual({ start: 0, end: 6, query: 'ali' })
+  })
+
   it('finds hashtags as well as mentions', () => {
     expect(suggestionAt('look #pho', 9)).toEqual({
       start: 5,

@@ -40,6 +40,7 @@ describe('fetchViewerStates', () => {
   it('deletes a post record by at-uri', async () => {
     const deleteRecord = vi.fn(async () => ({}))
     vi.mocked(getAuthAgent).mockReturnValue({
+      did: 'did:plc:test',
       com: { atproto: { repo: { deleteRecord } } },
     } as unknown as AtpAgent)
 
@@ -50,6 +51,45 @@ describe('fetchViewerStates', () => {
       collection: 'app.bsky.feed.post',
       rkey: 'abc123',
     })
+  })
+
+  it('refuses to delete a record outside the post collection', async () => {
+    const deleteRecord = vi.fn(async () => ({}))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      did: 'did:plc:test',
+      com: { atproto: { repo: { deleteRecord } } },
+    } as unknown as AtpAgent)
+
+    await expect(deletePost('at://did:plc:test/app.bsky.feed.like/abc123')).rejects.toThrow(
+      'invalid post uri',
+    )
+    expect(deleteRecord).not.toHaveBeenCalled()
+  })
+
+  it('refuses to delete a post owned by another repo', async () => {
+    const deleteRecord = vi.fn(async () => ({}))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      did: 'did:plc:test',
+      com: { atproto: { repo: { deleteRecord } } },
+    } as unknown as AtpAgent)
+
+    await expect(deletePost('at://did:plc:other/app.bsky.feed.post/abc123')).rejects.toThrow(
+      'invalid post uri',
+    )
+    expect(deleteRecord).not.toHaveBeenCalled()
+  })
+
+  it('refuses an at-uri with more than five segments', async () => {
+    const deleteRecord = vi.fn(async () => ({}))
+    vi.mocked(getAuthAgent).mockReturnValue({
+      did: 'did:plc:test',
+      com: { atproto: { repo: { deleteRecord } } },
+    } as unknown as AtpAgent)
+
+    await expect(deletePost('at://did:plc:test/app.bsky.feed.post/abc123/extra')).rejects.toThrow(
+      'invalid post uri',
+    )
+    expect(deleteRecord).not.toHaveBeenCalled()
   })
 
   it('converts markdown markers into record facets', async () => {

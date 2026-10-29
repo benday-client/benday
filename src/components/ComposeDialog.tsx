@@ -39,8 +39,11 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const formId = useId()
+  const listboxId = useId()
+  const generationRef = useRef(0)
 
   useEffect(() => {
+    generationRef.current += 1
     setText('')
     setPending(false)
     setError(null)
@@ -48,6 +51,12 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
     setSuggestOpen(false)
     setSelectedSuggestion(0)
   }, [open, request])
+
+  const close = () => {
+    generationRef.current += 1
+    setPending(false)
+    onClose()
+  }
 
   const mode: ComposeMode = request === null ? 'post' : request.mode
   const target = request === null ? null : request.post
@@ -95,6 +104,8 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   const suggestionsPending =
     token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
   const showSuggestions = token !== null && (suggestionsPending || suggestions.length > 0)
+  const activeSuggestion =
+    suggestions.length === 0 ? -1 : Math.min(selectedSuggestion, suggestions.length - 1)
   const plain = markdownText(text)
   const count = new RichText({ text: plain }).graphemeLength
   const empty = mode !== 'quote' && plain.trim().length === 0
@@ -128,6 +139,7 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
     if (request === null || disabled) return
 
     const targetPost = request.post
+    const generation = generationRef.current
     setPending(true)
     setError(null)
 
@@ -146,19 +158,22 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
         return
       }
 
+      if (generationRef.current !== generation) return
+
       // the selected appview may not have indexed the new record yet
       void queryClient.invalidateQueries()
       onClose()
     } catch (caught) {
+      if (generationRef.current !== generation) return
       setError(errorInfo(caught).detail)
     } finally {
-      setPending(false)
+      if (generationRef.current === generation) setPending(false)
     }
   }
 
   if (request === null) {
     return (
-      <Dialog open={false} title="compose" onClose={onClose}>
+      <Dialog open={false} title="compose" onClose={close}>
         {null}
       </Dialog>
     )
@@ -172,11 +187,11 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
     <Dialog
       open={open}
       title={mode === 'post' ? 'compose' : mode}
-      onClose={onClose}
+      onClose={close}
       className="b-compose"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             cancel
           </Button>
           <Button type="submit" form={formId} variant="solid" disabled={disabled}>
@@ -196,7 +211,16 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
         <textarea
           ref={textareaRef}
           className="b-compose__input"
+          role="combobox"
           aria-label="compose post"
+          aria-expanded={showSuggestions}
+          aria-autocomplete="list"
+          aria-controls={showSuggestions ? listboxId : undefined}
+          aria-activedescendant={
+            showSuggestions && activeSuggestion >= 0
+              ? `${listboxId}-option-${activeSuggestion}`
+              : undefined
+          }
           placeholder={PLACEHOLDERS[mode]}
           value={text}
           disabled={pending}
@@ -234,7 +258,7 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
             }
             if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {
               event.preventDefault()
-              const selected = suggestions[selectedSuggestion]
+              const selected = suggestions[activeSuggestion]
               if (selected !== undefined) applySuggestion(selected.value)
               return
             }
@@ -246,16 +270,22 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
         />
 
         {token !== null && showSuggestions ? (
-          <div className="b-compose__suggestions" role="listbox" aria-label="suggestions">
+          <div
+            id={listboxId}
+            className="b-compose__suggestions"
+            role="listbox"
+            aria-label="suggestions"
+          >
             {suggestionsPending && suggestions.length === 0 ? (
               <p className="b-compose__suggestion-note">searching</p>
             ) : (
               suggestions.map((suggestion, index) => (
                 <button
                   key={suggestion.key}
+                  id={`${listboxId}-option-${index}`}
                   type="button"
                   role="option"
-                  aria-selected={index === selectedSuggestion}
+                  aria-selected={index === activeSuggestion}
                   className="b-compose__suggestion"
                   onMouseDown={(event) => {
                     event.preventDefault()

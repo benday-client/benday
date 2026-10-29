@@ -259,7 +259,7 @@
   color: var(--blue);
 }
 
-.b-compose__suggestion span:last-child {
+.b-compose__suggestion span + span {
   color: var(--ink-faint);
   font-size: var(--step--2);
 }

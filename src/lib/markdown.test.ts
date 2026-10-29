@@ -62,6 +62,44 @@ describe('parseMarkdown', () => {
       },
     ])
   })
+
+  it('keeps intraword underscores literal', () => {
+    const parsed = parseMarkdown('snake_case_name')
+
+    expect(parsed.text).toBe('snake_case_name')
+    expect(parsed.facets).toEqual([])
+  })
+
+  it('keeps intraword asterisks literal', () => {
+    const parsed = parseMarkdown('2*3*4')
+
+    expect(parsed.text).toBe('2*3*4')
+    expect(parsed.facets).toEqual([])
+  })
+
+  it('keeps underscores inside bare urls literal', () => {
+    const parsed = parseMarkdown('see https://example.com/some_path_here')
+
+    expect(parsed.text).toBe('see https://example.com/some_path_here')
+    expect(parsed.facets).toEqual([])
+  })
+
+  it('keeps balanced parentheses in link destinations', () => {
+    const parsed = parseMarkdown('[wiki](https://en.wikipedia.org/wiki/Foo_(bar))')
+
+    expect(parsed.text).toBe('wiki')
+    expect(parsed.facets).toEqual([
+      {
+        index: { byteStart: 0, byteEnd: 4 },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://en.wikipedia.org/wiki/Foo_(bar)',
+          },
+        ],
+      },
+    ])
+  })
 })
 
 describe('markdownText', () => {
