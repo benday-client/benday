@@ -426,7 +426,12 @@
   gap: var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--line-strong);
-  background: var(--void);
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
+  );
   box-shadow: 3px 3px 0 0 var(--shadow);
 }
 

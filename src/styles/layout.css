@@ -185,7 +185,7 @@
   min-width: 0;
 }
 
-.b-topbar__icon {
+.b-button.b-topbar__icon {
   min-width: 32px;
   min-height: 30px;
   padding: 2px var(--space-1);
@@ -193,9 +193,9 @@
   letter-spacing: 0.04em;
 }
 
-.b-topbar__icon .b-kbd {
+.b-button.b-topbar__icon .b-kbd {
   min-width: 20px;
-  font-size: var(--step-0);
+  font-size: inherit;
 }
 
 .b-topbar__glyph {
