@@ -60,7 +60,6 @@ export function FeedCardBack({
     <article className="b-frame b-card-back" aria-hidden="true">
       <header className="b-frame__head b-card-back__head">
         <span className="b-frame__label mono-label">card back</span>
-        <span className="b-frame__meta">{feedName}</span>
       </header>
       <div className="b-frame__body b-card-back__body">
         <span className="b-card-back__index">[{index}]</span>

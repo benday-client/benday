@@ -155,17 +155,6 @@ export async function fetchActorSuggestions(
   }))
 }
 
-export function dedupePinnedFeeds(feeds: PinnedFeedModel[]): PinnedFeedModel[] {
-  const seen = new Set<string>()
-  return feeds.filter((feed) => {
-    const name = feed.name.trim().toLowerCase()
-    if (name.length === 0) return true
-    if (seen.has(name)) return false
-    seen.add(name)
-    return true
-  })
-}
-
 export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): string[] {
   const uris: string[] = []
   for (const pref of preferences) {
@@ -280,18 +269,16 @@ export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFe
     // pinned uris still work when the appview cannot label them
   }
 
-  return dedupePinnedFeeds(
-    unique.map((uri) => {
-      const generator = generators.get(uri)
-      const fallbackName = uri.split('/').at(-1) ?? uri
-      return {
-        uri,
-        name: generator?.displayName ?? fallbackName,
-        description: generator?.description ?? '',
-        avatar: generator?.avatar ?? null,
-      }
-    }),
-  )
+  return unique.map((uri) => {
+    const generator = generators.get(uri)
+    const fallbackName = uri.split('/').at(-1) ?? uri
+    return {
+      uri,
+      name: generator?.displayName ?? fallbackName,
+      description: generator?.description ?? '',
+      avatar: generator?.avatar ?? null,
+    }
+  })
 }
 
 export async function fetchProfile(target: AppViewTarget, actor: string): Promise<ProfileModel> {

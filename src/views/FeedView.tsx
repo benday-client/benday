@@ -240,9 +240,7 @@ export default function FeedView() {
               + add
             </button>
           </fieldset>
-        ) : (
-          <span className="b-view__feed-name mono-label">{activeFeedName}</span>
-        )}
+        ) : null}
         <button
           type="button"
           className="b-pinned-add b-view__refresh"

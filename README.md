@@ -10,9 +10,8 @@ is a small TUI: monospace, one-pixel borders, lowercase labels, keyboard-first,
 no rounded corners.
 
 reading is public and needs no account. signing in adds likes, reposts, quotes,
-replies, a composer, own-post deletion and the account's pinned feeds. pinned
-feeds keep their saved order and repeated display names appear once. the client
-talks to the pds that owns the account and uses the selected appview for
+replies, a composer, own-post deletion and the account's pinned feeds. the
+client talks to the pds that owns the account and uses the selected appview for
 public reads.
 
 no account data is stored on a server owned by this project. ui settings live in
@@ -250,7 +249,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 149 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 148 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,

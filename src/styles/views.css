@@ -338,16 +338,9 @@
   padding: 0;
 }
 
-.b-view__feed-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-faint);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .b-view__refresh {
   flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .b-view__refresh:disabled {

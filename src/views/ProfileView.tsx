@@ -34,7 +34,6 @@ export default function ProfileView() {
       <h1 className="visually-hidden">profile</h1>
       {actor.length > 0 ? (
         <div className="b-view__tools b-view__tools--feed">
-          <span className="b-view__feed-name mono-label">@{handle}</span>
           <button
             type="button"
             className="b-pinned-add b-view__refresh"
