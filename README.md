@@ -40,7 +40,9 @@ signing in uses the password accepted by the pds. this is usually an app
 password; some pds implementations do not expose app passwords and require the
 account password instead. use an app password whenever the pds supports one.
 the client stores access and refresh tokens in localStorage after sign-in and
-never stores the password. sign out clears the session and viewer state.
+never stores the password. sign out clears the session and viewer state. a successful post closes the
+composer and refreshes active queries instead of opening a thread that may not
+be indexed yet.
 
 login is password based, not oauth. a static localhost build has no public oauth
 client metadata host.
@@ -148,9 +150,10 @@ route semantics without adding chrome.
 
 ## verification
 
-- 87 offline unit tests cover byte-offset facets, thread flattening and
+- 88 offline unit tests cover byte-offset facets, thread flattening and
   mapping, appviews, relative time, dither generation, themes, command parsing,
-  palette precedence, card action auth gates and the reply composer
+  palette precedence, card action auth gates, the reply composer and the
+  appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths
 - appview switching is checked against the live canonical, public, and
   blacksky hosts
