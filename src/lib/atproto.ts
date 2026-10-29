@@ -202,7 +202,7 @@ export async function fetchTagSuggestions(target: AppViewTarget, query: string):
 export async function fetchLabelerPrefs(): Promise<string[]> {
   const agent = getAuthAgent()
   if (agent === null) return []
-  const prefs = await agent.app.bsky.actor.getPreferences()
+  const prefs = await agent.clone().app.bsky.actor.getPreferences()
   const dids: string[] = []
   for (const pref of prefs.data.preferences) {
     if (AppBskyActorDefs.isLabelersPref(pref)) {
@@ -252,7 +252,7 @@ export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFe
   const agent = getAuthAgent()
   if (agent === null) return []
 
-  const prefs = await agent.app.bsky.actor.getPreferences()
+  const prefs = await agent.clone().app.bsky.actor.getPreferences()
   const unique = pinnedFeedUris(prefs.data.preferences)
   if (unique.length === 0) return []
 
