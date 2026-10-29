@@ -4,7 +4,9 @@ import {
   isTheme,
   THEME_COLORS,
   THEME_EFFECTS,
+  THEME_GROUPS,
   THEME_LABELS,
+  THEME_SCHEMES,
   THEMES,
 } from './themes'
 
@@ -26,6 +28,17 @@ const EXPECTED_THEMES = [
 describe('themes', () => {
   it('lists the themes in display order', () => {
     expect(THEMES).toEqual(EXPECTED_THEMES)
+  })
+
+  it('splits every theme into dark and light groups', () => {
+    expect(THEME_GROUPS.map((group) => group.scheme)).toEqual(['dark', 'light'])
+    const grouped = THEME_GROUPS.flatMap((group) => group.themes)
+    expect(grouped).toHaveLength(THEMES.length)
+    expect(new Set(grouped)).toEqual(new Set(THEMES))
+    expect(THEME_SCHEMES.void).toBe('dark')
+    expect(THEME_SCHEMES['github-dark']).toBe('dark')
+    expect(THEME_SCHEMES.bone).toBe('light')
+    expect(THEME_SCHEMES['github-light']).toBe('light')
   })
 
   it('labels every theme in lowercase', () => {

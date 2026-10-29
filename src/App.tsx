@@ -196,11 +196,7 @@ function AppShell() {
       />
       <AppViewDialog open={dialog === 'appview'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
-      <SettingsDialog
-        open={dialog === 'settings'}
-        onClose={closeDialog}
-        onOpenHelp={() => openDialog('help')}
-      />
+      <SettingsDialog open={dialog === 'settings'} onClose={closeDialog} />
       <LoginDialog open={dialog === 'login'} onClose={closeDialog} />
       <AccountDialog open={dialog === 'account'} onClose={closeDialog} />
       <ComposeDialog open={compose !== null} request={compose} onClose={closeCompose} />

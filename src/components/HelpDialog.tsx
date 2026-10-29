@@ -10,42 +10,72 @@ interface Shortcut {
   what: string
 }
 
-const SHORTCUTS: readonly Shortcut[] = [
-  { keys: '← → / h l', what: 'scan cards on laptop' },
-  { keys: '← at first post', what: 'open the feeds deck' },
-  { keys: '← at first feed', what: 'back to posts' },
-  { keys: '↑ ↓ / j k', what: 'scan cards on mobile' },
-  { keys: 'g / G', what: 'first / last card' },
-  { keys: 'enter / space', what: 'open replies' },
-  { keys: '↓ wide · → narrow', what: 'open the full post' },
-  { keys: '↑ / k', what: 'close the full post' },
-  { keys: 'pgup / pgdn', what: 'scroll the focused post' },
-  { keys: 'shift ↑ ↓', what: 'scroll the focused post' },
-  { keys: '↑ ↓ in replies', what: 'focus reply rows' },
-  { keys: 'esc', what: 'back out of replies or profile' },
-  { keys: '/ or ctrl/cmd+k', what: 'jump' },
-  { keys: 'ctrl/cmd ← →', what: 'switch tabs' },
-  { keys: 'profile tab', what: 'temporary while viewing a profile' },
-  { keys: 's', what: 'search' },
-  { keys: 'c', what: 'compose' },
-  { keys: 'ctrl/cmd enter', what: 'send from the composer' },
-  { keys: 'a', what: 'appviews' },
-  { keys: 'f', what: 'like the focused card' },
-  { keys: '+', what: 'more like this in a feed' },
-  { keys: '-', what: 'less like this in a feed' },
-  { keys: 'b', what: 'repost the focused card' },
-  { keys: 'r', what: 'reply to the focused card' },
-  { keys: 'q', what: 'quote the focused card' },
-  { keys: 'd d', what: 'delete your focused post' },
-  { keys: ',', what: 'settings' },
-  { keys: '?', what: 'help' },
+interface ShortcutGroup {
+  title: string
+  items: readonly Shortcut[]
+}
+
+const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
+  {
+    title: 'anywhere',
+    items: [
+      { keys: '/ or ctrl/cmd k', what: 'jump' },
+      { keys: 's', what: 'search' },
+      { keys: 'a', what: 'appviews' },
+      { keys: ',', what: 'settings' },
+      { keys: '?', what: 'keyboard help' },
+      { keys: 'ctrl/cmd ← →', what: 'switch tabs' },
+      { keys: 'esc', what: 'close a dialog or go back' },
+    ],
+  },
+  {
+    title: 'cards',
+    items: [
+      { keys: '← → / h l', what: 'scan on laptop' },
+      { keys: '↑ ↓ / j k', what: 'scan on mobile' },
+      { keys: 'g / G', what: 'first / last card' },
+      { keys: '← at first post', what: 'open the feeds deck' },
+      { keys: '← at first feed', what: 'back to posts' },
+      { keys: 'enter / space', what: 'open replies' },
+      { keys: '↓ wide · → narrow', what: 'open the full post' },
+    ],
+  },
+  {
+    title: 'card actions',
+    items: [
+      { keys: 'f', what: 'like' },
+      { keys: 'b', what: 'repost' },
+      { keys: 'r', what: 'reply' },
+      { keys: 'q', what: 'quote' },
+      { keys: '+', what: 'more like this' },
+      { keys: '-', what: 'less like this' },
+      { keys: 'd d', what: 'delete your post' },
+    ],
+  },
+  {
+    title: 'reading',
+    items: [
+      { keys: '↑ / k', what: 'close the full post' },
+      { keys: '↑ ↓ in replies', what: 'focus reply rows' },
+      { keys: 'enter on a reply', what: 'open that reply' },
+      { keys: 'pgup / pgdn', what: 'scroll the focused post' },
+      { keys: 'shift ↑ ↓', what: 'scroll the focused post' },
+    ],
+  },
+  {
+    title: 'writing',
+    items: [
+      { keys: 'c', what: 'compose a post' },
+      { keys: 'ctrl/cmd enter', what: 'send' },
+    ],
+  },
 ]
 
 export function HelpDialog({ open, onClose }: HelpDialogProps) {
   return (
     <Dialog
       open={open}
-      title="keys"
+      title="keyboard"
       onClose={onClose}
       className="b-help"
       footer={
@@ -55,20 +85,27 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
       }
     >
       <p className="b-help__note">
-        sign in to like, repost, quote and reply. sessions stay local. signed-out feeds show
-        discover only. the jump palette remembers recent jumps and suggests handles and tags.
+        keys apply when no dialog or composer is open. a profile opened from a card gets a temporary
+        tab. sign in to like repost quote and reply, and signed-out feeds show discover only.
       </p>
 
-      <dl className="b-help__grid">
-        {SHORTCUTS.map((shortcut) => (
-          <div className="b-help__section" key={shortcut.keys}>
-            <dt className="b-help__keys">
-              <Kbd>{shortcut.keys}</Kbd>
-            </dt>
-            <dd className="b-help__what">{shortcut.what}</dd>
-          </div>
+      <div className="b-help__groups">
+        {SHORTCUT_GROUPS.map((group) => (
+          <section className="b-help__group" key={group.title}>
+            <h3 className="b-help__heading mono-label">{group.title}</h3>
+            <dl className="b-help__list">
+              {group.items.map((shortcut) => (
+                <div className="b-help__row" key={shortcut.keys}>
+                  <dt className="b-help__keys">
+                    <Kbd>{shortcut.keys}</Kbd>
+                  </dt>
+                  <dd className="b-help__what">{shortcut.what}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         ))}
-      </dl>
+      </div>
     </Dialog>
   )
 }

@@ -5,11 +5,20 @@ export interface DialogProps {
   title: string
   onClose: () => void
   footer?: ReactNode
+  headerClose?: boolean
   className?: string
   children: ReactNode
 }
 
-export function Dialog({ open, title, onClose, footer, className, children }: DialogProps) {
+export function Dialog({
+  open,
+  title,
+  onClose,
+  footer,
+  headerClose = false,
+  className,
+  children,
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleId = useId()
 
@@ -72,6 +81,16 @@ export function Dialog({ open, title, onClose, footer, className, children }: Di
         <h2 id={titleId} className="b-dialog__title">
           {title}
         </h2>
+        {headerClose ? (
+          <button
+            type="button"
+            className="b-dialog__close"
+            aria-label={`close ${title}`}
+            onClick={onClose}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        ) : null}
       </header>
       <div className="b-dialog__body">{children}</div>
       {footer !== undefined ? <footer className="b-dialog__foot">{footer}</footer> : null}

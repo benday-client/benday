@@ -1,6 +1,7 @@
 import type { Theme } from './types'
 
 export type ImageEffect = 'grunge' | 'clean'
+export type ThemeScheme = 'light' | 'dark'
 
 export const DEFAULT_IMAGE_EFFECT: ImageEffect = 'grunge'
 
@@ -48,6 +49,29 @@ export const THEME_LABELS: Record<Theme, string> = {
   cyberpunk: 'cyberpunk 2077',
   cottagecore: 'cottagecore',
 }
+
+export const THEME_SCHEMES: Record<Theme, ThemeScheme> = {
+  void: 'dark',
+  bone: 'light',
+  oxide: 'dark',
+  phosphor: 'dark',
+  'catppuccin-mocha': 'dark',
+  'catppuccin-latte': 'light',
+  dracula: 'dark',
+  atom: 'dark',
+  'github-dark': 'dark',
+  'github-light': 'light',
+  cyberpunk: 'dark',
+  cottagecore: 'light',
+}
+
+export const THEME_GROUPS: readonly {
+  scheme: ThemeScheme
+  themes: readonly Theme[]
+}[] = [
+  { scheme: 'dark', themes: THEMES.filter((theme) => THEME_SCHEMES[theme] === 'dark') },
+  { scheme: 'light', themes: THEMES.filter((theme) => THEME_SCHEMES[theme] === 'light') },
+]
 
 export const THEME_COLORS: Record<Theme, string> = {
   void: '#07090c',

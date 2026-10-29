@@ -97,9 +97,9 @@ the password fallback works everywhere else, including `localhost`.
 the card footer has `re` replies, `like`, `rt` repost, `reply` and `quote`. on
 your own posts a two-step `delete` action appears beside them. signed-out clicks
 open the sign-in dialog. the top bar has a compose button for signed-in
-accounts. the jump palette accepts `@handle`, post and feed `at://` uris,
-`#tags` and plain search text, and lists the account's pinned feeds when the
-session exposes them. the palette keeps the last five jumps for a quick return. a profile opened
+accounts, shows their handle, and offers keyboard help. signed out it offers a
+log in button. the jump palette accepts `@handle`, post and feed `at://` uris, `#tags` and plain
+search text, and lists the account's pinned feeds when the session exposes them. the palette keeps the last five jumps for a quick return. a profile opened
 from a card gets a temporary tab after search and loses it when you leave.
 
 ## themes
@@ -107,10 +107,10 @@ from a card gets a temporary tab after search and loses it when you leave.
 twelve themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
 `github dark`, `github light`, `cyberpunk 2077` and `cottagecore`. themes are
-chosen in settings. single images scale to fit the viewport while keeping their
-natural ratio. media is
-dithered through an inline svg filter with one duotone table per theme, not
-canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
+chosen in settings, grouped under dark and light. a live preview above the
+groups shows the current card type tags controls input and keycap. single images
+scale to fit the viewport while keeping their natural ratio. media is dithered
+through an inline svg filter with one duotone table per theme, not canvas. the ordered dither is an 8x8 Bayer matrix with 64 levels in a 16x16
 tile. newer themes use their secondary palette colours for active navigation,
 likes, comments and repost marks. image effects are themed too, defaulting to
 `grunge`; `phosphor`, `catppuccin latte`, `atom one dark`, `github dark` and
@@ -134,13 +134,15 @@ supplied. cards from author and search decks do not send feedback.
 
 feed and discover decks do not refetch themselves. restoring a cached deck, moving
 between tabs, letting a labeler change, or invalidating after a write leaves the
-cards alone. the refresh button in the feed strip and submitting the same search
-again are the explicit reloads.
+cards alone. the refresh buttons in the feed and profile strips and submitting
+the same search again are the explicit reloads. refresh resets to the first page
+and leaves further paging to scroll.
 
 ## settings
 
-settings is the central window for themes appviews labelers account and help.
-open it with `,` or the gear button.
+settings is the central window for themes appviews labelers and account. open it
+with `,` or the gear button. appearance has a live preview and separate
+dark and light theme groups. the header cross closes the window.
 
 ## composing
 
@@ -245,11 +247,12 @@ route semantics without adding chrome.
 
 ## verification
 
-- 147 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
+- 148 offline unit tests cover byte-offset facets, markdown-to-facet conversion,
   thread flattening and reply context, appviews, relative time, 8x8 dither
   generation, all themes, pinned-feed preferences, mention detection, command
   parsing, palette precedence, card action auth gates, focused-card shortcuts,
-  the reply composer drafts the feed cache guard and the appview proxy used for viewer state
+  the reply composer, drafts, the feed cache guard, theme schemes, and the
+  appview proxy used for viewer state
 - the built bundle is exercised in a browser at desktop and mobile widths; the
   wide deck is checked as a centred card with half-neighbour peeks, the narrow
   deck as a two-up vertical list, and the thread view as one full card with replies inside

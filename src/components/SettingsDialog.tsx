@@ -10,18 +10,18 @@ import {
 import { fetchLabelerPrefs } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
-import { THEME_LABELS, THEMES } from '../lib/themes'
+import { THEME_GROUPS, THEME_LABELS } from '../lib/themes'
 import type { AppViewPreset } from '../lib/types'
 import { useUiStore } from '../lib/ui'
+import { ThemePreview } from './ThemePreview'
 import { Button, Dialog, Tag, TextInput } from './ui'
 
 export interface SettingsDialogProps {
   open: boolean
   onClose: () => void
-  onOpenHelp: () => void
 }
 
-export function SettingsDialog({ open, onClose, onOpenHelp }: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const appView = useSettings((state) => state.appView)
   const setAppView = useSettings((state) => state.setAppView)
   const theme = useSettings((state) => state.theme)
@@ -87,33 +87,31 @@ export function SettingsDialog({ open, onClose, onOpenHelp }: SettingsDialogProp
   }
 
   return (
-    <Dialog
-      open={open}
-      title="settings"
-      onClose={onClose}
-      className="b-settings"
-      footer={
-        <Button variant="ghost" onClick={onClose}>
-          close
-        </Button>
-      }
-    >
+    <Dialog open={open} title="settings" onClose={onClose} className="b-settings" headerClose>
       <section className="b-settings__section">
         <h3 className="b-settings__heading">appearance</h3>
-        <div className="b-settings__themes">
-          {THEMES.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className="b-settings__theme"
-              data-active={theme === item ? 'true' : 'false'}
-              aria-pressed={theme === item}
-              onClick={() => {
-                setTheme(item)
-              }}
-            >
-              <span>{THEME_LABELS[item]}</span>
-            </button>
+        <ThemePreview />
+        <div className="b-settings__theme-groups">
+          {THEME_GROUPS.map((group) => (
+            <section className="b-settings__theme-group" key={group.scheme}>
+              <h4 className="b-settings__subheading mono-label">{group.scheme}</h4>
+              <div className="b-settings__themes">
+                {group.themes.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="b-settings__theme"
+                    data-active={theme === item ? 'true' : 'false'}
+                    aria-pressed={theme === item}
+                    onClick={() => {
+                      setTheme(item)
+                    }}
+                  >
+                    <span>{THEME_LABELS[item]}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </section>
@@ -247,13 +245,6 @@ export function SettingsDialog({ open, onClose, onOpenHelp }: SettingsDialogProp
             </Button>
           </div>
         )}
-      </section>
-
-      <section className="b-settings__section">
-        <h3 className="b-settings__heading">help</h3>
-        <Button variant="outline" onClick={onOpenHelp}>
-          keyboard help
-        </Button>
       </section>
     </Dialog>
   )

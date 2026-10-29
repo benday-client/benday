@@ -6,6 +6,7 @@ import { Button, Kbd } from './ui'
 export function TopBar() {
   const [pathname] = useLocation()
   const authStatus = useAuthStore((state) => state.status)
+  const account = useAuthStore((state) => state.account)
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
@@ -60,6 +61,26 @@ export function TopBar() {
       </nav>
 
       <div className="b-topbar__actions">
+        {authenticated && account !== null ? (
+          <Link
+            href={`/profile/${encodeURIComponent(account.handle)}`}
+            className="b-topbar__account"
+            aria-label={`your profile @${account.handle}`}
+            title={account.did}
+          >
+            @{account.handle}
+          </Link>
+        ) : authStatus === 'anonymous' ? (
+          <Button
+            variant="ghost"
+            className="b-topbar__login"
+            onClick={() => {
+              openDialog('login')
+            }}
+          >
+            log in
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           className="b-topbar__icon"
@@ -92,12 +113,26 @@ export function TopBar() {
           variant="ghost"
           className="b-topbar__icon"
           onClick={() => {
+            openDialog('help')
+          }}
+          aria-label="keyboard help"
+          title="keyboard help · ?"
+        >
+          <Kbd>?</Kbd>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={() => {
             openDialog('settings')
           }}
           aria-label="settings"
           title="settings · ,"
         >
-          <span aria-hidden="true">⚙</span>
+          <span className="b-topbar__glyph" aria-hidden="true">
+            ⚙
+          </span>
         </Button>
       </div>
     </header>

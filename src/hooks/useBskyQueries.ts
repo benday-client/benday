@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchFeedPage, fetchProfile, fetchThread } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
@@ -72,9 +72,11 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
   const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const active = enabled && feedEnabled(source)
+  const queryClient = useQueryClient()
+  const key = feedKey(target, source, viewerDid)
 
   const query = useInfiniteQuery({
-    queryKey: feedKey(target, source, viewerDid),
+    queryKey: key,
     queryFn: ({ pageParam }) => fetchFeedPage(target, source, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
@@ -92,7 +94,7 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
     isFetching: query.isFetching,
     error: normalizeError(query.error),
     retry: () => {
-      void query.refetch()
+      void queryClient.resetQueries({ queryKey: key, exact: true })
     },
     hasMore: active && query.hasNextPage && !query.isFetchNextPageError,
     isLoadingMore: query.isFetchingNextPage,
