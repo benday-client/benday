@@ -67,7 +67,9 @@ where the portal cannot.
 | `ctrl`/`cmd` + `←` `→`    | switch feeds / search tabs             |
 | `g` / `G`                 | first / last card                      |
 | `enter` / `space`         | open the focused card's replies        |
+| `↑` `↓` in replies        | focus reply rows                       |
 | `esc`                     | close a dialog or back out of replies  |
+| `enter` on a reply        | open that reply's thread               |
 | `f`                       | like the focused card                  |
 | `b`                       | repost the focused card                |
 | `r`                       | reply to the focused card              |

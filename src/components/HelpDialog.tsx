@@ -15,6 +15,7 @@ const SHORTCUTS: readonly Shortcut[] = [
   { keys: '↑ ↓ / j k', what: 'scan cards on mobile' },
   { keys: 'g / G', what: 'first / last card' },
   { keys: 'enter / space', what: 'open replies' },
+  { keys: '↑ ↓ in replies', what: 'focus reply rows' },
   { keys: 'esc', what: 'back out of replies' },
   { keys: '/ or ctrl/cmd+k', what: 'jump' },
   { keys: 'ctrl/cmd ← →', what: 'switch tabs' },
@@ -45,8 +46,8 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
       }
     >
       <p className="b-help__note">
-        sign in to like, repost, quote and reply. sessions stay local. themes are void, bone, oxide,
-        phosphor, catppuccin, dracula, atom one dark, github, duotone and cyberpunk 2077.
+        sign in to like, repost, quote and reply. sessions stay local. signed-out feeds show
+        discover only. the jump palette remembers recent jumps and suggests handles and tags.
       </p>
 
       <dl className="b-help__grid">

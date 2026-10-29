@@ -91,7 +91,7 @@ export default function FeedView() {
         </div>
       ) : null}
       <div className="b-view__body">
-        {!supported ? (
+        {authenticated && !supported ? (
           <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
           </Frame>
