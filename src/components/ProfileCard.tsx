@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
 import {
@@ -83,13 +84,22 @@ interface NotifyPickerProps {
   onSelect: (key: string) => void
 }
 
+interface MenuPlacement {
+  top?: number
+  bottom?: number
+  left: number
+  width: number
+}
+
 function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPickerProps) {
   const listId = useId()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const [placement, setPlacement] = useState<MenuPlacement | null>(null)
   const selectedIndex = Math.max(
     0,
     NOTIFY_CHOICES.findIndex((choice) => choice.key === value),
@@ -107,6 +117,17 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
       onLocked()
       return
     }
+    const trigger = triggerRef.current
+    if (trigger === null) return
+    const rect = trigger.getBoundingClientRect()
+    const width = Math.max(rect.width, 192)
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))
+    const spaceBelow = window.innerHeight - rect.bottom
+    setPlacement(
+      spaceBelow < 140
+        ? { bottom: window.innerHeight - rect.top + 4, left, width }
+        : { top: rect.bottom + 4, left, width },
+    )
     setActive(selectedIndex)
     setOpen(true)
   }
@@ -120,13 +141,21 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
     const handlePointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node)) return
       if (wrapperRef.current?.contains(event.target) === true) return
+      if (menuRef.current?.contains(event.target) === true) return
+      setOpen(false)
+    }
+    const closeOnViewportChange = () => {
       setOpen(false)
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('resize', closeOnViewportChange)
+    window.addEventListener('scroll', closeOnViewportChange, true)
     return () => {
       window.cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('resize', closeOnViewportChange)
+      window.removeEventListener('scroll', closeOnViewportChange, true)
     }
   }, [open, active])
 
@@ -210,41 +239,51 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
             ▾
           </span>
         </button>
-        {open ? (
-          <div
-            id={listId}
-            className="b-profile__notify-menu"
-            role="listbox"
-            aria-label="notifications"
-          >
-            {NOTIFY_CHOICES.map((choice, index) => (
-              <div key={choice.key} role="none">
-                <button
-                  ref={(element) => {
-                    optionRefs.current[index] = element
-                  }}
-                  type="button"
-                  role="option"
-                  className="b-profile__notify-option"
-                  data-active={index === active ? 'true' : undefined}
-                  aria-selected={choice.key === value}
-                  tabIndex={index === active ? 0 : -1}
-                  onFocus={() => {
-                    setActive(index)
-                  }}
-                  onClick={() => {
-                    choose(choice.key)
-                  }}
-                  onKeyDown={(event) => {
-                    handleOptionKeyDown(event, index, choice.key)
-                  }}
-                >
-                  {choice.label}
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        {open && placement !== null
+          ? createPortal(
+              <div
+                ref={menuRef}
+                id={listId}
+                className="b-profile__notify-menu"
+                role="listbox"
+                aria-label="notifications"
+                style={{
+                  top: placement.top,
+                  bottom: placement.bottom,
+                  left: placement.left,
+                  width: placement.width,
+                }}
+              >
+                {NOTIFY_CHOICES.map((choice, index) => (
+                  <div key={choice.key} role="none">
+                    <button
+                      ref={(element) => {
+                        optionRefs.current[index] = element
+                      }}
+                      type="button"
+                      role="option"
+                      className="b-profile__notify-option"
+                      data-active={index === active ? 'true' : undefined}
+                      aria-selected={choice.key === value}
+                      tabIndex={index === active ? 0 : -1}
+                      onFocus={() => {
+                        setActive(index)
+                      }}
+                      onClick={() => {
+                        choose(choice.key)
+                      }}
+                      onKeyDown={(event) => {
+                        handleOptionKeyDown(event, index, choice.key)
+                      }}
+                    >
+                      {choice.label}
+                    </button>
+                  </div>
+                ))}
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
     </div>
   )

@@ -20,7 +20,7 @@ interface ShortcutGroup {
 const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'anywhere',
-    note: 'global keys; they apply when no dialog or composer is open',
+    note: 'global keys; an open dialog or composer gets the key first',
     items: [
       { keys: ['/'], what: 'open the command prompt' },
       { keys: ['s'], what: 'go to search' },
