@@ -39,14 +39,16 @@ export function TopBar() {
         >
           feeds
         </Link>
-        <Link
-          href="/notifications"
-          className="b-topbar__link"
-          data-active={notificationsActive ? 'true' : 'false'}
-          aria-current={notificationsActive ? 'page' : undefined}
-        >
-          notifications
-        </Link>
+        {authenticated ? (
+          <Link
+            href="/notifications"
+            className="b-topbar__link"
+            data-active={notificationsActive ? 'true' : 'false'}
+            aria-current={notificationsActive ? 'page' : undefined}
+          >
+            notifications
+          </Link>
+        ) : null}
         {profileActive ? (
           <Link
             href={pathname}

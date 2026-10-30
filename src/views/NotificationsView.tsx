@@ -1,7 +1,10 @@
-import { Link } from 'wouter'
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: rows are a focusable keyboard list
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'wouter'
 import { DitherImage } from '../components/DitherImage'
 import { RelativeTime } from '../components/RelativeTime'
 import { Button, EmptyState, ErrorNotice, Progress } from '../components/ui'
+import { isEditableTarget } from '../hooks/useHotkeys'
 import { useNotifications } from '../hooks/useNotifications'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
@@ -24,16 +27,53 @@ function previewText(text: string): string {
   return `${text.slice(0, PREVIEW_LIMIT).trimEnd()}…`
 }
 
-function NotificationRow({ notification }: { notification: NotificationModel }) {
+interface NotificationRowProps {
+  notification: NotificationModel
+  focused: boolean
+  onFocusRow: (id: string) => void
+  onOpen: (href: string) => void
+}
+
+function focusRow(row: HTMLElement | undefined): void {
+  if (row === undefined) return
+  row.focus()
+  if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'nearest' })
+}
+
+function NotificationRow({ notification, focused, onFocusRow, onOpen }: NotificationRowProps) {
   const author = notification.author
   const handle = author.handle.length > 0 ? author.handle : 'unknown'
   const profileHref = `/profile/${encodeURIComponent(handle)}`
   const subjectHref = notificationSubjectHref(notification)
   const follow = notificationReasonGroup(notification.reason) === 'follow'
   const initial = author.displayName.charAt(0) || handle.charAt(0) || '·'
+  const destination = subjectHref ?? profileHref
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLLIElement>) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    const target = event.target
+    if (target instanceof HTMLElement && target.closest('a, button') !== null) return
+    event.preventDefault()
+    onOpen(destination)
+  }
 
   return (
-    <li className="b-notif" data-unread={notification.isRead ? 'false' : 'true'}>
+    <li
+      className="b-notif"
+      data-unread={notification.isRead ? 'false' : 'true'}
+      data-focused={focused ? 'true' : 'false'}
+      tabIndex={0}
+      onFocus={() => {
+        onFocusRow(notification.id)
+      }}
+      onClick={(event) => {
+        const target = event.target
+        if (target instanceof HTMLElement && target.closest('a, button') !== null) return
+        event.currentTarget.focus()
+      }}
+      onKeyDown={handleKeyDown}
+    >
       <div className="b-notif__avatar">
         <DitherImage src={author.avatar} alt={`avatar of @${handle}`} fallback={initial} />
       </div>
@@ -71,10 +111,49 @@ function NotificationRow({ notification }: { notification: NotificationModel }) 
 export default function NotificationsView() {
   const status = useAuthStore((state) => state.status)
   const openDialog = useUiStore((state) => state.openDialog)
+  const [, navigate] = useLocation()
   const notifications = useNotifications()
   const authenticated = status === 'authenticated'
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
   const unread = notifications.notifications.filter((item) => !item.isRead).length
   const info = notifications.error !== null ? errorInfo(notifications.error) : null
+
+  useEffect(() => {
+    if (!authenticated) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+      if (isEditableTarget(event.target)) return
+      if (document.querySelector('dialog[open]') !== null) return
+      const scroller = scrollRef.current
+      if (scroller === null) return
+
+      const rows = Array.from(scroller.querySelectorAll<HTMLElement>('.b-notif'))
+      if (rows.length === 0) return
+      const active = document.activeElement
+      const activeRow =
+        active instanceof HTMLElement ? active.closest<HTMLElement>('.b-notif') : null
+      const index = activeRow !== null ? rows.indexOf(activeRow) : -1
+      if (index === -1) {
+        if (event.key !== 'ArrowDown') return
+        event.preventDefault()
+        focusRow(rows[0])
+        return
+      }
+      const next = index + (event.key === 'ArrowDown' ? 1 : -1)
+      if (next < 0 || next >= rows.length) return
+      event.preventDefault()
+      focusRow(rows[next])
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [authenticated])
 
   return (
     <section className="b-view b-notif-view">
@@ -102,7 +181,7 @@ export default function NotificationsView() {
         ) : null}
       </div>
 
-      <div className="b-notif__scroll">
+      <div className="b-notif__scroll" ref={scrollRef}>
         {status === 'restoring' ? (
           <div className="b-notif__state">
             <Progress label="restoring session" indeterminate />
@@ -152,7 +231,13 @@ export default function NotificationsView() {
             ) : null}
             <ul className="b-notif__list" aria-label="notifications">
               {notifications.notifications.map((notification) => (
-                <NotificationRow key={notification.id} notification={notification} />
+                <NotificationRow
+                  key={notification.id}
+                  notification={notification}
+                  focused={notification.id === focusedId}
+                  onFocusRow={setFocusedId}
+                  onOpen={navigate}
+                />
               ))}
             </ul>
           </>

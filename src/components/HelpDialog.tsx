@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Dialog, Kbd } from './ui'
+import { Dialog, Kbd } from './ui'
 
 export interface HelpDialogProps {
   open: boolean
@@ -7,73 +7,104 @@ export interface HelpDialogProps {
 }
 
 interface Shortcut {
-  keys: string
+  keys: readonly string[]
   what: string
 }
 
 interface ShortcutGroup {
   title: string
+  note: string
   items: readonly Shortcut[]
 }
 
 const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   {
     title: 'anywhere',
+    note: 'global keys; they apply when no dialog or composer is open',
     items: [
-      { keys: '/', what: 'open the command prompt' },
-      { keys: 's', what: 'go to search' },
-      { keys: 'ctrl/cmd ← →', what: 'switch feed / notifications tabs' },
-      { keys: 'a', what: 'open appview picker' },
-      { keys: ',', what: 'open settings' },
-      { keys: '?', what: 'open this help' },
-      { keys: 'esc', what: 'close a dialog or go back' },
+      { keys: ['/'], what: 'open the command prompt' },
+      { keys: ['s'], what: 'go to search' },
+      {
+        keys: ['ctrl/cmd ←', 'ctrl/cmd →'],
+        what: 'switch between the feed and notifications tabs',
+      },
+      { keys: ['a'], what: 'open the appview picker' },
+      { keys: [','], what: 'open settings' },
+      { keys: ['?'], what: 'open this help' },
+      { keys: ['esc'], what: 'close a dialog or go back' },
     ],
   },
   {
-    title: 'move',
+    title: 'deck',
+    note: 'moving between cards',
     items: [
-      { keys: '← → / h l', what: 'move between cards (wide)' },
-      { keys: '↑ ↓ / j k', what: 'move between cards (narrow)' },
-      { keys: 'g / G', what: 'first / last card' },
-      { keys: '1-9', what: 'focus card by position' },
-      { keys: '← at first post', what: 'open the feeds deck' },
-      { keys: '← at first feed', what: 'return to posts' },
-      { keys: 'enter / space', what: 'open replies on the focused card' },
-      { keys: '↓ wide · → narrow', what: 'open the full post' },
+      { keys: ['←', '→', 'h', 'l'], what: 'move between cards in a wide layout' },
+      { keys: ['↑', '↓', 'j', 'k'], what: 'move between cards in a narrow layout' },
+      { keys: ['g', 'G'], what: 'jump to the first or last card' },
+      { keys: ['1-9'], what: 'focus a card by position' },
+      { keys: ['↓'], what: 'open the full post from a card in a wide layout' },
+      { keys: ['→'], what: 'open the full post from a card in a narrow layout' },
     ],
   },
   {
-    title: 'card actions',
+    title: 'deck · first card',
+    note: 'the left edge of the posts deck',
+    items: [{ keys: ['←'], what: 'open the feeds deck' }],
+  },
+  {
+    title: 'feed',
+    note: 'the feeds deck',
+    items: [{ keys: ['←'], what: 'return to the posts deck from the first feed' }],
+  },
+  {
+    title: 'feed actions',
+    note: 'on a post shown inside a feed',
     items: [
-      { keys: 'f', what: 'like / unlike' },
-      { keys: 'b', what: 'repost / unrepost' },
-      { keys: 'r', what: 'reply' },
-      { keys: 'q', what: 'quote' },
-      { keys: 'v', what: 'play the focused post video inline' },
-      { keys: 'm', what: 'open media when present' },
-      { keys: '0', what: 'open quoted post when present' },
-      { keys: '+', what: 'more posts like this in a feed' },
-      { keys: '-', what: 'less posts like this in a feed' },
-      { keys: 'd d', what: 'delete own post (press twice)' },
-      { keys: 'R R', what: 'refresh the feed (press twice)' },
+      { keys: ['+'], what: 'show more posts like this' },
+      { keys: ['-'], what: 'show fewer posts like this' },
+      { keys: ['R R'], what: 'refresh the feed; press twice' },
+    ],
+  },
+  {
+    title: 'post',
+    note: 'opening and reading the full post',
+    items: [
+      { keys: ['enter', 'space'], what: 'open replies on the focused card' },
+      { keys: ['↑', 'k'], what: 'close the full post' },
+      { keys: ['pgup', 'pgdn'], what: 'scroll the full post' },
+      { keys: ['shift ↑', 'shift ↓'], what: 'scroll the full post one line at a time' },
+    ],
+  },
+  {
+    title: 'post actions',
+    note: 'on the focused card',
+    items: [
+      { keys: ['f'], what: 'like or unlike' },
+      { keys: ['b'], what: 'repost or unrepost' },
+      { keys: ['r'], what: 'reply' },
+      { keys: ['q'], what: 'quote' },
+      { keys: ['y'], what: 'copy a bsky.app link to the post' },
+      { keys: ['v'], what: 'play the focused post video inline' },
+      { keys: ['m'], what: 'open media when present' },
+      { keys: ['0'], what: 'open the quoted post when present' },
+      { keys: ['d d'], what: 'delete your own post; press twice' },
     ],
   },
   {
     title: 'thread',
+    note: 'the replies under a post',
     items: [
-      { keys: '↑ / k', what: 'close the full post' },
-      { keys: '↑ ↓ in replies', what: 'move between replies' },
-      { keys: '1-9 in a thread', what: 'focus reply by position' },
-      { keys: 'enter on a reply', what: 'open that reply as its own thread' },
-      { keys: 'pgup / pgdn', what: 'scroll the full post' },
-      { keys: 'shift ↑ ↓', what: 'scroll the full post' },
+      { keys: ['↑', '↓'], what: 'move between replies' },
+      { keys: ['1-9'], what: 'focus a reply by position' },
+      { keys: ['enter'], what: 'open the focused reply as its own thread' },
     ],
   },
   {
-    title: 'write',
+    title: 'composer',
+    note: 'writing a post',
     items: [
-      { keys: 'c', what: 'compose a post' },
-      { keys: 'ctrl/cmd enter', what: 'send from the composer' },
+      { keys: ['c'], what: 'open the composer' },
+      { keys: ['ctrl/cmd enter'], what: 'send from the composer' },
     ],
   },
 ]
@@ -88,7 +119,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
       : SHORTCUT_GROUPS.map((group) => ({
           ...group,
           items: group.items.filter((item) =>
-            `${item.keys} ${item.what}`.toLowerCase().includes(needle),
+            `${group.title} ${item.keys.join(' ')} ${item.what}`.toLowerCase().includes(needle),
           ),
         })).filter((group) => group.items.length > 0)
 
@@ -112,17 +143,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
   }, [open])
 
   return (
-    <Dialog
-      open={open}
-      title="keyboard"
-      onClose={onClose}
-      className="b-help"
-      footer={
-        <Button variant="ghost" onClick={onClose}>
-          close
-        </Button>
-      }
-    >
+    <Dialog open={open} title="keyboard" onClose={onClose} className="b-help" headerClose>
       <p className="b-help__note">
         keys apply when no dialog or composer is open. a profile opened from a card gets a temporary
         tab.
@@ -149,11 +170,21 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
           {groups.map((group) => (
             <section className="b-help__group" key={group.title}>
               <h3 className="b-help__heading mono-label">{group.title}</h3>
+              <p className="b-help__group-note">{group.note}</p>
               <dl className="b-help__list">
                 {group.items.map((shortcut) => (
-                  <div className="b-help__row" key={shortcut.keys}>
+                  <div className="b-help__row" key={`${shortcut.keys.join('+')}:${shortcut.what}`}>
                     <dt className="b-help__keys">
-                      <Kbd>{shortcut.keys}</Kbd>
+                      {shortcut.keys.map((key, index) => (
+                        <span className="b-help__key" key={key}>
+                          {index > 0 ? (
+                            <span className="b-help__or" aria-hidden="true">
+                              /
+                            </span>
+                          ) : null}
+                          <Kbd>{key}</Kbd>
+                        </span>
+                      ))}
                     </dt>
                     <dd className="b-help__what">{shortcut.what}</dd>
                   </div>

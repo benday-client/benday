@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
 import {
@@ -14,7 +14,7 @@ import {
   unmute,
 } from '../lib/profileActions'
 import { formatAbsoluteTime } from '../lib/time'
-import type { ProfileModel, ProfileViewerState } from '../lib/types'
+import type { ProfileActivitySubscription, ProfileModel, ProfileViewerState } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { DitherImage } from './DitherImage'
 import { Frame, Tag } from './ui'
@@ -32,8 +32,7 @@ type ProfileAction =
   | 'show-reposts'
   | 'block'
   | 'unblock'
-  | 'notify-post'
-  | 'notify-reply'
+  | 'notify'
 
 function httpUrl(raw: string): string | null {
   try {
@@ -55,6 +54,202 @@ function linkTitle(url: string, title: string): string {
   }
 }
 
+interface NotifyChoice {
+  key: string
+  label: string
+  post: boolean
+  reply: boolean
+}
+
+const NOTIFY_CHOICES: NotifyChoice[] = [
+  { key: 'all', label: 'all activity', post: true, reply: true },
+  { key: 'posts', label: 'new posts only', post: true, reply: false },
+  { key: 'replies', label: 'replies only', post: false, reply: true },
+  { key: 'off', label: 'off', post: false, reply: false },
+]
+
+function notifyChoice(subscription: ProfileActivitySubscription | null): string {
+  if (subscription === null) return 'off'
+  if (subscription.post) return subscription.reply ? 'all' : 'posts'
+  if (subscription.reply) return 'replies'
+  return 'off'
+}
+
+interface NotifyPickerProps {
+  value: string
+  disabled: boolean
+  locked: boolean
+  onLocked: () => void
+  onSelect: (key: string) => void
+}
+
+function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPickerProps) {
+  const listId = useId()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const selectedIndex = Math.max(
+    0,
+    NOTIFY_CHOICES.findIndex((choice) => choice.key === value),
+  )
+  const selected = NOTIFY_CHOICES[selectedIndex] ?? NOTIFY_CHOICES[0]
+
+  const close = (restoreFocus = false) => {
+    setOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }
+
+  const openPicker = () => {
+    if (disabled) return
+    if (locked) {
+      onLocked()
+      return
+    }
+    setActive(selectedIndex)
+    setOpen(true)
+  }
+
+  useEffect(() => {
+    if (!open) return
+
+    const frame = window.requestAnimationFrame(() => {
+      optionRefs.current[active]?.focus()
+    })
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (wrapperRef.current?.contains(event.target) === true) return
+      setOpen(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [open, active])
+
+  const choose = (key: string) => {
+    onSelect(key)
+    close(true)
+  }
+
+  const handleOptionKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+    key: string,
+  ) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.stopPropagation()
+      const next =
+        (index + (event.key === 'ArrowDown' ? 1 : -1) + NOTIFY_CHOICES.length) %
+        NOTIFY_CHOICES.length
+      setActive(next)
+      optionRefs.current[next]?.focus()
+      return
+    }
+
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      event.stopPropagation()
+      const next = event.key === 'Home' ? 0 : NOTIFY_CHOICES.length - 1
+      setActive(next)
+      optionRefs.current[next]?.focus()
+      return
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      event.stopPropagation()
+      choose(key)
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      close(true)
+      return
+    }
+
+    if (event.key === 'Tab') {
+      close()
+    }
+  }
+
+  return (
+    <div className="b-profile__notify" ref={wrapperRef}>
+      <span className="b-profile__notify-label">notifications</span>
+      <div className="b-profile__notify-control">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="b-profile__notify-select"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-label={`notifications, ${selected?.label ?? 'off'}`}
+          disabled={disabled}
+          onClick={() => {
+            if (open) {
+              close(true)
+              return
+            }
+            openPicker()
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+            event.preventDefault()
+            openPicker()
+          }}
+        >
+          <span>{selected?.label ?? 'off'}</span>
+          <span className="b-profile__notify-caret" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+        {open ? (
+          <div
+            id={listId}
+            className="b-profile__notify-menu"
+            role="listbox"
+            aria-label="notifications"
+          >
+            {NOTIFY_CHOICES.map((choice, index) => (
+              <div key={choice.key} role="none">
+                <button
+                  ref={(element) => {
+                    optionRefs.current[index] = element
+                  }}
+                  type="button"
+                  role="option"
+                  className="b-profile__notify-option"
+                  data-active={index === active ? 'true' : undefined}
+                  aria-selected={choice.key === value}
+                  tabIndex={index === active ? 0 : -1}
+                  onFocus={() => {
+                    setActive(index)
+                  }}
+                  onClick={() => {
+                    choose(choice.key)
+                  }}
+                  onKeyDown={(event) => {
+                    handleOptionKeyDown(event, index, choice.key)
+                  }}
+                >
+                  {choice.label}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export function ProfileCard({ profile }: ProfileCardProps) {
   const queryClient = useQueryClient()
   const openDialog = useUiStore((state) => state.openDialog)
@@ -65,6 +260,9 @@ export function ProfileCard({ profile }: ProfileCardProps) {
   const displayName = profile.displayName.length > 0 ? profile.displayName : handle
   const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
   const viewer = profile.viewer
+  const signedInDid = useAuthStore((state) => state.account?.did ?? null)
+  const authenticated = useAuthStore((state) => state.status === 'authenticated')
+  const isSelf = signedInDid !== null && signedInDid === profile.did
 
   const counts = [
     { label: 'followers', value: profile.followersCount },
@@ -213,203 +411,183 @@ export function ProfileCard({ profile }: ProfileCardProps) {
           </div>
         ) : null}
 
-        <fieldset className="b-profile__actions">
-          <legend className="visually-hidden">profile actions</legend>
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="follow"
-            aria-pressed={viewer.following !== null}
-            disabled={toggling}
-            title={error ?? undefined}
-            onClick={() => {
-              if (viewer.following !== null) {
-                const followUri = viewer.following
+        {isSelf ? null : (
+          <fieldset className="b-profile__actions">
+            <legend className="visually-hidden">profile actions</legend>
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-kind="follow"
+              aria-pressed={viewer.following !== null}
+              disabled={toggling}
+              title={error ?? undefined}
+              onClick={() => {
+                if (viewer.following !== null) {
+                  const followUri = viewer.following
+                  runAction(
+                    'unfollow',
+                    async () => {
+                      await unfollow(followUri)
+                      return { following: null }
+                    },
+                    null,
+                  )
+                  return
+                }
                 runAction(
-                  'unfollow',
+                  'follow',
                   async () => {
-                    await unfollow(followUri)
-                    return { following: null }
+                    const result = await follow(profile.did)
+                    return { following: result.uri }
                   },
                   null,
                 )
-                return
-              }
-              runAction(
-                'follow',
-                async () => {
-                  const result = await follow(profile.did)
-                  return { following: result.uri }
-                },
-                null,
-              )
-            }}
-          >
-            {pending === 'follow'
-              ? 'following'
-              : pending === 'unfollow'
-                ? 'unfollowing'
-                : viewer.following !== null
-                  ? 'unfollow'
-                  : 'follow'}
-          </button>
+              }}
+            >
+              {pending === 'follow'
+                ? 'following'
+                : pending === 'unfollow'
+                  ? 'unfollowing'
+                  : viewer.following !== null
+                    ? 'unfollow'
+                    : 'follow'}
+            </button>
 
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="mute"
-            aria-pressed={viewer.muted}
-            disabled={toggling}
-            onClick={() => {
-              if (viewer.muted) {
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-kind="mute"
+              aria-pressed={viewer.muted}
+              disabled={toggling}
+              onClick={() => {
+                if (viewer.muted) {
+                  runAction(
+                    'unmute',
+                    async () => {
+                      await unmute(profile.did)
+                      return { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
+                    },
+                    { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
+                  )
+                  return
+                }
                 runAction(
-                  'unmute',
+                  'mute',
                   async () => {
-                    await unmute(profile.did)
-                    return { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
+                    await mute(profile.did)
+                    return { muted: true, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
                   },
-                  { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
+                  { muted: true, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
                 )
-                return
-              }
-              runAction(
-                'mute',
-                async () => {
-                  await mute(profile.did)
-                  return { muted: true, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
-                },
-                { muted: true, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
-              )
-            }}
-          >
-            {pending === 'mute'
-              ? 'muting'
-              : pending === 'unmute'
-                ? 'unmuting'
-                : viewer.muted
-                  ? 'unmute'
-                  : 'mute'}
-          </button>
+              }}
+            >
+              {pending === 'mute'
+                ? 'muting'
+                : pending === 'unmute'
+                  ? 'unmuting'
+                  : viewer.muted
+                    ? 'unmute'
+                    : 'mute'}
+            </button>
 
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="hide-reposts"
-            aria-pressed={viewer.mutedOnlyReposts}
-            disabled={toggling}
-            onClick={() => {
-              if (viewer.mutedOnlyReposts) {
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-kind="hide-reposts"
+              aria-pressed={viewer.mutedOnlyReposts}
+              disabled={toggling}
+              onClick={() => {
+                if (viewer.mutedOnlyReposts) {
+                  runAction(
+                    'show-reposts',
+                    async () => {
+                      await showReposts(profile.did)
+                      return { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
+                    },
+                    { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
+                  )
+                  return
+                }
                 runAction(
-                  'show-reposts',
+                  'hide-reposts',
                   async () => {
-                    await showReposts(profile.did)
-                    return { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
+                    await hideReposts(profile.did)
+                    return { muted: false, mutedOnlyReposts: true, mutedOnlyQuoteposts: false }
                   },
-                  { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
+                  { muted: false, mutedOnlyReposts: true, mutedOnlyQuoteposts: false },
                 )
-                return
-              }
-              runAction(
-                'hide-reposts',
-                async () => {
-                  await hideReposts(profile.did)
-                  return { muted: false, mutedOnlyReposts: true, mutedOnlyQuoteposts: false }
-                },
-                { muted: false, mutedOnlyReposts: true, mutedOnlyQuoteposts: false },
-              )
-            }}
-          >
-            {pending === 'hide-reposts'
-              ? 'hiding reposts'
-              : pending === 'show-reposts'
-                ? 'showing reposts'
-                : viewer.mutedOnlyReposts
-                  ? 'show reposts'
-                  : 'hide reposts'}
-          </button>
+              }}
+            >
+              {pending === 'hide-reposts'
+                ? 'hiding reposts'
+                : pending === 'show-reposts'
+                  ? 'showing reposts'
+                  : viewer.mutedOnlyReposts
+                    ? 'show reposts'
+                    : 'hide reposts'}
+            </button>
 
-          <button
-            type="button"
-            className="b-post-card__action b-post-card__action--danger"
-            data-kind="block"
-            aria-pressed={viewer.blocking !== null}
-            disabled={toggling}
-            onClick={() => {
-              if (viewer.blocking !== null) {
-                const blockUri = viewer.blocking
+            <button
+              type="button"
+              className="b-post-card__action b-post-card__action--danger"
+              data-kind="block"
+              aria-pressed={viewer.blocking !== null}
+              disabled={toggling}
+              onClick={() => {
+                if (viewer.blocking !== null) {
+                  const blockUri = viewer.blocking
+                  runAction(
+                    'unblock',
+                    async () => {
+                      await unblock(blockUri)
+                      return { blocking: null }
+                    },
+                    { blocking: null },
+                  )
+                  return
+                }
                 runAction(
-                  'unblock',
+                  'block',
                   async () => {
-                    await unblock(blockUri)
-                    return { blocking: null }
+                    const result = await block(profile.did)
+                    return { blocking: result.uri }
                   },
-                  { blocking: null },
+                  null,
                 )
-                return
-              }
-              runAction(
-                'block',
-                async () => {
-                  const result = await block(profile.did)
-                  return { blocking: result.uri }
-                },
-                null,
-              )
-            }}
-          >
-            {pending === 'block'
-              ? 'blocking'
-              : pending === 'unblock'
-                ? 'unblocking'
-                : viewer.blocking !== null
-                  ? 'unblock'
-                  : 'block'}
-          </button>
+              }}
+            >
+              {pending === 'block'
+                ? 'blocking'
+                : pending === 'unblock'
+                  ? 'unblocking'
+                  : viewer.blocking !== null
+                    ? 'unblock'
+                    : 'block'}
+            </button>
 
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="notify-post"
-            aria-pressed={viewer.activitySubscription?.post === true}
-            disabled={toggling}
-            onClick={() => {
-              const current = viewer.activitySubscription
-              const next = { post: !(current?.post ?? false), reply: current?.reply ?? false }
-              runAction(
-                'notify-post',
-                async () => {
-                  const result = await setActivitySubscription(profile.did, next)
-                  return { activitySubscription: result }
-                },
-                { activitySubscription: next },
-              )
-            }}
-          >
-            {viewer.activitySubscription?.post === true ? 'notify posts on' : 'notify posts'}
-          </button>
-
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="notify-reply"
-            aria-pressed={viewer.activitySubscription?.reply === true}
-            disabled={toggling}
-            onClick={() => {
-              const current = viewer.activitySubscription
-              const next = { post: current?.post ?? false, reply: !(current?.reply ?? false) }
-              runAction(
-                'notify-reply',
-                async () => {
-                  const result = await setActivitySubscription(profile.did, next)
-                  return { activitySubscription: result }
-                },
-                { activitySubscription: next },
-              )
-            }}
-          >
-            {viewer.activitySubscription?.reply === true ? 'notify replies on' : 'notify replies'}
-          </button>
-        </fieldset>
+            <NotifyPicker
+              value={notifyChoice(viewer.activitySubscription)}
+              disabled={toggling}
+              locked={!authenticated}
+              onLocked={() => {
+                openDialog('login')
+              }}
+              onSelect={(key) => {
+                const choice = NOTIFY_CHOICES.find((entry) => entry.key === key)
+                if (choice === undefined) return
+                const next = { post: choice.post, reply: choice.reply }
+                runAction(
+                  'notify',
+                  async () => {
+                    const result = await setActivitySubscription(profile.did, next)
+                    return { activitySubscription: result }
+                  },
+                  { activitySubscription: next },
+                )
+              }}
+            />
+          </fieldset>
+        )}
 
         {error !== null ? (
           <p className="b-profile__action-error" role="alert">

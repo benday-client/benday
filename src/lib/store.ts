@@ -184,3 +184,13 @@ export const useSettings = create<SettingsState>()(
     },
   ),
 )
+
+// The persist middleware only reads storage at startup. Rehydrate when another
+// tab writes the same key so theme, appview and labeler changes follow the user
+// across tabs without a reload.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== SETTINGS_STORAGE_KEY) return
+    void useSettings.persist.rehydrate()
+  })
+}

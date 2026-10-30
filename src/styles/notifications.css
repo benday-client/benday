@@ -68,11 +68,18 @@
     color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
   );
   line-height: 1.5;
+  scroll-margin-block: var(--space-2);
   transition: border-color 120ms linear;
 }
 
 .b-notif:hover {
   border-color: var(--line-strong);
+}
+
+.b-notif[data-focused="true"],
+.b-notif:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .b-notif[data-unread="true"] {

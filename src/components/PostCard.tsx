@@ -6,6 +6,7 @@ import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
+import { postWebUrl } from '../lib/postUrl'
 import { invalidateNonFeedQueries } from '../lib/queries'
 import type { PostModel } from '../lib/types'
 import { useUiStore } from '../lib/ui'
@@ -70,8 +71,10 @@ export function PostCard({
   const [leaving, setLeaving] = useState(false)
   const [mediaOpen, setMediaOpen] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const media = mediaItems(post.embed)
   const dismissTimerRef = useRef<number | null>(null)
+  const copyTimerRef = useRef<number | null>(null)
   const own =
     authed &&
     accountDid !== null &&
@@ -111,6 +114,20 @@ export function PostCard({
     openCompose({ mode: 'quote', post })
   }
 
+  const copyLink = useCallback(async () => {
+    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+    try {
+      await navigator.clipboard.writeText(postWebUrl(post))
+      setCopyState('copied')
+    } catch {
+      setCopyState('failed')
+    }
+    copyTimerRef.current = window.setTimeout(() => {
+      setCopyState('idle')
+      copyTimerRef.current = null
+    }, 1600)
+  }, [post])
+
   const feedbackAction = useCallback(
     (kind: FeedFeedbackEvent) => {
       if (!authed) {
@@ -133,11 +150,13 @@ export function PostCard({
     setDeleteError(null)
     setLeaving(false)
     setFeedbackSent(false)
+    setCopyState('idle')
   }, [post.uri, own])
 
   useEffect(() => {
     return () => {
       if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
     }
   }, [])
 
@@ -212,6 +231,12 @@ export function PostCard({
         return
       }
 
+      if (event.key === 'y') {
+        event.preventDefault()
+        void copyLink()
+        return
+      }
+
       const authenticated = useAuthStore.getState().status === 'authenticated'
       const interact = (action: () => void) => {
         if (!authenticated) {
@@ -268,7 +293,7 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, post, feedbackAction, navigate, quotedUri, replies, media.length])
+  }, [focused, post, feedbackAction, copyLink, navigate, quotedUri, replies, media.length])
 
   const confirmDelete = async () => {
     if (deleting) return
@@ -434,7 +459,24 @@ export function PostCard({
             ) : (
               <ul className="b-post-card__comment-list">
                 {topComments.comments.map((comment) => (
-                  <li key={comment.uri} className="b-post-card__comment">
+                  <li
+                    key={comment.uri}
+                    className="b-post-card__comment"
+                    // biome-ignore lint/a11y/noNoninteractiveTabindex: the whole reply opens its thread
+                    tabIndex={0}
+                    onClick={(event) => {
+                      const target = event.target
+                      if (target instanceof HTMLElement && target.closest('a') !== null) return
+                      navigate(`/thread?uri=${encodeURIComponent(comment.uri)}`)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      const target = event.target
+                      if (target instanceof HTMLElement && target.closest('a') !== null) return
+                      event.preventDefault()
+                      navigate(`/thread?uri=${encodeURIComponent(comment.uri)}`)
+                    }}
+                  >
                     <Link
                       href={`/profile/${encodeURIComponent(comment.author.handle)}`}
                       className="b-post-card__comment-author"
@@ -504,6 +546,22 @@ export function PostCard({
             </button>
             <button type="button" className="b-post-card__action" onClick={openQuoteCompose}>
               quote
+            </button>
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-state={copyState}
+              title="copy bsky.app link · y"
+              aria-live="polite"
+              onClick={() => {
+                void copyLink()
+              }}
+            >
+              {copyState === 'copied'
+                ? 'copied'
+                : copyState === 'failed'
+                  ? 'copy failed'
+                  : 'copy link'}
             </button>
             {onFeedback !== undefined ? (
               feedbackSent ? (

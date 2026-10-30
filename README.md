@@ -84,6 +84,7 @@ the password fallback works everywhere else, including `localhost`.
 | `enter` on a reply        | open that reply's thread                                        |
 | `m`                       | open the focused post's media                                   |
 | `0`                       | open the focused post's quoted post                             |
+| `y`                       | copy a bsky.app link to the focused post                        |
 | `R` `R`                   | refresh the feed after a confirmation press                     |
 | `1`-`9`                   | focus a card by position in a deck                              |
 | `1`-`9` in a thread       | focus a reply by position                                       |
@@ -102,11 +103,13 @@ the password fallback works everywhere else, including `localhost`.
 | `,`                       | settings                                                        |
 | `?`                       | keyboard help                                                   |
 
-the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote and
-`m` media. signed-out cards hide the interaction bar. on your own posts a
-two-step `delete` action appears beside them. `0` acts only when the focused card quotes another
-post, and `1`-`9` are 1-based positions that act only while the deck or thread
-owns focus. the top bar has a compose button for signed-in
+the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote,
+`copy link` and `m` media. clicking a top comment row or a quoted post opens its
+thread; their author and open links still navigate independently. signed-out
+cards hide the interaction bar. on your own posts a two-step `delete` action
+appears beside them. `0` acts only when the focused card quotes another post,
+`y` copies its bsky.app permalink, and `1`-`9` are 1-based positions that act
+only while the deck or thread owns focus. the top bar has a compose button for signed-in
 accounts, shows their handle, and offers keyboard help. signed out it offers a
 log in button. the command palette accepts `@handle`, post and feed `at://`
 uris, `#tags` and plain search text (enter searches when no command matches),
@@ -170,13 +173,14 @@ paging to scroll.
 ## notifications
 
 the notifications tab (`/notifications`, or `ctrl`/`cmd` + `←` `→`) is for the
-signed-in account. it lists follows, likes, reposts, replies, mentions and
-quotes, newest first, 50 at a time, with the unread marker the appview supplies.
-each row links to the actor and to the subject thread, or to the profile for a
-follow. opening the tab marks the list seen in the background; a failed seen
-update never disturbs the list. the refresh button reloads it, and the query
-also refetches when it is stale on mount and after reconnecting. notifications
-are not pushed in realtime.
+signed-in account and stays out of the top bar while signed out. it lists
+follows, likes, reposts, replies, mentions and quotes, newest first, 50 at a
+time, with the unread marker the appview supplies. each row links to the actor
+and to the subject thread, or to the profile for a follow. up/down focus rows
+and scrolls them into view; enter opens the focused row. opening the tab marks
+the list seen in the background; a failed seen update never disturbs the list.
+the refresh button reloads it, and the query also refetches when it is stale on
+mount and after reconnecting. notifications are not pushed in realtime.
 
 ## profiles
 
@@ -191,7 +195,9 @@ actions are follow/unfollow, mute/unmute, hide/show reposts, block/unblock and
 per-account notifications for new posts and new replies. they need a signed-in
 account, update optimistically where it is safe and restore the previous viewer
 state on failure. hiding reposts also filters reposts out of the author deck on
-this client.
+this client. the notification control is a themed listbox with all activity,
+new posts only, replies only and off. every relationship action, including the
+notification control, is hidden on your own profile.
 
 the profile deck has three modes: `posts` (standalone posts), `replies` (replies
 this account wrote) and `media` (posts carrying images or video). on wide
@@ -206,7 +212,9 @@ settings is the central window for themes appviews labelers account and transfer
 with `,` or the gear button. type `/` to focus settings search; keyboard help has its own. appearance selects light dark or system, keeps a
 theme choice for each light and dark section, toggles image effects, and shows a
 live preview that splits into light and dark halves while system is active. the
-search filters whole sections. the header cross closes the window.
+search filters whole sections. the header cross closes the window. settings
+written in one tab rehydrate in every other open tab, so theme, appview and
+labeler changes follow without a reload.
 
 ### settings transfer
 
@@ -365,7 +373,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 200 offline unit tests cover byte-offset facets, post/embed/profile model
+- 206 offline unit tests cover byte-offset facets, post/embed/profile model
   mapping, markdown-to-facet conversion, thread flattening and reply context,
   appviews and capabilities, relative time, 8x8 dither generation, all themes
   and seasonal availability, pinned-feed preferences and selection, mention

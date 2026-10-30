@@ -354,6 +354,13 @@
   margin: 0 0 var(--space-1);
 }
 
+.b-help__group-note {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.03em;
+}
+
 .b-help__list {
   margin: 0;
   padding: 0;
@@ -370,7 +377,22 @@
 }
 
 .b-help__keys {
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.b-help__key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.b-help__or {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
 }
 
 .b-help__keys .b-kbd {
@@ -869,7 +891,7 @@
 /* responsive -------------------------------------------------------- */
 
 @media (max-width: 899px) {
-  .b-help__grid {
+  .b-help__groups {
     grid-template-columns: minmax(0, 1fr);
   }
 

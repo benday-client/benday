@@ -1,4 +1,4 @@
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import type {
   EmbedModel,
   ExternalEmbed,
@@ -118,16 +118,31 @@ function ExternalCard({ embed }: { embed: ExternalEmbed }) {
 }
 
 function QuoteCard({ post }: { post: QuotedPostModel }) {
+  const [, navigate] = useLocation()
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const name = post.author.displayName.length > 0 ? post.author.displayName : handle
+  const href = `/thread?uri=${encodeURIComponent(post.uri)}`
 
   return (
-    <article className="b-embed b-embed--quote">
+    <article
+      className="b-embed b-embed--quote"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the whole quote opens the quoted post
+      tabIndex={0}
+      onClick={(event) => {
+        const target = event.target
+        if (target instanceof HTMLElement && target.closest('a') !== null) return
+        navigate(href)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        const target = event.target
+        if (target instanceof HTMLElement && target.closest('a, button') !== null) return
+        event.preventDefault()
+        navigate(href)
+      }}
+    >
       <header className="b-embed__quote-head">
-        <Link
-          href={`/thread?uri=${encodeURIComponent(post.uri)}`}
-          className="b-embed__quote-author"
-        >
+        <Link href={href} className="b-embed__quote-author">
           <span>{name}</span>
         </Link>
         <span className="b-embed__quote-meta">@{handle}</span>
@@ -138,7 +153,7 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
         <span className="b-embed__quote-empty">[no text]</span>
       )}
       <div className="b-embed__quote-actions">
-        <Link href={`/thread?uri=${encodeURIComponent(post.uri)}`} className="b-embed__quote-open">
+        <Link href={href} className="b-embed__quote-open">
           open quoted post <Kbd>0</Kbd>
         </Link>
       </div>

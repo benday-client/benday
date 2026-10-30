@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { useAuthStore } from '../lib/auth'
+import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
 import { PostCard } from './PostCard'
@@ -28,6 +29,7 @@ describe('displayedCount', () => {
 describe('PostCard actions', () => {
   afterEach(() => {
     vi.useRealTimers()
+    Reflect.deleteProperty(navigator, 'clipboard')
   })
 
   beforeEach(() => {
@@ -122,6 +124,36 @@ describe('PostCard actions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('feedback sent to the feed operator')
   })
 
+  it('copies a bsky.app link from the focused-card shortcut', async () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: 'y' })
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('https://bsky.app/profile/test.bsky.social/post/1')
+    })
+    expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument()
+  })
+
   it('activates the focused post video with the v key', () => {
     const location = memoryLocation({ path: '/' })
     const queryClient = new QueryClient()
@@ -181,6 +213,66 @@ describe('PostCard actions', () => {
     )
     fireEvent.keyDown(window, { key: '0' })
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
+  })
+
+  it('opens a quoted post when the quote card is clicked', () => {
+    const location = memoryLocation({ path: '/', record: true })
+    const queryClient = new QueryClient()
+    const quoted = {
+      uri: 'at://did:plc:test/app.bsky.feed.post/quoted',
+      cid: 'quoted-cid',
+      author: {
+        did: 'did:plc:quoted',
+        handle: 'quoted.test',
+        displayName: 'quoted',
+        avatar: null,
+      },
+      text: 'quoted text',
+      facets: [],
+      indexedAt: '2026-10-29T12:00:00.000Z',
+      embedType: 'app.bsky.embed.record#view',
+    }
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture({ embed: { type: 'quote', post: quoted } })} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    const quote = document.querySelector('.b-embed--quote')
+    expect(quote).not.toBeNull()
+    fireEvent.click(quote as Element)
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
+  })
+
+  it('opens the focused post thread when a reply row is clicked', async () => {
+    const location = memoryLocation({ path: '/', record: true })
+    const queryClient = new QueryClient()
+    const post = postFixture({ replyCount: 1 })
+    const reply = postFixture({
+      uri: 'at://did:plc:test/app.bsky.feed.post/reply-1',
+      text: 'a reply that opens',
+    })
+    queryClient.setQueryData(
+      ['top-comments', useSettings.getState().appView.host, post.uri],
+      [reply],
+    )
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={post} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    await screen.findByText('a reply that opens')
+    const row = document.querySelector('.b-post-card__comment')
+    expect(row).not.toBeNull()
+    fireEvent.click(row as Element)
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(reply.uri)}`)
   })
 
   it('opens a quoted post with 0 even when the post owns a reply list', () => {

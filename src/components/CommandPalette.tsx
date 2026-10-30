@@ -86,6 +86,7 @@ export function CommandPalette({
   const [history, setHistory] = useState<JumpEntry[]>(readHistory)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  const selectedIdRef = useRef<string | null>(null)
   const token = open ? suggestionAt(input, cursor) : null
   const actorSuggestions = useActorSuggestions(
     token?.kind === 'mention' ? token.query : '',
@@ -138,6 +139,7 @@ export function CommandPalette({
     setInput('')
     setCursor(0)
     setSelected(0)
+    selectedIdRef.current = null
     const frame = window.requestAnimationFrame(() => {
       inputRef.current?.focus()
     })
@@ -341,19 +343,56 @@ export function CommandPalette({
           `${command.label} ${command.keywords}`.toLowerCase().includes(needle),
         )
 
+  const selectedIndex = filtered.length === 0 ? 0 : Math.min(selected, filtered.length - 1)
+  const selectedId = filtered[selectedIndex]?.id ?? null
+
+  useEffect(() => {
+    if (filtered.length === 0) {
+      if (selected !== 0) setSelected(0)
+      selectedIdRef.current = null
+      return
+    }
+
+    const previousId = selectedIdRef.current
+    if (previousId !== null) {
+      const index = filtered.findIndex((command) => command.id === previousId)
+      if (index !== -1) {
+        if (index !== selected) setSelected(index)
+        return
+      }
+    }
+
+    const clamped = Math.min(selected, filtered.length - 1)
+    if (clamped !== selected) setSelected(clamped)
+    selectedIdRef.current = filtered[clamped]?.id ?? null
+  }, [filtered, selected])
+
   useEffect(() => {
     const list = listRef.current
-    if (list === null) return
-    const row = list.children[selected]
+    if (list === null || selectedId === null) return
+    const row = list.children[selectedIndex]
     if (!(row instanceof HTMLElement)) return
     if (typeof row.scrollIntoView !== 'function') return
     row.scrollIntoView({ block: 'nearest' })
-  }, [selected, filtered.length])
+  }, [selectedIndex, selectedId])
+
+  const selectIndex = (index: number) => {
+    setSelected(index)
+    selectedIdRef.current = filtered[index]?.id ?? null
+  }
+
+  const moveSelection = (step: number) => {
+    if (filtered.length === 0) return
+    const current = Math.min(selected, filtered.length - 1)
+    const next = (current + step + filtered.length) % filtered.length
+    selectIndex(next)
+  }
 
   const onChange = (value: string) => {
     setInput(value)
     setCursor(value.length)
     setSelected(0)
+    selectedIdRef.current = null
   }
 
   const runSelected = () => {
@@ -364,7 +403,7 @@ export function CommandPalette({
     }
 
     if (autocompleteActive) {
-      const command = filtered[selected] ?? filtered[0]
+      const command = filtered[selectedIndex]
       if (command !== undefined) {
         command.run()
         return
@@ -385,7 +424,7 @@ export function CommandPalette({
       }
     }
 
-    const command = filtered[selected] ?? filtered[0]
+    const command = filtered[selectedIndex]
     if (command !== undefined) {
       command.run()
       return
@@ -404,15 +443,13 @@ export function CommandPalette({
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      if (filtered.length === 0) return
-      setSelected((current) => (current + 1) % filtered.length)
+      moveSelection(1)
       return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      if (filtered.length === 0) return
-      setSelected((current) => (current - 1 + filtered.length) % filtered.length)
+      moveSelection(-1)
       return
     }
 
@@ -423,7 +460,7 @@ export function CommandPalette({
   }
 
   return (
-    <Dialog open={open} title="command" onClose={onClose} className="b-palette">
+    <Dialog open={open} title="command" onClose={onClose} className="b-palette" headerClose>
       <div className="b-palette__form">
         <span className="b-palette__prompt" aria-hidden="true">
           :
@@ -456,7 +493,7 @@ export function CommandPalette({
       ) : (
         <ul ref={listRef} className="b-palette__list" aria-label="commands">
           {filtered.map((command, index) => {
-            const isSelected = index === selected
+            const isSelected = index === selectedIndex
             return (
               <li key={command.id} className="b-palette__row">
                 <button
@@ -465,11 +502,11 @@ export function CommandPalette({
                   data-selected={isSelected ? 'true' : 'false'}
                   aria-current={isSelected ? 'true' : undefined}
                   onClick={() => {
-                    setSelected(index)
+                    selectIndex(index)
                     command.run()
                   }}
                   onMouseEnter={() => {
-                    setSelected(index)
+                    selectIndex(index)
                   }}
                 >
                   <span className="b-palette__marker" aria-hidden="true">

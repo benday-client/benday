@@ -63,6 +63,7 @@ function AppShell() {
   const lastViewRef = useRef<string | null>(null)
   const baseViewRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
+  const authStatus = useAuthStore((state) => state.status)
   const labelers = useSettings((state) => state.labelers)
   const labelerKey = labelers.join('\n')
   const lastLabelerKeyRef = useRef(labelerKey)
@@ -129,8 +130,9 @@ function AppShell() {
   }
 
   const changeTab = (direction: number) => {
+    const tabs: readonly string[] = authStatus === 'authenticated' ? TAB_ROUTES : ['/feed']
     const profileTab = pathname.startsWith('/profile/') ? pathname : null
-    const routes: readonly string[] = profileTab === null ? TAB_ROUTES : [...TAB_ROUTES, profileTab]
+    const routes: readonly string[] = profileTab === null ? tabs : [...tabs, profileTab]
     const current = routes.findIndex((route) =>
       route === profileTab
         ? pathname.startsWith('/profile/')
@@ -167,7 +169,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handleTabKey, true)
     }
-  }, [dialog, compose, inlineCompose, pathname])
+  }, [dialog, compose, inlineCompose, pathname, authStatus])
 
   const closeOrBack = () => {
     if (pathname.startsWith('/profile/')) {

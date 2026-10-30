@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
@@ -65,6 +65,8 @@ export default function ProfileView() {
   const wide = useMediaQuery('(min-width: 900px)')
   const [mode, setMode] = useState<ProfileMode>('posts')
   const [modeDeck, setModeDeck] = useState(false)
+  const [dealMode, setDealMode] = useState<'modes' | 'posts' | null>(null)
+  const dealTimerRef = useRef<number | null>(null)
 
   const profileInfo = profile.error !== null ? errorInfo(profile.error) : null
   const feedInfo = feed.error !== null ? errorInfo(feed.error) : null
@@ -90,6 +92,32 @@ export default function ProfileView() {
     media: modeEntries('media').length,
   }
 
+  const playDeal = (next: 'modes' | 'posts') => {
+    setDealMode(next)
+    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+    dealTimerRef.current = window.setTimeout(() => {
+      setDealMode(null)
+      dealTimerRef.current = null
+    }, 900)
+  }
+
+  const switchModeDeck = (next: boolean) => {
+    setModeDeck(next)
+    playDeal(next ? 'modes' : 'posts')
+  }
+
+  const chooseMode = (next: ProfileMode) => {
+    setMode(next)
+    setModeDeck(false)
+    playDeal('posts')
+  }
+
+  useEffect(() => {
+    return () => {
+      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     if (!wide) setModeDeck(false)
   }, [wide])
@@ -102,7 +130,7 @@ export default function ProfileView() {
       const ui = useUiStore.getState()
       if (ui.dialog !== null || ui.compose !== null) return
       event.preventDefault()
-      setModeDeck(false)
+      switchModeDeck(false)
     }
 
     window.addEventListener('keydown', handleEscape)
@@ -110,11 +138,6 @@ export default function ProfileView() {
       window.removeEventListener('keydown', handleEscape)
     }
   }, [modeDeck])
-
-  const chooseMode = (next: ProfileMode) => {
-    setMode(next)
-    setModeDeck(false)
-  }
 
   const modeIndex = Math.max(
     0,
@@ -174,7 +197,7 @@ export default function ProfileView() {
             </div>
             <div className="b-profile-feed">
               {modeDeck && wide ? (
-                <div className="b-deck-stage">
+                <div className="b-deck-stage" data-deal={dealMode === 'modes' ? 'true' : undefined}>
                   <Deck
                     key="profile-modes"
                     items={PROFILE_MODES}
@@ -193,10 +216,10 @@ export default function ProfileView() {
                       chooseMode(option.mode)
                     }}
                     onExitStart={() => {
-                      setModeDeck(false)
+                      switchModeDeck(false)
                     }}
                     leadingPeek={
-                      <ProfileModeBack handle={handle} onClose={() => setModeDeck(false)} />
+                      <ProfileModeBack handle={handle} onClose={() => switchModeDeck(false)} />
                     }
                     leadingPeekInteractive
                     initialIndex={modeIndex}
@@ -204,7 +227,10 @@ export default function ProfileView() {
                   />
                 </div>
               ) : (
-                <div className="b-deck-stage b-deck-stage--profile">
+                <div
+                  className="b-deck-stage b-deck-stage--profile"
+                  data-deal={dealMode === 'posts' ? 'true' : undefined}
+                >
                   <Deck
                     key={`profile-feed:${mode}`}
                     items={visiblePosts}
@@ -219,14 +245,14 @@ export default function ProfileView() {
                     {...(wide
                       ? {
                           onExitStart: () => {
-                            setModeDeck(true)
+                            switchModeDeck(true)
                           },
                           leadingPeek: (
                             <ProfileModePeek
                               mode={mode}
                               count={visiblePosts.length}
                               onOpen={() => {
-                                setModeDeck(true)
+                                switchModeDeck(true)
                               }}
                             />
                           ),
