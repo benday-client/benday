@@ -66,42 +66,41 @@ the password fallback works everywhere else, including `localhost`.
 
 ## keys and gestures
 
-| key                         | action                                                          |
-| --------------------------- | --------------------------------------------------------------- |
-| `left` `right` or `h` `l`   | scan cards on a wide screen                                     |
-| `←` at the first post       | open the feeds deck                                             |
-| `←` at the first feed       | return to the posts deck                                        |
-| `up` `down` or `j` `k`      | scan cards on a narrow screen                                   |
-| `ctrl`/`cmd` + `←` `→`      | switch feeds / notifications tabs, plus a temporary profile tab |
-| `g` / `G`                   | first / last card                                               |
-| `enter` / `space`           | open the focused card's replies                                 |
-| `↓` wide · `→` narrow       | open the full post with an animation                            |
-| `↑` `↓` in replies          | focus reply rows                                                |
-| `↑` or `k` in a thread      | close the full post                                             |
-| `pgup` / `pgdn`             | scroll the focused post                                         |
-| `shift` + `↑` `↓`           | scroll the focused post                                         |
-| `esc`                       | close a dialog or back out of replies/profile                   |
-| `enter` on a reply          | open that reply's thread                                        |
-| `m`                         | open the focused post's media                                   |
-| `@me` in the command prompt | open your own profile                                           |
-| `0`                         | open the focused post's quoted post                             |
-| `R` `R`                     | refresh the feed after a confirmation press                     |
-| `1`-`9`                     | focus a card by position in a deck                              |
-| `1`-`9` in a thread         | focus a reply by position                                       |
-| `f`                         | like the focused card                                           |
-| `+`                         | more like the focused feed card                                 |
-| `-`                         | less like the focused feed card                                 |
-| `b`                         | repost the focused card                                         |
-| `r`                         | reply to the focused card                                       |
-| `q`                         | quote the focused card                                          |
-| `d` `d`                     | delete your focused post                                        |
-| `/` or `ctrl`/`cmd` + `k`   | open the command palette                                        |
-| `s`                         | go to search and focus the query field                          |
-| `c`                         | compose a post                                                  |
-| `ctrl`/`cmd` + `enter`      | send from the composer                                          |
-| `a`                         | switch appview                                                  |
-| `,`                         | settings                                                        |
-| `?`                         | keyboard help                                                   |
+| key                       | action                                                          |
+| ------------------------- | --------------------------------------------------------------- |
+| `left` `right` or `h` `l` | scan cards on a wide screen                                     |
+| `←` at the first post     | open the feeds deck                                             |
+| `←` at the first feed     | return to the posts deck                                        |
+| `up` `down` or `j` `k`    | scan cards on a narrow screen                                   |
+| `ctrl`/`cmd` + `←` `→`    | switch feeds / notifications tabs, plus a temporary profile tab |
+| `g` / `G`                 | first / last card                                               |
+| `enter` / `space`         | open the focused card's replies                                 |
+| `↓` wide · `→` narrow     | open the full post with an animation                            |
+| `↑` `↓` in replies        | focus reply rows                                                |
+| `↑` or `k` in a thread    | close the full post                                             |
+| `pgup` / `pgdn`           | scroll the focused post                                         |
+| `shift` + `↑` `↓`         | scroll the focused post                                         |
+| `esc`                     | close a dialog or back out of replies/profile                   |
+| `enter` on a reply        | open that reply's thread                                        |
+| `m`                       | open the focused post's media                                   |
+| `0`                       | open the focused post's quoted post                             |
+| `R` `R`                   | refresh the feed after a confirmation press                     |
+| `1`-`9`                   | focus a card by position in a deck                              |
+| `1`-`9` in a thread       | focus a reply by position                                       |
+| `f`                       | like the focused card                                           |
+| `+`                       | more like the focused feed card                                 |
+| `-`                       | less like the focused feed card                                 |
+| `b`                       | repost the focused card                                         |
+| `r`                       | reply to the focused card                                       |
+| `q`                       | quote the focused card                                          |
+| `d` `d`                   | delete your focused post                                        |
+| `/` or `ctrl`/`cmd` + `k` | open the command palette                                        |
+| `s`                       | go to search and focus the query field                          |
+| `c`                       | compose a post                                                  |
+| `ctrl`/`cmd` + `enter`    | send from the composer                                          |
+| `a`                       | switch appview                                                  |
+| `,`                       | settings                                                        |
+| `?`                       | keyboard help                                                   |
 
 the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote and
 `m` media. signed-out cards hide the interaction bar. on your own posts a
@@ -114,7 +113,7 @@ uris, `#tags` and plain search text (enter searches when no command matches),
 lists pinned feeds and recent jumps, and filters to theme and appview commands
 by name (`theme bone`, `appview public`). with an empty prompt it lists compose
 or sign in, feeds, search, settings, appview settings and keyboard help. it
-keeps the last five jumps for a quick return. a profile opened from a card gets
+keeps the last five jumps for a quick return. `@me` opens your own profile. a profile opened from a card gets
 a temporary tab after notifications and loses it when you leave. search is a
 route (`/search`) reached with `s`, not a permanent tab.
 
@@ -204,11 +203,10 @@ the deck reloads it.
 ## settings
 
 settings is the central window for themes appviews labelers account and transfer. open it
-with `,` or the gear button. appearance selects light dark or system, keeps a
+with `,` or the gear button. type `/` to focus settings search; keyboard help has its own. appearance selects light dark or system, keeps a
 theme choice for each light and dark section, toggles image effects, and shows a
-live preview that splits into light and dark halves while system is active. type
-`/` to focus settings search and filter the sections. the header cross closes
-the window.
+live preview that splits into light and dark halves while system is active. the
+search filters whole sections. the header cross closes the window.
 
 ### settings transfer
 
@@ -367,7 +365,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 199 offline unit tests cover byte-offset facets, post/embed/profile model
+- 200 offline unit tests cover byte-offset facets, post/embed/profile model
   mapping, markdown-to-facet conversion, thread flattening and reply context,
   appviews and capabilities, relative time, 8x8 dither generation, all themes
   and seasonal availability, pinned-feed preferences and selection, mention
@@ -409,7 +407,7 @@ route semantics without adding chrome.
 - profile modes describe the author pages fetched so far, not the whole account
 - quoted posts show author text and an open link, not the full quoted media; blocked
   or missing quoted posts show a small unavailable placeholder
-- video posts use a themed HLS player with native HLS fallback and no caption tracks
+- video posts show a collapsed poster first; `m` opens a media viewer, and playing mounts a themed hls.js player with native HLS fallback and no caption tracks
 - settings search filters whole sections rather than listing individual result buttons
 - labeler services are not rendered beyond label tags on cards and profiles
 - a thread is flattened to depth 3 and capped at 80 replies

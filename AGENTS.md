@@ -97,7 +97,7 @@ pnpm preview    # static preview on 0.0.0.0:4173, strict port
 pnpm typecheck  # strict tsc pass
 pnpm lint       # biome check .
 pnpm format     # biome check --write .
-pnpm test       # vitest run, 199 offline tests
+pnpm test       # vitest run, 200 offline tests
 pnpm check      # lint, tests, then build
 ```
 
@@ -285,8 +285,9 @@ the october set in a pre-hydration script; update both together.
   search hides nonmatching sections instead of rendering result buttons.
 - deck focus rings are drawn on the card frame, not the list item, so they follow
   rounded themes; cyberpunk uses a drop-shadow around its clip path.
-- signed-out cards hide the interaction bar entirely and show a welcome peek;
-  left from the first post opens sign-in.
+- signed-out cards hide the interaction bar entirely; the signed-out feed shows
+  a welcome peek and left from the first post opens sign-in. feedback hides
+  more/less after a successful more press.
 - `resolveTheme(theme, date)` returns `void` when a persisted seasonal selection
   is unavailable. `availableThemeGroups(date)` hides the other seasonal themes
   outside october, and the settings dialog says when they return.
@@ -340,6 +341,7 @@ there are four key layers, and they must not fight:
    targets, repeats, handled events, and modifier combinations unless the
    binding asks for `ctrl`/`cmd`. bindings: `/` and `ctrl`/`cmd` + `k` palette,
    `s` search, `c` compose, `a` appviews, `?` help, `,` settings, escape back.
+   settings and help each own a `/`-focused search field.
 2. tab switching is a separate capture listener in `App.tsx` for
    `ctrl`/`cmd` + left/right. tabs are `/feed` and `/notifications`; a
    `/profile/…` route is appended as a temporary tab while it is open. search is
@@ -366,7 +368,7 @@ arms on the first press and resets the feed on the second. `useInputMode` writes
 the suite is vitest with jsdom, testing library, `css: true` and
 `restoreMocks: true`. setup lives in `src/test/setup.ts`, shared shapes in
 `src/test/fixtures.ts`. tests are co-located as `*.test.ts` / `*.test.tsx`.
-there are 199 tests across 19 files; keep that number in `README.md` accurate
+there are 200 tests across 19 files; keep that number in `README.md` accurate
 when tests change.
 
 what the suite covers, and what it does not:
@@ -432,9 +434,10 @@ file rather than creating a parallel suite.
 - images are dithered by an inline SVG filter (`DitherImage`, `dither.ts`,
   `styles/dither.css`), never canvas, because the bluesky CDN does not expose
   pixel data cross-origin.
-- video uses a custom themed player with hls.js when MSE is available and the
-  native HLS path only as fallback; `m` opens a media viewer for images or video.
-  quoted posts show author text and an open link, not the quoted media.
+- video starts as a dithered poster button; activating it mounts the custom
+  themed player. hls.js is used when MSE is available and native HLS is the
+  fallback; `m` opens a media viewer for images or video. quoted posts show
+  author text and an open link, not the quoted media.
 - search is capability-gated per appview. public and blacksky disable it; a
   custom host attempts it. the `/search` route and the `s` shortcut remain even
   though search is not a tab.
