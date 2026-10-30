@@ -332,7 +332,7 @@ export function CommandPalette({
   const autocompleteActive =
     token !== null && (suggestionsPending || autocompleteCommands.length > 0)
   const needle = input.trim().toLowerCase()
-  const commandsForTyping = [...commands, ...themeCommands, ...appviewCommands]
+  const commandsForTyping = [...themeCommands, ...appviewCommands, ...commands]
   const filtered = autocompleteActive
     ? autocompleteCommands
     : needle.length === 0
