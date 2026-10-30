@@ -204,7 +204,7 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
     }
 
     if (event.key === 'Tab') {
-      close()
+      close(true)
     }
   }
 

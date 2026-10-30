@@ -122,6 +122,7 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const name = post.author.displayName.length > 0 ? post.author.displayName : handle
   const href = `/thread?uri=${encodeURIComponent(post.uri)}`
+  const profileHref = `/profile/${encodeURIComponent(handle)}`
 
   return (
     <article
@@ -142,7 +143,7 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
       }}
     >
       <header className="b-embed__quote-head">
-        <Link href={href} className="b-embed__quote-author">
+        <Link href={profileHref} className="b-embed__quote-author">
           <span>{name}</span>
         </Link>
         <span className="b-embed__quote-meta">@{handle}</span>

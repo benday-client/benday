@@ -154,6 +154,32 @@ describe('PostCard actions', () => {
     expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument()
   })
 
+  it('copies a bsky.app link from a signed-out focused card', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture()} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByRole('button', { name: 'copy link' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'y' })
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('https://bsky.app/profile/test.bsky.social/post/1')
+    })
+    expect(screen.getByRole('button', { name: 'copied' })).toBeInTheDocument()
+  })
+
   it('activates the focused post video with the v key', () => {
     const location = memoryLocation({ path: '/' })
     const queryClient = new QueryClient()
@@ -243,6 +269,10 @@ describe('PostCard actions', () => {
 
     const quote = document.querySelector('.b-embed--quote')
     expect(quote).not.toBeNull()
+    const authorLink = screen.getByRole('link', { name: 'quoted' })
+    expect(authorLink).toHaveAttribute('href', '/profile/quoted.test')
+    fireEvent.click(authorLink)
+    expect(location.history.at(-1)).toBe('/profile/quoted.test')
     fireEvent.click(quote as Element)
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })

@@ -145,7 +145,7 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
   return (
     <Dialog open={open} title="keyboard" onClose={onClose} className="b-help" headerClose>
       <p className="b-help__note">
-        keys apply when no dialog or composer is open. a profile opened from a card gets a temporary
+        global and per-surface keys are grouped below. a profile opened from a card gets a temporary
         tab.
       </p>
 

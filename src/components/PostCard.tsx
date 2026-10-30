@@ -499,148 +499,142 @@ export function PostCard({
         ) : null}
       </div>
 
-      {authed ? (
-        <footer className="b-post-card__foot">
-          <div className="b-post-card__actions">
-            <Link href={threadHref} className="b-post-card__action">
-              re {post.replyCount}
-            </Link>
-            <button
-              type="button"
-              className="b-post-card__action"
-              data-kind="like"
-              aria-pressed={liked}
-              aria-label={`like, ${likeCount}`}
-              title={error ?? undefined}
-              disabled={pending}
-              onClick={() => {
-                if (!authed) {
-                  openDialog('login')
-                  return
-                }
-                void useActionStore.getState().toggleLike(post)
-              }}
-            >
-              like {likeCount}
-            </button>
-            <button
-              type="button"
-              className="b-post-card__action"
-              data-kind="repost"
-              aria-pressed={reposted}
-              aria-label={`repost, ${repostCount}`}
-              title={error ?? undefined}
-              disabled={pending}
-              onClick={() => {
-                if (!authed) {
-                  openDialog('login')
-                  return
-                }
-                void useActionStore.getState().toggleRepost(post)
-              }}
-            >
-              rt {repostCount}
-            </button>
-            <button type="button" className="b-post-card__action" onClick={openReplyCompose}>
-              reply
-            </button>
-            <button type="button" className="b-post-card__action" onClick={openQuoteCompose}>
-              quote
-            </button>
-            <button
-              type="button"
-              className="b-post-card__action"
-              data-state={copyState}
-              title="copy bsky.app link · y"
-              aria-live="polite"
-              onClick={() => {
-                void copyLink()
-              }}
-            >
-              {copyState === 'copied'
-                ? 'copied'
-                : copyState === 'failed'
-                  ? 'copy failed'
-                  : 'copy link'}
-            </button>
-            {onFeedback !== undefined ? (
-              feedbackSent ? (
-                <span className="b-post-card__feedback-sent" role="status">
-                  feedback sent to the feed operator
-                </span>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="b-post-card__action"
-                    title="more like this · +"
-                    aria-label="more like this"
-                    onClick={() => {
-                      feedbackAction('more')
-                    }}
-                  >
-                    more
-                  </button>
-                  <button
-                    type="button"
-                    className="b-post-card__action"
-                    title="less like this · -"
-                    aria-label="less like this"
-                    onClick={() => {
-                      feedbackAction('less')
-                    }}
-                  >
-                    less
-                  </button>
-                </>
-              )
-            ) : null}
-            {own ? (
-              confirmingDelete ? (
-                <>
+      <footer className="b-post-card__foot">
+        <div className="b-post-card__actions">
+          {authed ? (
+            <>
+              <Link href={threadHref} className="b-post-card__action">
+                re {post.replyCount}
+              </Link>
+              <button
+                type="button"
+                className="b-post-card__action"
+                data-kind="like"
+                aria-pressed={liked}
+                aria-label={`like, ${likeCount}`}
+                title={error ?? undefined}
+                disabled={pending}
+                onClick={() => {
+                  void useActionStore.getState().toggleLike(post)
+                }}
+              >
+                like {likeCount}
+              </button>
+              <button
+                type="button"
+                className="b-post-card__action"
+                data-kind="repost"
+                aria-pressed={reposted}
+                aria-label={`repost, ${repostCount}`}
+                title={error ?? undefined}
+                disabled={pending}
+                onClick={() => {
+                  void useActionStore.getState().toggleRepost(post)
+                }}
+              >
+                rt {repostCount}
+              </button>
+              <button type="button" className="b-post-card__action" onClick={openReplyCompose}>
+                reply
+              </button>
+              <button type="button" className="b-post-card__action" onClick={openQuoteCompose}>
+                quote
+              </button>
+              {onFeedback !== undefined ? (
+                feedbackSent ? (
+                  <span className="b-post-card__feedback-sent" role="status">
+                    feedback sent to the feed operator
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="b-post-card__action"
+                      title="more like this · +"
+                      aria-label="more like this"
+                      onClick={() => {
+                        feedbackAction('more')
+                      }}
+                    >
+                      more
+                    </button>
+                    <button
+                      type="button"
+                      className="b-post-card__action"
+                      title="less like this · -"
+                      aria-label="less like this"
+                      onClick={() => {
+                        feedbackAction('less')
+                      }}
+                    >
+                      less
+                    </button>
+                  </>
+                )
+              ) : null}
+              {own ? (
+                confirmingDelete ? (
+                  <>
+                    <button
+                      type="button"
+                      className="b-post-card__action b-post-card__action--danger"
+                      disabled={deleting}
+                      title="delete · d"
+                      onClick={() => {
+                        void confirmDelete()
+                      }}
+                    >
+                      {deleting ? 'deleting' : 'confirm delete'}
+                    </button>
+                    <button
+                      type="button"
+                      className="b-post-card__action"
+                      disabled={deleting}
+                      onClick={() => {
+                        setConfirmingDelete(false)
+                      }}
+                    >
+                      cancel
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     className="b-post-card__action b-post-card__action--danger"
-                    disabled={deleting}
                     title="delete · d"
                     onClick={() => {
-                      void confirmDelete()
+                      setConfirmingDelete(true)
                     }}
                   >
-                    {deleting ? 'deleting' : 'confirm delete'}
+                    delete
                   </button>
-                  <button
-                    type="button"
-                    className="b-post-card__action"
-                    disabled={deleting}
-                    onClick={() => {
-                      setConfirmingDelete(false)
-                    }}
-                  >
-                    cancel
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="b-post-card__action b-post-card__action--danger"
-                  title="delete · d"
-                  onClick={() => {
-                    setConfirmingDelete(true)
-                  }}
-                >
-                  delete
-                </button>
-              )
-            ) : null}
-            {deleteError !== null ? (
-              <span className="b-post-card__delete-error" role="alert">
-                {deleteError}
-              </span>
-            ) : null}
-          </div>
-        </footer>
-      ) : null}
+                )
+              ) : null}
+              {deleteError !== null ? (
+                <span className="b-post-card__delete-error" role="alert">
+                  {deleteError}
+                </span>
+              ) : null}
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="b-post-card__action"
+            data-state={copyState}
+            title="copy bsky.app link · y"
+            aria-live="polite"
+            onClick={() => {
+              void copyLink()
+            }}
+          >
+            {copyState === 'copied'
+              ? 'copied'
+              : copyState === 'failed'
+                ? 'copy failed'
+                : 'copy link'}
+          </button>
+        </div>
+      </footer>
       <MediaViewer
         open={mediaOpen}
         items={media}

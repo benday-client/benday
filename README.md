@@ -106,8 +106,8 @@ the password fallback works everywhere else, including `localhost`.
 the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote,
 `copy link` and `m` media. clicking a top comment row or a quoted post opens its
 thread; their author and open links still navigate independently. signed-out
-cards hide the interaction bar. on your own posts a two-step `delete` action
-appears beside them. `0` acts only when the focused card quotes another post,
+cards keep `copy link` and hide the account actions. on your own posts a
+two-step `delete` action appears beside them. `0` acts only when the focused card quotes another post,
 `y` copies its bsky.app permalink, and `1`-`9` are 1-based positions that act
 only while the deck or thread owns focus. the top bar has a compose button for signed-in
 accounts, shows their handle, and offers keyboard help. signed out it offers a
@@ -202,9 +202,10 @@ notification control, is hidden on your own profile.
 the profile deck has three modes: `posts` (standalone posts), `replies` (replies
 this account wrote) and `media` (posts carrying images or video). on wide
 screens `←` from the first post opens the mode deck; mobile uses a compact mode
-strip. the author feed is fetched once and the modes filter those loaded pages,
-so their counts describe what has been fetched. the refresh card at the end of
-the deck reloads it.
+strip. entering the mode deck and returning to posts play the same deal
+animation as the feeds deck. the author feed is fetched once and the modes
+filter those loaded pages, so their counts describe what has been fetched. the
+refresh card at the end of the deck reloads it.
 
 ## settings
 
@@ -373,7 +374,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 206 offline unit tests cover byte-offset facets, post/embed/profile model
+- 209 offline unit tests cover byte-offset facets, post/embed/profile model
   mapping, markdown-to-facet conversion, thread flattening and reply context,
   appviews and capabilities, relative time, 8x8 dither generation, all themes
   and seasonal availability, pinned-feed preferences and selection, mention
