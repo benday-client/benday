@@ -2,6 +2,23 @@
    load after the base sheets: these are token-driven overrides, not a new
    component convention. */
 
+/* system preview is two theme scopes inside the active theme's html.
+   reset inherited custom properties here; each half's [data-theme] block
+   overrides what that theme actually defines. */
+:where(.b-theme-preview__half) {
+  --accent-4: var(--blue-hot);
+  --accent-5: var(--rust);
+  --neon: transparent;
+  --neon-alt: transparent;
+  --surface-texture: repeating-linear-gradient(
+    0deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
+  );
+  --theme-radius: 0px;
+  --theme-clip: none;
+}
+
 /* accent depth -------------------------------------------------------
    accent-4/5 are the quieter second pair: comments, quotes, tags and
    actions use them so richer themes read with more range without every
