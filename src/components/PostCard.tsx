@@ -181,6 +181,25 @@ export function PostCard({
       if (ui.dialog !== null || ui.compose !== null || ui.inlineCompose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
 
+      if (event.key === 'v' && cardRef.current !== null) {
+        const poster = cardRef.current.querySelector<HTMLButtonElement>('.b-video-player__poster')
+        if (poster !== null) {
+          event.preventDefault()
+          poster.click()
+          return
+        }
+        const video = cardRef.current.querySelector<HTMLVideoElement>('.b-video-player__video')
+        if (video !== null) {
+          event.preventDefault()
+          if (video.paused) {
+            void video.play().catch(() => {})
+          } else {
+            video.pause()
+          }
+          return
+        }
+      }
+
       if (event.key === 'm' && media.length > 0) {
         event.preventDefault()
         setMediaOpen(true)

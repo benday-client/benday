@@ -122,6 +122,31 @@ describe('PostCard actions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('feedback sent to the feed operator')
   })
 
+  it('activates the focused post video with the v key', () => {
+    const location = memoryLocation({ path: '/' })
+    const queryClient = new QueryClient()
+    const post = postFixture({
+      embed: {
+        type: 'video',
+        thumbnail: null,
+        alt: 'test clip',
+        playlist: 'https://example.test/video.m3u8',
+      },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={post} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(document.querySelector('.b-video-player__poster')).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'v' })
+    expect(document.querySelector('.b-video-player__poster')).toBeNull()
+    expect(document.querySelector('.b-video-player__video')).not.toBeNull()
+  })
+
   it('opens a quoted post with the 0 key and a link', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = new QueryClient()
