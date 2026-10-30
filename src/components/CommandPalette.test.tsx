@@ -5,9 +5,19 @@ import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
+import { useUiStore } from '../lib/ui'
 import { CommandPalette } from './CommandPalette'
 
+const pinnedState = vi.hoisted(() => ({
+  feeds: [] as { uri: string; name: string; description: string; avatar: string | null }[],
+}))
+
+vi.mock('../hooks/usePinnedFeeds', () => ({
+  usePinnedFeeds: () => ({ feeds: pinnedState.feeds, isPending: false }),
+}))
+
 interface RenderOptions {
+  open?: boolean
   onClose?: () => void
   onOpenAppView?: () => void
   onOpenHelp?: () => void
@@ -23,21 +33,33 @@ function renderPalette(options: RenderOptions = {}) {
 
   const queryClient = new QueryClient()
 
-  render(
+  const view = (open: boolean) => (
     <QueryClientProvider client={queryClient}>
       <Router hook={location.hook}>
         <CommandPalette
-          open
+          open={open}
           onClose={onClose}
           onOpenAppView={onOpenAppView}
           onOpenHelp={onOpenHelp}
           onOpenSettings={onOpenSettings}
         />
       </Router>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   )
 
-  return { onClose, onOpenAppView, onOpenHelp, onOpenSettings, history: location.history }
+  const result = render(view(options.open ?? true))
+
+  return {
+    onClose,
+    onOpenAppView,
+    onOpenHelp,
+    onOpenSettings,
+    history: location.history,
+    queryClient,
+    rerender: (open: boolean) => {
+      result.rerender(view(open))
+    },
+  }
 }
 
 function submit(value: string) {
@@ -48,6 +70,8 @@ function submit(value: string) {
 
 describe('CommandPalette', () => {
   beforeEach(() => {
+    localStorage.clear()
+    pinnedState.feeds = []
     useSettings.setState({ theme: 'void' })
     useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
   })
@@ -89,6 +113,69 @@ describe('CommandPalette', () => {
     const { onOpenHelp } = renderPalette()
     submit('help')
     expect(onOpenHelp).toHaveBeenCalled()
+  })
+
+  it('resets the selection when the palette reopens', () => {
+    const { rerender } = renderPalette()
+    const input = screen.getByLabelText('command or jump')
+    fireEvent.change(input, { target: { value: 'settings' } })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    const staleRow = screen.getByText('appview settings').closest('.b-palette__command')
+    expect(staleRow?.getAttribute('data-selected')).toBe('true')
+
+    rerender(false)
+    rerender(true)
+
+    const reopenedInput = screen.getByLabelText('command or jump')
+    expect((reopenedInput as HTMLInputElement).value).toBe('')
+    const rows = Array.from(document.querySelectorAll('.b-palette__command'))
+    expect(rows[0]?.getAttribute('data-selected')).toBe('true')
+    expect(
+      screen
+        .getByText('appview settings')
+        .closest('.b-palette__command')
+        ?.getAttribute('data-selected'),
+    ).toBe('false')
+  })
+
+  it('keeps the highlight in range when pinned feeds shrink', () => {
+    const feed = (name: string) => ({
+      uri: `at://did:plc:test/app.bsky.feed.generator/${name}`,
+      name,
+      description: `${name} feed`,
+      avatar: null,
+    })
+    pinnedState.feeds = [feed('alpha'), feed('beta'), feed('gamma')]
+    const { history, onClose, rerender } = renderPalette()
+
+    const input = screen.getByLabelText('command or jump')
+    const rowsBefore = Array.from(document.querySelectorAll('.b-palette__command'))
+    const pinnedIndex = rowsBefore.findIndex((row) => row.textContent?.trim().startsWith('beta'))
+    expect(pinnedIndex).toBeGreaterThanOrEqual(0)
+    for (let index = 0; index < pinnedIndex; index += 1) {
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+    }
+    expect(screen.getByText('beta').closest('.b-palette__command')).toHaveAttribute(
+      'data-selected',
+      'true',
+    )
+    const initialRows = rowsBefore.length
+
+    pinnedState.feeds = [feed('alpha')]
+    rerender(true)
+
+    const rows = Array.from(document.querySelectorAll('.b-palette__command'))
+    expect(rows.length).toBeLessThan(initialRows)
+    const selected = rows.findIndex((row) => row.getAttribute('data-selected') === 'true')
+    expect(selected).toBeGreaterThanOrEqual(0)
+    expect(selected).toBeLessThan(rows.length)
+    expect(rows[selected]?.textContent).toContain('@me')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onClose).toHaveBeenCalled()
+    expect(useUiStore.getState().dialog).toBe('login')
+    expect(history.at(-1)).toBe('/')
   })
 
   it('falls through to a network search when no command matches', () => {

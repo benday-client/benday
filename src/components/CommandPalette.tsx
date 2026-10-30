@@ -87,6 +87,7 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const selectedIdRef = useRef<string | null>(null)
+  const justOpenedRef = useRef(false)
   const token = open ? suggestionAt(input, cursor) : null
   const actorSuggestions = useActorSuggestions(
     token?.kind === 'mention' ? token.query : '',
@@ -136,6 +137,7 @@ export function CommandPalette({
 
   useEffect(() => {
     if (!open) return
+    justOpenedRef.current = true
     setInput('')
     setCursor(0)
     setSelected(0)
@@ -347,6 +349,12 @@ export function CommandPalette({
   const selectedId = filtered[selectedIndex]?.id ?? null
 
   useEffect(() => {
+    if (justOpenedRef.current) {
+      justOpenedRef.current = false
+      selectedIdRef.current = null
+      return
+    }
+
     if (filtered.length === 0) {
       if (selected !== 0) setSelected(0)
       selectedIdRef.current = null
