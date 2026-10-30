@@ -93,6 +93,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       : SETTING_SEARCH.filter((entry) =>
           `${entry.label} ${entry.keywords}`.toLowerCase().includes(normalizedQuery),
         )
+  const visibleEffectThemes = appearance === 'system' ? [lightTheme, darkTheme] : [theme]
+  const imageEffectAvailable = visibleEffectThemes.some(
+    (visibleTheme) => THEME_EFFECTS[visibleTheme] !== 'none',
+  )
   const queryActive = normalizedQuery.length > 0
   const sectionHidden = (id: string): 'true' | undefined =>
     queryActive && !settingMatches.some((entry) => entry.id === id) ? 'true' : undefined
@@ -265,14 +269,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           <input
             type="checkbox"
             checked={imageEffects}
-            disabled={THEME_EFFECTS[theme] === 'none'}
+            disabled={!imageEffectAvailable}
             onChange={(event) => {
               setImageEffects(event.currentTarget.checked)
             }}
           />
           <span>image effects</span>
           <span className="b-settings__toggle-note">
-            {THEME_EFFECTS[theme] === 'none' ? 'this theme keeps images raw' : 'dither and grunge'}
+            {!imageEffectAvailable ? 'visible themes keep images raw' : 'dither and grunge'}
           </span>
         </label>
         <ThemePreview />
