@@ -47,11 +47,7 @@
   width: 100%;
   height: 100%;
   background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    45deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--line) 16%, transparent) 5px 6px
-  );
+  background-image: var(--surface-texture);
 }
 
 .b-card-back__head .b-frame__label {
@@ -70,6 +66,25 @@
 
 .b-card-back__foot .b-post-card__actions {
   justify-content: flex-end;
+}
+
+.b-signedout-card {
+  appearance: none;
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.b-signedout-card__note {
+  color: var(--ink-dim);
+  font-size: var(--step--1);
+  line-height: 1.5;
+}
+
+.b-signedout-card .b-card-back__hint {
+  margin-top: var(--space-1);
 }
 
 .b-card-back__index {
@@ -120,11 +135,7 @@
   color: var(--ink);
   text-align: left;
   background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
-  );
+  background-image: var(--surface-texture);
   transition:
     border-color 120ms linear,
     box-shadow 120ms linear;
@@ -335,6 +346,14 @@
   justify-content: space-between;
   gap: var(--space-2);
   padding: var(--space-1) var(--page-gutter);
+}
+
+.b-view__tools--profile {
+  padding: var(--space-1) 0 0;
+}
+
+.b-view__tools--profile .b-view__pinned {
+  padding-bottom: 0;
 }
 
 .b-view__tools--feed .b-view__pinned {

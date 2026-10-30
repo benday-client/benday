@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, type FeedChoice } from '../components/FeedCard'
 import { PostCard } from '../components/PostCard'
+import { SignedOutCard } from '../components/SignedOutCard'
 import {
   Button,
   Dialog,
@@ -32,6 +33,7 @@ export default function FeedView() {
   const [draft, setDraft] = useState(uri)
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const [feedsMode, setFeedsMode] = useState(false)
+  const [refreshArmed, setRefreshArmed] = useState(false)
   const [dealMode, setDealMode] = useState<'posts' | 'feeds' | null>(null)
   const dealTimerRef = useRef<number | null>(null)
   const wide = useMediaQuery('(min-width: 900px)')
@@ -83,6 +85,34 @@ export default function FeedView() {
 
   const canPickFeeds = authenticated && wide && supported
   const showingFeeds = feedsMode && canPickFeeds
+
+  useEffect(() => {
+    const handleRefreshKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key !== 'R' && !(event.key === 'r' && event.shiftKey)) return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('a, button, input, textarea, select, [contenteditable="true"]')) {
+          return
+        }
+      }
+      if (document.querySelector('dialog[open]') !== null) return
+      if (showingFeeds) return
+      event.preventDefault()
+      if (refreshArmed) {
+        setRefreshArmed(false)
+        feed.retry()
+      } else {
+        setRefreshArmed(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleRefreshKey)
+    return () => {
+      window.removeEventListener('keydown', handleRefreshKey)
+    }
+  }, [feed.retry, refreshArmed, showingFeeds])
 
   useEffect(() => {
     if (!canPickFeeds) setFeedsMode(false)
@@ -206,7 +236,7 @@ export default function FeedView() {
   }
 
   return (
-    <section className="b-view">
+    <section className="b-view" data-refresh-armed={refreshArmed ? 'true' : undefined}>
       <h1 className="visually-hidden">feeds</h1>
       {authenticated && !wide ? (
         <div className="b-view__tools b-view__tools--feed">
@@ -247,7 +277,7 @@ export default function FeedView() {
             disabled={feed.isFetching}
             aria-label="refresh feed"
           >
-            {feed.isFetching ? 'refreshing' : 'refresh'}
+            {feed.isFetching ? 'refreshing' : refreshArmed ? 'confirm refresh' : 'refresh'}
           </button>
         </div>
       ) : null}
@@ -343,8 +373,14 @@ export default function FeedView() {
                       switchMode(true)
                     },
                   }
-                : {})}
-              leadingPeekInteractive={canPickFeeds}
+                : !authenticated
+                  ? {
+                      onExitStart: () => {
+                        openDialog('login')
+                      },
+                    }
+                  : {})}
+              leadingPeekInteractive={canPickFeeds || !authenticated}
               leadingPeek={
                 canPickFeeds && peekChoice !== undefined ? (
                   <FeedCardBack
@@ -354,6 +390,13 @@ export default function FeedView() {
                     appview={appView.label}
                     onRefresh={feed.retry}
                     refreshing={feed.isFetching}
+                    refreshArmed={refreshArmed}
+                  />
+                ) : !authenticated ? (
+                  <SignedOutCard
+                    onSignIn={() => {
+                      openDialog('login')
+                    }}
                   />
                 ) : undefined
               }

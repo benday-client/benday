@@ -37,7 +37,7 @@ describe('PostCard actions', () => {
       pending: false,
       error: null,
     })
-    useUiStore.setState({ dialog: null, compose: null })
+    useUiStore.setState({ dialog: null, compose: null, inlineCompose: null })
     useActionStore.setState({ byUri: {} })
   })
 
@@ -115,10 +115,11 @@ describe('PostCard actions', () => {
     expect(screen.getByRole('button', { name: 'less like this' })).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: '+' })
-    fireEvent.keyDown(window, { key: '-' })
 
-    expect(feedback).toHaveBeenNthCalledWith(1, 'more')
-    expect(feedback).toHaveBeenNthCalledWith(2, 'less')
+    expect(feedback).toHaveBeenCalledWith('more')
+    expect(screen.queryByRole('button', { name: 'more like this' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'less like this' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('feedback sent to the feed operator')
   })
 
   it('opens a quoted post with the 0 key and a link', () => {
@@ -157,7 +158,7 @@ describe('PostCard actions', () => {
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('keeps 0 from opening a quote when the post owns a reply list', () => {
+  it('opens a quoted post with 0 even when the post owns a reply list', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = new QueryClient()
     const quoted = {
@@ -188,10 +189,10 @@ describe('PostCard actions', () => {
     )
 
     fireEvent.keyDown(window, { key: '0' })
-    expect(location.history).toEqual(['/'])
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('opens sign in when a signed-out user likes a post', () => {
+  it('hides the interaction bar when signed out', () => {
     const location = memoryLocation({ path: '/' })
     const queryClient = new QueryClient()
     render(
@@ -202,8 +203,9 @@ describe('PostCard actions', () => {
       </QueryClientProvider>,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /like/ }))
-    expect(useUiStore.getState().dialog).toBe('login')
+    expect(screen.queryByRole('button', { name: /like/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /reply/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /re 0/ })).not.toBeInTheDocument()
   })
 
   it('opens the reply composer when a signed-in user replies', () => {
@@ -373,6 +375,12 @@ describe('PostCard actions', () => {
   })
 
   it('drops the optimistic delta once the post count is refreshed', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
     const post = postFixture({ likeCount: 2, repostCount: 1 })
     useActionStore.setState({
       byUri: {

@@ -21,21 +21,27 @@ export interface ComposeRequest {
 interface UiState {
   dialog: DialogKind
   compose: ComposeRequest | null
+  inlineCompose: ComposeRequest | null
   openingPost: PostModel | null
   openPost: (post: PostModel) => void
   openDialog: (dialog: Exclude<DialogKind, null>) => void
   closeDialog: () => void
   openCompose: (request: ComposeRequest) => void
   closeCompose: () => void
+  openInlineCompose: (request: ComposeRequest) => void
+  closeInlineCompose: () => void
 }
 
 export const useUiStore = create<UiState>()((set) => ({
   dialog: null,
   compose: null,
+  inlineCompose: null,
   openingPost: null,
   openPost: (post) => set({ openingPost: post }),
-  openDialog: (dialog) => set({ dialog, compose: null }),
+  openDialog: (dialog) => set({ dialog, compose: null, inlineCompose: null }),
   closeDialog: () => set({ dialog: null }),
-  openCompose: (request) => set({ compose: request, dialog: null }),
+  openCompose: (request) => set({ compose: request, inlineCompose: null, dialog: null }),
   closeCompose: () => set({ compose: null }),
+  openInlineCompose: (request) => set({ inlineCompose: request, compose: null, dialog: null }),
+  closeInlineCompose: () => set({ inlineCompose: null }),
 }))

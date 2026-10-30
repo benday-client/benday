@@ -505,8 +505,15 @@
   content: "";
 }
 
-.b-deck__item[data-focused="true"],
-.b-deck__item:focus-within {
+/* an empty state shares the row with its leading peek */
+.b-deck[data-axis="x"]:has(.b-deck__empty)::before,
+.b-deck[data-axis="x"]:has(.b-deck__empty)::after {
+  flex: 0 0 0;
+  content: none;
+}
+
+.b-deck__item[data-focused="true"] > .b-frame,
+.b-deck__item:focus-within > .b-frame {
   outline: 1px solid var(--blue);
   outline-offset: 2px;
 }

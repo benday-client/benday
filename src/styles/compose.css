@@ -1,0 +1,164 @@
+/* thread parent anchor and inline compose dock ---------------------- */
+
+.b-thread--stack {
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.b-thread--stack > .b-post-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.b-thread__parent {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-left: 2px solid var(--blue-deep);
+  background: var(--panel);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.03em;
+}
+
+.b-thread__parent-label {
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.b-thread__parent-link {
+  color: var(--ink-dim);
+  text-decoration: none;
+}
+
+.b-thread__parent-link:hover {
+  color: var(--blue);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+
+.b-thread__parent-text {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.b-compose-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-base);
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+  max-height: min(52dvh, 420px);
+  padding: var(--space-2);
+  border: 1px solid var(--blue-deep);
+  background: var(--panel-raised);
+  box-shadow: 0 -10px 28px color-mix(in srgb, var(--shadow) 55%, transparent);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.b-compose-dock[data-placement="above"] {
+  top: 0;
+  bottom: auto;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 55%, transparent);
+}
+
+.b-compose-dock__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  letter-spacing: 0.04em;
+}
+
+.b-compose-dock__label {
+  color: var(--accent-2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.b-compose-dock__hint {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: var(--step--2);
+  white-space: nowrap;
+}
+
+.b-compose-dock .b-compose__target {
+  margin-bottom: 0;
+}
+
+.b-compose-dock__input {
+  min-height: 96px;
+  max-height: 220px;
+}
+
+.b-compose-dock .b-compose__meta {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+
+.b-compose-dock .b-compose__markdown {
+  flex: 1 1 100%;
+}
+
+.b-compose-dock__actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* reserve room above the card so the reply card scrolls instead of the dock */
+.b-thread--stack[data-compose="reply"] > .b-post-card {
+  max-height: calc(100% - clamp(160px, 30dvh, 280px));
+}
+
+.b-thread--stack[data-compose="quote"] > .b-post-card {
+  min-height: 96px;
+}
+
+@media (max-width: 520px) {
+  .b-compose-dock {
+    max-height: 48dvh;
+    padding: var(--space-2);
+  }
+
+  .b-compose-dock__hint {
+    display: none;
+  }
+
+  .b-compose-dock__input {
+    min-height: 76px;
+  }
+
+  .b-compose-dock__actions > .b-button {
+    flex: 1 1 0;
+  }
+
+  .b-thread--stack[data-compose="reply"] > .b-post-card {
+    max-height: calc(100% - 170px);
+  }
+}

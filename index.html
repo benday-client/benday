@@ -26,11 +26,28 @@
           'github-light': '#ffffff',
           cyberpunk: '#05030d',
           cottagecore: '#f3ead8',
+          'truth-to-materials': '#858585',
+          bluesky: '#fbfdff',
+          'pumpkin-ember': '#160b06',
+          'toxic-midnight': '#05100b',
+          'candy-crypt': '#1a0a1e',
+          'dead-leaves': '#120f08',
         }
+        const octoberOnly = new Set([
+          'pumpkin-ember',
+          'toxic-midnight',
+          'candy-crypt',
+          'dead-leaves',
+        ])
         const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
         let theme = stored?.state?.theme
         if (theme === 'duotone') {
           theme = 'cyberpunk'
+          stored.state.theme = theme
+          localStorage.setItem('benday:settings', JSON.stringify(stored))
+        }
+        if (octoberOnly.has(theme) && new Date().getMonth() !== 9) {
+          theme = 'void'
           stored.state.theme = theme
           localStorage.setItem('benday:settings', JSON.stringify(stored))
         }

@@ -94,7 +94,8 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
     isFetching: query.isFetching,
     error: normalizeError(query.error),
     retry: () => {
-      void queryClient.resetQueries({ queryKey: key, exact: true })
+      queryClient.setQueryData(key, undefined)
+      void query.refetch()
     },
     hasMore: active && query.hasNextPage && !query.isFetchNextPageError,
     isLoadingMore: query.isFetchingNextPage,

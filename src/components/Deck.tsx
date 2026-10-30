@@ -356,7 +356,7 @@ export function Deck<T>({
   if (className !== undefined) classes.push(className)
 
   const leadingItem =
-    horizontal && hasLeadingPeek && items.length > 0 ? (
+    horizontal && hasLeadingPeek ? (
       <li
         className="b-deck__item b-deck__peek"
         aria-hidden={leadingPeekInteractive ? undefined : 'true'}

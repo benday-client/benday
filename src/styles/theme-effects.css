@@ -1,0 +1,205 @@
+/* theme abilities: accent depth, shared texture and corner language.
+   load after the base sheets: these are token-driven overrides, not a new
+   component convention. */
+
+/* accent depth -------------------------------------------------------
+   accent-4/5 are the quieter second pair: comments, quotes, tags and
+   actions use them so richer themes read with more range without every
+   state going neon. themes without their own values inherit the root
+   fallbacks. */
+
+.b-post-card__comments-label {
+  color: var(--accent-4);
+}
+
+.b-post-card__comment-author:hover {
+  color: var(--accent-4);
+}
+
+.b-post-card__comment-likes {
+  color: var(--accent-5);
+}
+
+.b-embed--quote {
+  border-color: color-mix(in srgb, var(--accent-4) 55%, var(--line-strong));
+}
+
+.b-embed__quote-author:hover {
+  color: var(--accent-4);
+}
+
+.b-embed__quote-open {
+  color: var(--accent-4);
+}
+
+.b-embed__quote-open:hover {
+  color: var(--accent-5);
+}
+
+.b-tag--accent {
+  border-color: color-mix(in srgb, var(--accent-4) 55%, var(--line));
+  color: var(--accent-4);
+}
+
+.b-card-back__hint {
+  color: var(--accent-5);
+}
+
+.b-card-back__index {
+  color: var(--accent-4);
+}
+
+.b-theme-preview__link {
+  color: var(--accent-4);
+}
+
+.b-settings__theme[data-active="true"] {
+  border-color: var(--accent-4);
+  color: var(--accent-4);
+}
+
+.b-post-card__action[data-kind="like"]:hover {
+  border-bottom-color: var(--accent-4);
+  color: var(--accent-4);
+}
+
+.b-post-card__action[data-kind="repost"]:hover {
+  border-bottom-color: var(--accent-5);
+  color: var(--accent-5);
+}
+
+/* surface texture ----------------------------------------------------
+   cards, feed cards, profile cards and card backs consume
+   --surface-texture. the preview shows the same texture so the picker
+   is honest about what a theme does to paper. */
+
+.b-theme-preview {
+  background-image: var(--surface-texture);
+}
+
+[data-theme="truth-to-materials"] .b-theme-preview,
+[data-theme="bluesky"] .b-theme-preview {
+  background-image: none;
+}
+
+[data-theme="truth-to-materials"] .b-frame__head,
+[data-theme="bluesky"] .b-frame__head {
+  background-image: none;
+}
+
+/* corner language ----------------------------------------------------
+   --theme-radius trims interactive chrome; --theme-clip reshapes flat
+   surfaces. no clip-path on focusable controls, so focus outlines stay
+   whole. */
+
+.b-frame,
+.b-card-back,
+.b-dialog,
+.b-theme-preview,
+.b-empty {
+  border-radius: var(--theme-radius);
+  clip-path: var(--theme-clip);
+}
+
+.b-button,
+.b-input__control,
+.b-tag,
+.b-kbd,
+.b-dialog__close,
+.b-settings__theme,
+.b-settings__appview {
+  border-radius: var(--theme-radius);
+}
+
+/* the square corner ticks would be cut off by an octagonal clip, and they
+   fight a rounded trim; hide them for every shaped theme */
+:is(
+    [data-theme="cyberpunk"],
+    [data-theme="cottagecore"],
+    [data-theme="bluesky"],
+    [data-theme="pumpkin-ember"],
+    [data-theme="candy-crypt"],
+    [data-theme="dead-leaves"]
+  )
+  .b-frame::before,
+:is(
+    [data-theme="cyberpunk"],
+    [data-theme="cottagecore"],
+    [data-theme="bluesky"],
+    [data-theme="pumpkin-ember"],
+    [data-theme="candy-crypt"],
+    [data-theme="dead-leaves"]
+  )
+  .b-frame::after {
+  display: none;
+}
+
+/* keep child backgrounds inside the trimmed corner */
+:is(
+    [data-theme="cottagecore"],
+    [data-theme="bluesky"],
+    [data-theme="pumpkin-ember"],
+    [data-theme="candy-crypt"],
+    [data-theme="dead-leaves"]
+  )
+  .b-frame {
+  overflow: hidden;
+}
+
+[data-theme="cyberpunk"] .b-post-card:hover,
+[data-theme="cyberpunk"] .b-feed-card:hover {
+  border-color: var(--accent-4);
+}
+
+/* outline follows the clipped octagon only through a drop shadow */
+[data-theme="cyberpunk"] .b-deck__item[data-focused="true"] > .b-frame,
+[data-theme="cyberpunk"] .b-deck__item:focus-within > .b-frame {
+  outline: none;
+  filter: drop-shadow(0 0 1px var(--blue)) drop-shadow(0 0 4px var(--blue-deep));
+}
+
+/* halloween flourishes: distinct tags and quiet surface accents --------- */
+
+[data-theme="pumpkin-ember"] .b-tag:not(.b-tag--warn) {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent-4) 40%, var(--line));
+}
+
+[data-theme="pumpkin-ember"] .b-tag--default {
+  color: var(--accent-4);
+}
+
+[data-theme="toxic-midnight"] .b-tag:not(.b-tag--warn) {
+  border-style: dotted;
+  border-color: color-mix(in srgb, var(--acid) 45%, var(--line));
+}
+
+[data-theme="toxic-midnight"] .b-tag--default {
+  color: var(--accent-3);
+}
+
+[data-theme="candy-crypt"] .b-tag:not(.b-tag--warn) {
+  border-style: dotted;
+  border-color: color-mix(in srgb, var(--accent-2) 50%, var(--line));
+}
+
+[data-theme="candy-crypt"] .b-tag--default {
+  color: var(--accent-2);
+}
+
+[data-theme="dead-leaves"] .b-tag:not(.b-tag--warn) {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--accent-4) 40%, var(--line));
+}
+
+[data-theme="dead-leaves"] .b-tag--default {
+  color: var(--accent-3);
+}
+
+[data-theme="dead-leaves"] .b-frame__head {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--rust) 10%, transparent),
+    transparent 60%
+  );
+}

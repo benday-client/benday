@@ -12,7 +12,11 @@ import './styles/cards.css'
 import './styles/dialogs.css'
 import './styles/account.css'
 import './styles/views.css'
+import './styles/notifications.css'
+import './styles/compose.css'
+import './styles/media.css'
 import './styles/dither.css'
+import './styles/theme-effects.css'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('benday: missing #root')

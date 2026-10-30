@@ -13,6 +13,7 @@ import type {
 import { DitherImage } from './DitherImage'
 import { FacetText } from './FacetText'
 import { Kbd, Tag } from './ui'
+import { VideoPlayer } from './VideoPlayer'
 
 export interface EmbedsProps {
   embed: EmbedModel
@@ -146,21 +147,9 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
 }
 
 function VideoCard({ embed }: { embed: VideoEmbed }) {
-  const alt = embed.alt.length > 0 ? embed.alt : 'video post'
-
   return (
     <figure className="b-embed b-embed--video">
-      <span className="b-embed__video-frame">
-        {embed.thumbnail !== null && embed.thumbnail.length > 0 ? (
-          <DitherImage src={embed.thumbnail} alt={alt} />
-        ) : null}
-        <span className="b-embed__video-badge">
-          <Tag tone="default">video</Tag>
-        </span>
-      </span>
-      {embed.alt.length > 0 ? (
-        <figcaption className="b-embed__video-alt">{embed.alt}</figcaption>
-      ) : null}
+      <VideoPlayer video={embed} />
     </figure>
   )
 }

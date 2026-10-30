@@ -623,6 +623,7 @@ describe('mapProfile', () => {
       handle: 'x.world',
       displayName: '',
       description: '',
+      pronouns: '',
       avatar: null,
       banner: null,
       followersCount: 0,
@@ -630,6 +631,18 @@ describe('mapProfile', () => {
       postsCount: 0,
       createdAt: null,
       labels: [],
+      links: [],
+      isBot: false,
+      viewer: {
+        following: null,
+        followedBy: null,
+        muted: false,
+        mutedOnlyReposts: false,
+        mutedOnlyQuoteposts: false,
+        blocking: null,
+        blockedBy: false,
+        activitySubscription: null,
+      },
     })
   })
 })

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" width="320" height="120" role="img" aria-labelledby="theme-preview-title">
+  <title id="theme-preview-title">abstract theme sample</title>
+  <rect width="320" height="120" fill="#777"/>
+  <rect x="14" y="14" width="94" height="92" fill="#d8d8d8"/>
+  <path d="M14 106 L60 38 L106 106 Z" fill="#3d3d3d"/>
+  <circle cx="178" cy="48" r="26" fill="#e6e6e6"/>
+  <rect x="144" y="82" width="128" height="10" fill="#2a2a2a"/>
+  <rect x="144" y="98" width="84" height="6" fill="#bdbdbd"/>
+  <rect x="284" y="14" width="22" height="22" fill="#f0f0f0"/>
+</svg>

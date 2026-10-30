@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { useLabelerDetails } from '../hooks/useLabelerDetails'
 import {
   APPVIEW_PRESETS,
@@ -9,12 +9,45 @@ import {
 } from '../lib/appviews'
 import { fetchLabelerPrefs } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
+import {
+  parseSettingsFileJson,
+  SETTINGS_FILE_NAME,
+  serializeSettings,
+} from '../lib/settingsTransfer'
 import { useSettings } from '../lib/store'
-import { THEME_GROUPS, THEME_LABELS } from '../lib/themes'
+import {
+  availableThemeGroups,
+  SEASONAL_THEMES,
+  THEME_EFFECTS,
+  THEME_LABELS,
+  themeAvailable,
+} from '../lib/themes'
 import type { AppViewPreset } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { ThemePreview } from './ThemePreview'
 import { Button, Dialog, Tag, TextInput } from './ui'
+
+interface SettingSearchEntry {
+  id: string
+  label: string
+  keywords: string
+}
+
+const SETTING_SEARCH: readonly SettingSearchEntry[] = [
+  {
+    id: 'settings-appearance',
+    label: 'appearance',
+    keywords: `theme themes colors image effects dither grunge light dark system ${Object.values(THEME_LABELS).join(' ')}`,
+  },
+  {
+    id: 'settings-appview',
+    label: 'appview',
+    keywords: `host server instance custom ${APPVIEW_PRESETS.map((preset) => `${preset.label} ${preset.host}`).join(' ')}`,
+  },
+  { id: 'settings-labelers', label: 'labelers', keywords: 'labels moderation did import account' },
+  { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
+  { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
+]
 
 export interface SettingsDialogProps {
   open: boolean
@@ -25,10 +58,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const appView = useSettings((state) => state.appView)
   const setAppView = useSettings((state) => state.setAppView)
   const theme = useSettings((state) => state.theme)
-  const setTheme = useSettings((state) => state.setTheme)
+  const appearance = useSettings((state) => state.appearance)
+  const setAppearance = useSettings((state) => state.setAppearance)
+  const lightTheme = useSettings((state) => state.lightTheme)
+  const darkTheme = useSettings((state) => state.darkTheme)
+  const setLightTheme = useSettings((state) => state.setLightTheme)
+  const setDarkTheme = useSettings((state) => state.setDarkTheme)
+  const imageEffects = useSettings((state) => state.imageEffects)
+  const setImageEffects = useSettings((state) => state.setImageEffects)
   const labelers = useSettings((state) => state.labelers)
   const addLabeler = useSettings((state) => state.addLabeler)
   const removeLabeler = useSettings((state) => state.removeLabeler)
+  const importSettings = useSettings((state) => state.importSettings)
   const account = useAuthStore((state) => state.account)
   const signOut = useAuthStore((state) => state.signOut)
   const openDialog = useUiStore((state) => state.openDialog)
@@ -36,11 +77,47 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const [labelerInput, setLabelerInput] = useState('')
   const [importingLabelers, setImportingLabelers] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [transferError, setTransferError] = useState<string | null>(null)
+  const [transferNotice, setTransferNotice] = useState<string | null>(null)
+  const [settingQuery, setSettingQuery] = useState('')
+  const settingsFileInput = useRef<HTMLInputElement>(null)
+  const settingSearchRef = useRef<HTMLInputElement>(null)
   const details = useLabelerDetails(labelers)
+  const today = new Date()
+  const themeGroups = [...availableThemeGroups(today)].reverse()
+  const seasonalThemesHidden = SEASONAL_THEMES.some((item) => !themeAvailable(item, today))
+  const normalizedQuery = settingQuery.trim().toLowerCase()
+  const settingMatches =
+    normalizedQuery.length === 0
+      ? []
+      : SETTING_SEARCH.filter((entry) =>
+          `${entry.label} ${entry.keywords}`.toLowerCase().includes(normalizedQuery),
+        )
+  const queryActive = normalizedQuery.length > 0
+  const sectionHidden = (id: string): 'true' | undefined =>
+    queryActive && !settingMatches.some((entry) => entry.id === id) ? 'true' : undefined
 
   useEffect(() => {
     if (open) setHost(appView.kind === 'custom' ? appView.host : '')
   }, [open, appView])
+
+  useEffect(() => {
+    if (!open) return
+    const handleSearchKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key !== '/') return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+      event.preventDefault()
+      settingSearchRef.current?.focus()
+    }
+    window.addEventListener('keydown', handleSearchKey)
+    return () => {
+      window.removeEventListener('keydown', handleSearchKey)
+    }
+  }, [open])
 
   const custom = makeCustomAppView(host)
   const invalidHost = host.trim().length > 0 && custom === null
@@ -86,37 +163,160 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     onClose()
   }
 
+  const exportSettings = () => {
+    setTransferError(null)
+    setTransferNotice(null)
+    const json = serializeSettings({
+      theme,
+      appearance,
+      lightTheme,
+      darkTheme,
+      imageEffects,
+      appView,
+      labelers,
+    })
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = SETTINGS_FILE_NAME
+    link.rel = 'noopener'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    // let the browser claim the blob before the object url is dropped
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url)
+    }, 0)
+    setTransferNotice('settings exported')
+  }
+
+  const importSettingsFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    // clearing lets the same file be picked again after a failed import
+    event.target.value = ''
+    if (file === undefined) return
+
+    setTransferError(null)
+    setTransferNotice(null)
+
+    let text: string
+    try {
+      text = await file.text()
+    } catch {
+      setTransferError('could not read settings file')
+      return
+    }
+
+    const result = parseSettingsFileJson(text)
+    if (!result.ok) {
+      setTransferError(result.error)
+      return
+    }
+    if (!importSettings(result.settings)) {
+      setTransferError('could not apply settings')
+      return
+    }
+    setTransferNotice('settings imported')
+  }
+
   return (
     <Dialog open={open} title="settings" onClose={onClose} className="b-settings" headerClose>
-      <section className="b-settings__section">
+      <div className="b-settings__search">
+        <input
+          ref={settingSearchRef}
+          type="search"
+          className="b-settings__search-input"
+          aria-label="search settings"
+          placeholder="search settings · /"
+          value={settingQuery}
+          onChange={(event) => {
+            setSettingQuery(event.currentTarget.value)
+          }}
+        />
+        {queryActive && settingMatches.length === 0 ? (
+          <p className="b-settings__search-empty">no matching setting</p>
+        ) : null}
+      </div>
+      <section
+        id="settings-appearance"
+        className="b-settings__section"
+        data-hidden={sectionHidden('settings-appearance')}
+      >
         <h3 className="b-settings__heading">appearance</h3>
+        <fieldset className="b-settings__appearance-mode">
+          <legend className="visually-hidden">appearance mode</legend>
+          {(['light', 'dark', 'system'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              className="b-settings__mode"
+              data-active={appearance === mode ? 'true' : 'false'}
+              aria-pressed={appearance === mode}
+              onClick={() => {
+                setAppearance(mode)
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+        </fieldset>
+        <label className="b-settings__toggle">
+          <input
+            type="checkbox"
+            checked={imageEffects}
+            disabled={THEME_EFFECTS[theme] === 'none'}
+            onChange={(event) => {
+              setImageEffects(event.currentTarget.checked)
+            }}
+          />
+          <span>image effects</span>
+          <span className="b-settings__toggle-note">
+            {THEME_EFFECTS[theme] === 'none' ? 'this theme keeps images raw' : 'dither and grunge'}
+          </span>
+        </label>
         <ThemePreview />
         <div className="b-settings__theme-groups">
-          {THEME_GROUPS.map((group) => (
-            <section className="b-settings__theme-group" key={group.scheme}>
-              <h4 className="b-settings__subheading mono-label">{group.scheme}</h4>
-              <div className="b-settings__themes">
-                {group.themes.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className="b-settings__theme"
-                    data-active={theme === item ? 'true' : 'false'}
-                    aria-pressed={theme === item}
-                    onClick={() => {
-                      setTheme(item)
-                    }}
-                  >
-                    <span>{THEME_LABELS[item]}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+          {themeGroups.map((group) => {
+            const selected = group.scheme === 'light' ? lightTheme : darkTheme
+            return (
+              <section className="b-settings__theme-group" key={group.scheme}>
+                <h4 className="b-settings__subheading mono-label">{group.scheme}</h4>
+                <div className="b-settings__themes">
+                  {group.themes.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className="b-settings__theme"
+                      data-active={selected === item ? 'true' : 'false'}
+                      data-current={theme === item ? 'true' : 'false'}
+                      aria-pressed={selected === item}
+                      onClick={() => {
+                        if (group.scheme === 'light') {
+                          setLightTheme(item)
+                        } else {
+                          setDarkTheme(item)
+                        }
+                      }}
+                    >
+                      <span>{THEME_LABELS[item]}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )
+          })}
         </div>
+        {seasonalThemesHidden ? (
+          <p className="b-settings__note">seasonal themes return in october</p>
+        ) : null}
       </section>
 
-      <section className="b-settings__section">
+      <section
+        id="settings-appview"
+        className="b-settings__section"
+        data-hidden={sectionHidden('settings-appview')}
+      >
         <h3 className="b-settings__heading">appview</h3>
         <div className="b-settings__appviews">
           {APPVIEW_PRESETS.map((preset) => {
@@ -158,7 +358,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
       </section>
 
-      <section className="b-settings__section">
+      <section
+        id="settings-labelers"
+        className="b-settings__section"
+        data-hidden={sectionHidden('settings-labelers')}
+      >
         <h3 className="b-settings__heading">labelers</h3>
         <p className="b-settings__note">
           these labeler services are asked for labels on feed reads. labels still render as tags.
@@ -230,7 +434,51 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         ) : null}
       </section>
 
-      <section className="b-settings__section">
+      <section
+        id="settings-transfer"
+        className="b-settings__section"
+        data-hidden={sectionHidden('settings-transfer')}
+      >
+        <h3 className="b-settings__heading">transfer</h3>
+        <p className="b-settings__note">
+          move theme appview and labelers between browsers with one json file. sessions,
+          credentials, drafts and account data are never included.
+        </p>
+        <div className="b-settings__row">
+          <Button variant="outline" onClick={exportSettings}>
+            export settings
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              settingsFileInput.current?.click()
+            }}
+          >
+            import settings
+          </Button>
+          <input
+            ref={settingsFileInput}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(event) => {
+              void importSettingsFile(event)
+            }}
+          />
+        </div>
+        {transferNotice !== null ? <p className="b-settings__note">{transferNotice}</p> : null}
+        {transferError !== null ? (
+          <p className="b-settings__error" role="alert">
+            {transferError}
+          </p>
+        ) : null}
+      </section>
+
+      <section
+        id="settings-account"
+        className="b-settings__section"
+        data-hidden={sectionHidden('settings-account')}
+      >
         <h3 className="b-settings__heading">account</h3>
         {account === null ? (
           <Button variant="outline" onClick={signIn}>

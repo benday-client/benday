@@ -12,8 +12,9 @@ import { useUiStore } from '../lib/ui'
 import { DitherImage } from './DitherImage'
 import { Embeds } from './Embeds'
 import { FacetText } from './FacetText'
+import { MediaViewer, mediaItems } from './MediaViewer'
 import { RelativeTime } from './RelativeTime'
-import { Kbd, Tag } from './ui'
+import { Tag } from './ui'
 
 export interface PostCardProps {
   post: PostModel
@@ -21,6 +22,7 @@ export interface PostCardProps {
   focused?: boolean
   eyebrow?: string
   replies?: ReactNode
+  showReplyContext?: boolean
   onFeedback?: (event: FeedFeedbackEvent) => void
   onDismiss?: () => void
 }
@@ -45,6 +47,7 @@ export function PostCard({
   focused = false,
   eyebrow,
   replies,
+  showReplyContext = true,
   onFeedback,
   onDismiss,
 }: PostCardProps) {
@@ -65,6 +68,9 @@ export function PostCard({
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
+  const [feedbackSent, setFeedbackSent] = useState(false)
+  const media = mediaItems(post.embed)
   const dismissTimerRef = useRef<number | null>(null)
   const own =
     authed &&
@@ -78,6 +84,32 @@ export function PostCard({
   const entry = useActionStore((state) => state.byUri[post.uri])
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
+  const openInlineCompose = useUiStore((state) => state.openInlineCompose)
+  const inlineTarget = focused && replies !== undefined
+
+  const openReplyCompose = () => {
+    if (!authed) {
+      openDialog('login')
+      return
+    }
+    if (inlineTarget) {
+      openInlineCompose({ mode: 'reply', post })
+      return
+    }
+    openCompose({ mode: 'reply', post })
+  }
+
+  const openQuoteCompose = () => {
+    if (!authed) {
+      openDialog('login')
+      return
+    }
+    if (inlineTarget) {
+      openInlineCompose({ mode: 'quote', post })
+      return
+    }
+    openCompose({ mode: 'quote', post })
+  }
 
   const feedbackAction = useCallback(
     (kind: FeedFeedbackEvent) => {
@@ -85,19 +117,22 @@ export function PostCard({
         openDialog('login')
         return
       }
+      if (feedbackSent) return
       if (kind === 'less' && onDismiss !== undefined && !leaving) {
         setLeaving(true)
         dismissTimerRef.current = window.setTimeout(onDismiss, 240)
       }
       onFeedback?.(kind)
+      if (kind === 'more') setFeedbackSent(true)
     },
-    [authed, openDialog, onDismiss, onFeedback, leaving],
+    [authed, openDialog, onDismiss, onFeedback, leaving, feedbackSent],
   )
 
   useEffect(() => {
     setConfirmingDelete(false)
     setDeleteError(null)
     setLeaving(false)
+    setFeedbackSent(false)
   }, [post.uri, own])
 
   useEffect(() => {
@@ -139,13 +174,20 @@ export function PostCard({
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        if (event.target.closest('a') !== null) return
       }
 
       const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null) return
+      if (ui.dialog !== null || ui.compose !== null || ui.inlineCompose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
 
-      if (event.key === '0' && quotedUri !== null && replies === undefined) {
+      if (event.key === 'm' && media.length > 0) {
+        event.preventDefault()
+        setMediaOpen(true)
+        return
+      }
+
+      if (event.key === '0' && quotedUri !== null) {
         event.preventDefault()
         navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
         return
@@ -158,6 +200,14 @@ export function PostCard({
           return
         }
         action()
+      }
+      const inline = focused && replies !== undefined
+      const open = (mode: 'reply' | 'quote') => {
+        if (inline) {
+          ui.openInlineCompose({ mode, post })
+          return
+        }
+        ui.openCompose({ mode, post })
       }
       switch (event.key) {
         case 'f':
@@ -174,15 +224,11 @@ export function PostCard({
           break
         case 'r':
           event.preventDefault()
-          interact(() => {
-            ui.openCompose({ mode: 'reply', post })
-          })
+          interact(() => open('reply'))
           break
         case 'q':
           event.preventDefault()
-          interact(() => {
-            ui.openCompose({ mode: 'quote', post })
-          })
+          interact(() => open('quote'))
           break
         case '+':
           if (onFeedback === undefined) break
@@ -203,7 +249,7 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, post, feedbackAction])
+  }, [focused, post, feedbackAction, navigate, quotedUri, replies, media.length])
 
   const confirmDelete = async () => {
     if (deleting) return
@@ -230,10 +276,11 @@ export function PostCard({
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+        if (event.target.closest('a') !== null) return
       }
 
       const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null) return
+      if (ui.dialog !== null || ui.compose !== null || ui.inlineCompose !== null) return
       if (document.querySelector('dialog[open]') !== null) return
       if (event.key !== 'd') return
 
@@ -315,7 +362,7 @@ export function PostCard({
           </span>
         </div>
 
-        {post.replyContext !== null ? (
+        {showReplyContext && post.replyContext !== null ? (
           <div className="b-post-card__reply-context">
             <div className="b-post-card__reply-context-head">
               <span>replying to</span>
@@ -391,144 +438,139 @@ export function PostCard({
         ) : null}
       </div>
 
-      <footer className="b-post-card__foot">
-        <div className="b-post-card__actions">
-          <Link href={threadHref} className="b-post-card__action">
-            re {post.replyCount}
-          </Link>
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="like"
-            aria-pressed={liked}
-            aria-label={`like, ${likeCount}`}
-            title={error ?? undefined}
-            disabled={pending}
-            onClick={() => {
-              if (!authed) {
-                openDialog('login')
-                return
-              }
-              void useActionStore.getState().toggleLike(post)
-            }}
-          >
-            like {likeCount}
-          </button>
-          <button
-            type="button"
-            className="b-post-card__action"
-            data-kind="repost"
-            aria-pressed={reposted}
-            aria-label={`repost, ${repostCount}`}
-            title={error ?? undefined}
-            disabled={pending}
-            onClick={() => {
-              if (!authed) {
-                openDialog('login')
-                return
-              }
-              void useActionStore.getState().toggleRepost(post)
-            }}
-          >
-            rt {repostCount}
-          </button>
-          <button
-            type="button"
-            className="b-post-card__action"
-            onClick={() => {
-              if (!authed) {
-                openDialog('login')
-                return
-              }
-              openCompose({ mode: 'reply', post })
-            }}
-          >
-            reply
-          </button>
-          <button
-            type="button"
-            className="b-post-card__action"
-            onClick={() => {
-              if (!authed) {
-                openDialog('login')
-                return
-              }
-              openCompose({ mode: 'quote', post })
-            }}
-          >
-            quote
-          </button>
-          {onFeedback !== undefined ? (
-            <>
-              <button
-                type="button"
-                className="b-post-card__action"
-                title="more like this · +"
-                aria-label="more like this"
-                onClick={() => {
-                  feedbackAction('more')
-                }}
-              >
-                more <Kbd>+</Kbd>
-              </button>
-              <button
-                type="button"
-                className="b-post-card__action"
-                title="less like this · -"
-                aria-label="less like this"
-                onClick={() => {
-                  feedbackAction('less')
-                }}
-              >
-                less <Kbd>-</Kbd>
-              </button>
-            </>
-          ) : null}
-          {own ? (
-            confirmingDelete ? (
-              <>
+      {authed ? (
+        <footer className="b-post-card__foot">
+          <div className="b-post-card__actions">
+            <Link href={threadHref} className="b-post-card__action">
+              re {post.replyCount}
+            </Link>
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-kind="like"
+              aria-pressed={liked}
+              aria-label={`like, ${likeCount}`}
+              title={error ?? undefined}
+              disabled={pending}
+              onClick={() => {
+                if (!authed) {
+                  openDialog('login')
+                  return
+                }
+                void useActionStore.getState().toggleLike(post)
+              }}
+            >
+              like {likeCount}
+            </button>
+            <button
+              type="button"
+              className="b-post-card__action"
+              data-kind="repost"
+              aria-pressed={reposted}
+              aria-label={`repost, ${repostCount}`}
+              title={error ?? undefined}
+              disabled={pending}
+              onClick={() => {
+                if (!authed) {
+                  openDialog('login')
+                  return
+                }
+                void useActionStore.getState().toggleRepost(post)
+              }}
+            >
+              rt {repostCount}
+            </button>
+            <button type="button" className="b-post-card__action" onClick={openReplyCompose}>
+              reply
+            </button>
+            <button type="button" className="b-post-card__action" onClick={openQuoteCompose}>
+              quote
+            </button>
+            {onFeedback !== undefined ? (
+              feedbackSent ? (
+                <span className="b-post-card__feedback-sent" role="status">
+                  feedback sent to the feed operator
+                </span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="b-post-card__action"
+                    title="more like this · +"
+                    aria-label="more like this"
+                    onClick={() => {
+                      feedbackAction('more')
+                    }}
+                  >
+                    more
+                  </button>
+                  <button
+                    type="button"
+                    className="b-post-card__action"
+                    title="less like this · -"
+                    aria-label="less like this"
+                    onClick={() => {
+                      feedbackAction('less')
+                    }}
+                  >
+                    less
+                  </button>
+                </>
+              )
+            ) : null}
+            {own ? (
+              confirmingDelete ? (
+                <>
+                  <button
+                    type="button"
+                    className="b-post-card__action b-post-card__action--danger"
+                    disabled={deleting}
+                    title="delete · d"
+                    onClick={() => {
+                      void confirmDelete()
+                    }}
+                  >
+                    {deleting ? 'deleting' : 'confirm delete'}
+                  </button>
+                  <button
+                    type="button"
+                    className="b-post-card__action"
+                    disabled={deleting}
+                    onClick={() => {
+                      setConfirmingDelete(false)
+                    }}
+                  >
+                    cancel
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
                   className="b-post-card__action b-post-card__action--danger"
-                  disabled={deleting}
                   title="delete · d"
                   onClick={() => {
-                    void confirmDelete()
+                    setConfirmingDelete(true)
                   }}
                 >
-                  {deleting ? 'deleting' : 'confirm delete'}
+                  delete
                 </button>
-                <button
-                  type="button"
-                  className="b-post-card__action"
-                  disabled={deleting}
-                  onClick={() => {
-                    setConfirmingDelete(false)
-                  }}
-                >
-                  cancel
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className="b-post-card__action b-post-card__action--danger"
-                title="delete · d"
-                onClick={() => {
-                  setConfirmingDelete(true)
-                }}
-              >
-                delete
-              </button>
-            )
-          ) : null}
-          {deleteError !== null ? (
-            <span className="b-post-card__delete-error" role="alert">
-              {deleteError}
-            </span>
-          ) : null}
-        </div>
-      </footer>
+              )
+            ) : null}
+            {deleteError !== null ? (
+              <span className="b-post-card__delete-error" role="alert">
+                {deleteError}
+              </span>
+            ) : null}
+          </div>
+        </footer>
+      ) : null}
+      <MediaViewer
+        open={mediaOpen}
+        items={media}
+        onClose={() => {
+          setMediaOpen(false)
+        }}
+      />
     </article>
   )
 }

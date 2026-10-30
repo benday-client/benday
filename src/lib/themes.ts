@@ -1,7 +1,8 @@
 import type { Theme } from './types'
 
-export type ImageEffect = 'grunge' | 'clean'
+export type ImageEffect = 'grunge' | 'clean' | 'none' | 'industrial'
 export type ThemeScheme = 'light' | 'dark'
+export type ThemeSeason = 'october'
 
 export const DEFAULT_IMAGE_EFFECT: ImageEffect = 'grunge'
 
@@ -9,8 +10,8 @@ export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
   void: 'grunge',
   bone: 'grunge',
   oxide: 'grunge',
-  phosphor: 'clean',
-  'catppuccin-mocha': 'grunge',
+  phosphor: 'grunge',
+  'catppuccin-mocha': 'clean',
   'catppuccin-latte': 'clean',
   dracula: 'grunge',
   atom: 'clean',
@@ -18,6 +19,12 @@ export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
   'github-light': 'clean',
   cyberpunk: 'grunge',
   cottagecore: 'grunge',
+  'truth-to-materials': 'industrial',
+  bluesky: 'none',
+  'pumpkin-ember': 'grunge',
+  'toxic-midnight': 'grunge',
+  'candy-crypt': 'grunge',
+  'dead-leaves': 'grunge',
 }
 
 export const THEMES: readonly Theme[] = [
@@ -33,6 +40,12 @@ export const THEMES: readonly Theme[] = [
   'github-light',
   'cyberpunk',
   'cottagecore',
+  'truth-to-materials',
+  'bluesky',
+  'pumpkin-ember',
+  'toxic-midnight',
+  'candy-crypt',
+  'dead-leaves',
 ]
 
 export const THEME_LABELS: Record<Theme, string> = {
@@ -48,6 +61,12 @@ export const THEME_LABELS: Record<Theme, string> = {
   'github-light': 'github light',
   cyberpunk: 'cyberpunk 2077',
   cottagecore: 'cottagecore',
+  'truth-to-materials': 'truth to materials',
+  bluesky: 'bluesky',
+  'pumpkin-ember': 'pumpkin ember',
+  'toxic-midnight': 'toxic midnight',
+  'candy-crypt': 'candy crypt',
+  'dead-leaves': 'dead leaves',
 }
 
 export const THEME_SCHEMES: Record<Theme, ThemeScheme> = {
@@ -63,7 +82,47 @@ export const THEME_SCHEMES: Record<Theme, ThemeScheme> = {
   'github-light': 'light',
   cyberpunk: 'dark',
   cottagecore: 'light',
+  'truth-to-materials': 'light',
+  bluesky: 'light',
+  'pumpkin-ember': 'dark',
+  'toxic-midnight': 'dark',
+  'candy-crypt': 'dark',
+  'dead-leaves': 'dark',
 }
+
+/**
+ * Seasonal windows are calendar months in the viewer's local time: the caller
+ * supplies the date, so a persisted theme never depends on when the module was
+ * evaluated. `getMonth()` reads the local month of that date (0 = january).
+ */
+export const SEASON_MONTHS: Record<ThemeSeason, readonly number[]> = {
+  october: [9],
+}
+
+export const THEME_SEASONS: Record<Theme, ThemeSeason | null> = {
+  void: null,
+  bone: null,
+  oxide: null,
+  phosphor: null,
+  'catppuccin-mocha': null,
+  'catppuccin-latte': null,
+  dracula: null,
+  atom: null,
+  'github-dark': null,
+  'github-light': null,
+  cyberpunk: null,
+  cottagecore: null,
+  'truth-to-materials': null,
+  bluesky: null,
+  'pumpkin-ember': 'october',
+  'toxic-midnight': 'october',
+  'candy-crypt': 'october',
+  'dead-leaves': 'october',
+}
+
+export const SEASONAL_THEMES: readonly Theme[] = THEMES.filter(
+  (theme) => THEME_SEASONS[theme] !== null,
+)
 
 export const THEME_GROUPS: readonly {
   scheme: ThemeScheme
@@ -86,6 +145,12 @@ export const THEME_COLORS: Record<Theme, string> = {
   'github-light': '#ffffff',
   cyberpunk: '#05030d',
   cottagecore: '#f3ead8',
+  'truth-to-materials': '#858585',
+  bluesky: '#fbfdff',
+  'pumpkin-ember': '#160b06',
+  'toxic-midnight': '#05100b',
+  'candy-crypt': '#1a0a1e',
+  'dead-leaves': '#120f08',
 }
 
 const THEME_LOOKUP: Record<Theme, true> = {
@@ -101,8 +166,40 @@ const THEME_LOOKUP: Record<Theme, true> = {
   'github-light': true,
   cyberpunk: true,
   cottagecore: true,
+  'truth-to-materials': true,
+  bluesky: true,
+  'pumpkin-ember': true,
+  'toxic-midnight': true,
+  'candy-crypt': true,
+  'dead-leaves': true,
 }
 
 export function isTheme(value: unknown): value is Theme {
   return typeof value === 'string' && Object.hasOwn(THEME_LOOKUP, value)
+}
+
+export function themeSeason(theme: Theme): ThemeSeason | null {
+  return THEME_SEASONS[theme]
+}
+
+export function themeAvailable(theme: Theme, date: Date): boolean {
+  const season = THEME_SEASONS[theme]
+  if (season === null) return true
+  return SEASON_MONTHS[season].includes(date.getMonth())
+}
+
+/** The theme groups the picker may show for the given date, keeping scheme order. */
+export function availableThemeGroups(date: Date): readonly {
+  scheme: ThemeScheme
+  themes: readonly Theme[]
+}[] {
+  return THEME_GROUPS.flatMap((group) => {
+    const themes = group.themes.filter((theme) => themeAvailable(theme, date))
+    return themes.length > 0 ? [{ scheme: group.scheme, themes }] : []
+  })
+}
+
+/** Resolves a persisted selection to something usable on the given date. */
+export function resolveTheme(theme: Theme, date: Date): Theme {
+  return themeAvailable(theme, date) ? theme : 'void'
 }

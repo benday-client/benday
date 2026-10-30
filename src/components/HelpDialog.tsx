@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Button, Dialog, Kbd } from './ui'
 
 export interface HelpDialogProps {
@@ -37,7 +38,10 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
       { keys: '← at first post', what: 'open the feeds deck' },
       { keys: '← at first feed', what: 'back to posts' },
       { keys: 'enter / space', what: 'open replies' },
+      { keys: 'm', what: 'open the focused post media' },
+      { keys: '@me', what: 'open your profile from the command prompt' },
       { keys: '0', what: 'open the quoted post' },
+      { keys: 'R R', what: 'refresh the feed' },
       { keys: '1-9', what: 'focus a card by position' },
       { keys: '↓ wide · → narrow', what: 'open the full post' },
     ],
@@ -75,6 +79,38 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 ]
 
 export function HelpDialog({ open, onClose }: HelpDialogProps) {
+  const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+  const needle = search.trim().toLowerCase()
+  const groups =
+    needle.length === 0
+      ? SHORTCUT_GROUPS
+      : SHORTCUT_GROUPS.map((group) => ({
+          ...group,
+          items: group.items.filter((item) =>
+            `${item.keys} ${item.what}`.toLowerCase().includes(needle),
+          ),
+        })).filter((group) => group.items.length > 0)
+
+  useEffect(() => {
+    if (!open) return
+    setSearch('')
+    const handleSearchKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key !== '/') return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+      event.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', handleSearchKey)
+    return () => {
+      window.removeEventListener('keydown', handleSearchKey)
+    }
+  }, [open])
+
   return (
     <Dialog
       open={open}
@@ -92,23 +128,41 @@ export function HelpDialog({ open, onClose }: HelpDialogProps) {
         tab.
       </p>
 
-      <div className="b-help__groups">
-        {SHORTCUT_GROUPS.map((group) => (
-          <section className="b-help__group" key={group.title}>
-            <h3 className="b-help__heading mono-label">{group.title}</h3>
-            <dl className="b-help__list">
-              {group.items.map((shortcut) => (
-                <div className="b-help__row" key={shortcut.keys}>
-                  <dt className="b-help__keys">
-                    <Kbd>{shortcut.keys}</Kbd>
-                  </dt>
-                  <dd className="b-help__what">{shortcut.what}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
+      <div className="b-help__search">
+        <input
+          ref={searchRef}
+          type="search"
+          className="b-help__search-input"
+          aria-label="search keybindings"
+          placeholder="search keys · /"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.currentTarget.value)
+          }}
+        />
       </div>
+
+      {groups.length === 0 ? (
+        <p className="b-help__empty">no matching keybinding</p>
+      ) : (
+        <div className="b-help__groups">
+          {groups.map((group) => (
+            <section className="b-help__group" key={group.title}>
+              <h3 className="b-help__heading mono-label">{group.title}</h3>
+              <dl className="b-help__list">
+                {group.items.map((shortcut) => (
+                  <div className="b-help__row" key={shortcut.keys}>
+                    <dt className="b-help__keys">
+                      <Kbd>{shortcut.keys}</Kbd>
+                    </dt>
+                    <dd className="b-help__what">{shortcut.what}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+      )}
     </Dialog>
   )
 }

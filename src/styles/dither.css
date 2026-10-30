@@ -60,6 +60,33 @@
   filter: url(#benday-dither-cottagecore);
 }
 
+[data-theme="pumpkin-ember"] .dither-image {
+  filter: url(#benday-dither-pumpkin-ember);
+}
+
+[data-theme="toxic-midnight"] .dither-image {
+  filter: url(#benday-dither-toxic-midnight);
+}
+
+[data-theme="candy-crypt"] .dither-image {
+  filter: url(#benday-dither-candy-crypt);
+}
+
+[data-theme="dead-leaves"] .dither-image {
+  filter: url(#benday-dither-dead-leaves);
+}
+
+/* honest images: no ordered dither, no grunge, no pixel grid */
+[data-theme="truth-to-materials"] .dither-image {
+  filter: url(#benday-dither-truth-to-materials);
+}
+
+[data-theme="bluesky"] .dither-image,
+.dither-image[data-effect="none"] {
+  filter: none;
+  image-rendering: auto;
+}
+
 .dither-image--fallback {
   display: grid;
   aspect-ratio: 1;

@@ -330,18 +330,44 @@ export function mapFeedViewPost(view: AppBskyFeedDefs.FeedViewPost): PostModel {
 }
 
 export function mapProfile(view: AppBskyActorDefs.ProfileViewDetailed): ProfileModel {
+  const labels = (view.labels ?? []).map((label) => label.val)
+  const isBot = labels.some((label) => label.toLowerCase() === 'bot')
+  const viewer = view.viewer
+
   return {
     did: view.did,
     handle: view.handle,
     displayName: view.displayName ?? '',
     description: view.description ?? '',
+    pronouns: view.pronouns ?? '',
     avatar: view.avatar ?? null,
     banner: view.banner ?? null,
     followersCount: view.followersCount ?? 0,
     followsCount: view.followsCount ?? 0,
     postsCount: view.postsCount ?? 0,
     createdAt: view.createdAt ?? null,
-    labels: (view.labels ?? []).map((label) => label.val),
+    labels,
+    links: (view.links ?? []).map((link) => ({
+      url: link.url,
+      title: link.title ?? '',
+    })),
+    isBot,
+    viewer: {
+      following: viewer?.following ?? null,
+      followedBy: viewer?.followedBy ?? null,
+      muted: viewer?.muted ?? false,
+      mutedOnlyReposts: viewer?.mutedOnlyReposts ?? false,
+      mutedOnlyQuoteposts: viewer?.mutedOnlyQuoteposts ?? false,
+      blocking: viewer?.blocking ?? null,
+      blockedBy: viewer?.blockedBy ?? false,
+      activitySubscription:
+        viewer?.activitySubscription === undefined
+          ? null
+          : {
+              post: viewer.activitySubscription.post,
+              reply: viewer.activitySubscription.reply,
+            },
+    },
   }
 }
 

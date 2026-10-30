@@ -47,6 +47,7 @@ export interface FeedCardBackProps {
   hint?: string
   onRefresh?: (() => void) | undefined
   refreshing?: boolean | undefined
+  refreshArmed?: boolean | undefined
 }
 
 export function FeedCardBack({
@@ -57,6 +58,7 @@ export function FeedCardBack({
   hint = '← feeds',
   onRefresh,
   refreshing = false,
+  refreshArmed = false,
 }: FeedCardBackProps) {
   const index = String(Math.max(0, postIndex)).padStart(2, '0')
 
@@ -87,7 +89,7 @@ export function FeedCardBack({
               onClick={onRefresh}
               disabled={refreshing}
             >
-              {refreshing ? 'refreshing' : 'refresh'}
+              {refreshing ? 'refreshing' : refreshArmed ? 'confirm refresh' : 'refresh'}
             </button>
           </div>
         </footer>

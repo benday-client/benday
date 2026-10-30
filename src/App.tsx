@@ -18,14 +18,15 @@ import { getAuthAgent, useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
 import { invalidateNonFeedQueries } from './lib/queries'
 import { useSettings } from './lib/store'
-import { THEME_COLORS } from './lib/themes'
+import { resolveTheme, THEME_COLORS } from './lib/themes'
 import { useUiStore } from './lib/ui'
 import FeedView from './views/FeedView'
+import NotificationsView from './views/NotificationsView'
 import ProfileView from './views/ProfileView'
 import SearchView from './views/SearchView'
 import ThreadView from './views/ThreadView'
 
-const TAB_ROUTES = ['/feed', '/search'] as const
+const TAB_ROUTES = ['/feed', '/notifications'] as const
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ function AppShell() {
   const search = useSearch()
   const dialog = useUiStore((state) => state.dialog)
   const compose = useUiStore((state) => state.compose)
+  const inlineCompose = useUiStore((state) => state.inlineCompose)
   const openDialog = useUiStore((state) => state.openDialog)
   const closeDialog = useUiStore((state) => state.closeDialog)
   const openCompose = useUiStore((state) => state.openCompose)
@@ -67,6 +69,9 @@ function AppShell() {
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
+  const appearance = useSettings((state) => state.appearance)
+  const setActiveTheme = useSettings((state) => state.setActiveTheme)
+  const syncSystemTheme = useSettings((state) => state.syncSystemTheme)
 
   useEffect(() => {
     void useAuthStore.getState().restore()
@@ -77,7 +82,12 @@ function AppShell() {
     if (!pathname.startsWith('/thread')) {
       lastViewRef.current = view
     }
-    if (pathname === '/' || pathname.startsWith('/feed') || pathname.startsWith('/search')) {
+    if (
+      pathname === '/' ||
+      pathname.startsWith('/feed') ||
+      pathname.startsWith('/search') ||
+      pathname.startsWith('/notifications')
+    ) {
       baseViewRef.current = view
     }
   }, [pathname, search])
@@ -90,11 +100,25 @@ function AppShell() {
   }, [labelerKey, labelers, queryClient])
 
   useEffect(() => {
-    document.documentElement.dataset['theme'] = theme
+    const effectiveTheme = resolveTheme(theme, new Date())
+    document.documentElement.dataset['theme'] = effectiveTheme
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta instanceof HTMLMetaElement) meta.content = THEME_COLORS[theme]
+    if (meta instanceof HTMLMetaElement) meta.content = THEME_COLORS[effectiveTheme]
     installCursors()
-  }, [theme])
+    if (effectiveTheme !== theme) setActiveTheme(effectiveTheme)
+  }, [theme, setActiveTheme])
+
+  useEffect(() => {
+    if (appearance !== 'system' || typeof window.matchMedia !== 'function') return
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    const handleChange = () => {
+      syncSystemTheme()
+    }
+    media.addEventListener('change', handleChange)
+    return () => {
+      media.removeEventListener('change', handleChange)
+    }
+  }, [appearance, syncSystemTheme])
 
   const focusSearch = () => {
     navigate('/search')
@@ -106,9 +130,13 @@ function AppShell() {
 
   const changeTab = (direction: number) => {
     const profileTab = pathname.startsWith('/profile/') ? pathname : null
-    const routes = profileTab === null ? TAB_ROUTES : [...TAB_ROUTES, profileTab]
-    const current = profileTab !== null ? 2 : pathname.startsWith('/search') ? 1 : 0
-    const next = (current + direction + routes.length) % routes.length
+    const routes: readonly string[] = profileTab === null ? TAB_ROUTES : [...TAB_ROUTES, profileTab]
+    const current = routes.findIndex((route) =>
+      route === profileTab
+        ? pathname.startsWith('/profile/')
+        : pathname === route || pathname.startsWith(`${route}/`),
+    )
+    const next = (Math.max(current, 0) + direction + routes.length) % routes.length
     navigate(routes[next] ?? '/feed')
   }
 
@@ -121,7 +149,7 @@ function AppShell() {
   }
 
   useEffect(() => {
-    if (dialog !== null || compose !== null) return
+    if (dialog !== null || compose !== null || inlineCompose !== null) return
 
     const handleTabKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return
@@ -139,7 +167,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handleTabKey, true)
     }
-  }, [dialog, compose, pathname])
+  }, [dialog, compose, inlineCompose, pathname])
 
   const closeOrBack = () => {
     if (pathname.startsWith('/profile/')) {
@@ -166,7 +194,7 @@ function AppShell() {
     { key: 'Escape', handler: closeOrBack },
   ]
 
-  useHotkeys(hotkeys, dialog === null && compose === null)
+  useHotkeys(hotkeys, dialog === null && compose === null && inlineCompose === null)
 
   return (
     <div className="b-app">
@@ -183,6 +211,7 @@ function AppShell() {
           <Route path="/profile/:actor" component={ProfileView} />
           <Route path="/thread" component={ThreadView} />
           <Route path="/feed" component={FeedView} />
+          <Route path="/notifications" component={NotificationsView} />
           <Route component={NotFound} />
         </Switch>
       </main>

@@ -3,8 +3,11 @@ import { useLocation } from 'wouter'
 import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
+import { APPVIEW_PRESETS, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
+import { useSettings } from '../lib/store'
+import { availableThemeGroups, THEME_LABELS } from '../lib/themes'
 import { useUiStore } from '../lib/ui'
 import { Dialog, Kbd } from './ui'
 
@@ -74,6 +77,8 @@ export function CommandPalette({
   const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
+  const setTheme = useSettings((state) => state.setTheme)
+  const setAppView = useSettings((state) => state.setAppView)
 
   const [input, setInput] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -204,9 +209,25 @@ export function CommandPalette({
     },
   }))
 
+  const meCommand: PaletteCommand = {
+    id: 'me',
+    label: account ? `@${account.handle}` : '@me',
+    meta: 'me',
+    keywords: '@me my profile self account',
+    run: () => {
+      if (account !== null) {
+        go(`/profile/${encodeURIComponent(account.handle)}`, `@${account.handle}`)
+        return
+      }
+      onClose()
+      openDialog('login')
+    },
+  }
+
   const commands: PaletteCommand[] = [
     ...authCommands,
     ...pinnedCommands,
+    meCommand,
     {
       id: 'feeds',
       label: 'feeds',
@@ -226,21 +247,23 @@ export function CommandPalette({
       },
     },
     {
-      id: 'appview',
-      label: 'switch appview',
-      meta: 'a',
-      keywords: 'host server instance',
-      run: onOpenAppView,
-    },
-    {
-      id: 'theme',
-      label: 'themes',
+      id: 'settings',
+      label: 'settings',
       meta: ',',
-      keywords:
-        'void bone oxide phosphor catppuccin-mocha catppuccin-latte dracula atom one dark github-dark github-light cyberpunk 2077 cottagecore catppuccin mocha latte color',
+      keywords: 'appearance theme appview labelers account preferences',
       run: () => {
         onClose()
         onOpenSettings()
+      },
+    },
+    {
+      id: 'appview-settings',
+      label: 'appview settings',
+      meta: 'a',
+      keywords: 'host server instance appview',
+      run: () => {
+        onClose()
+        onOpenAppView()
       },
     },
     {
@@ -251,6 +274,30 @@ export function CommandPalette({
       run: onOpenHelp,
     },
   ]
+
+  const themeCommands: PaletteCommand[] = availableThemeGroups(new Date())
+    .flatMap((group) => group.themes)
+    .map((theme) => ({
+      id: `theme:${theme}`,
+      label: `theme ${THEME_LABELS[theme]}`,
+      meta: 'theme',
+      keywords: `${theme} ${THEME_LABELS[theme]} appearance color`,
+      run: () => {
+        setTheme(theme)
+        onClose()
+      },
+    }))
+
+  const appviewCommands: PaletteCommand[] = APPVIEW_PRESETS.map((preset) => ({
+    id: `appview:${preset.id}`,
+    label: `appview ${preset.label}`,
+    meta: 'appview',
+    keywords: `${preset.id} ${preset.label} ${preset.host} ${preset.note} host server`,
+    run: () => {
+      setAppView(toAppViewTarget(preset))
+      onClose()
+    },
+  }))
 
   const recentCommands: PaletteCommand[] =
     input.trim().length === 0
@@ -285,11 +332,12 @@ export function CommandPalette({
   const autocompleteActive =
     token !== null && (suggestionsPending || autocompleteCommands.length > 0)
   const needle = input.trim().toLowerCase()
+  const commandsForTyping = [...commands, ...themeCommands, ...appviewCommands]
   const filtered = autocompleteActive
     ? autocompleteCommands
     : needle.length === 0
       ? [...recentCommands, ...commands]
-      : commands.filter((command) =>
+      : commandsForTyping.filter((command) =>
           `${command.label} ${command.keywords}`.toLowerCase().includes(needle),
         )
 
@@ -309,6 +357,12 @@ export function CommandPalette({
   }
 
   const runSelected = () => {
+    const normalizedInput = input.trim().toLowerCase()
+    if (normalizedInput === '@me') {
+      meCommand.run()
+      return
+    }
+
     if (autocompleteActive) {
       const command = filtered[selected] ?? filtered[0]
       if (command !== undefined) {
@@ -369,7 +423,7 @@ export function CommandPalette({
   }
 
   return (
-    <Dialog open={open} title="jump" onClose={onClose} className="b-palette">
+    <Dialog open={open} title="command" onClose={onClose} className="b-palette">
       <div className="b-palette__form">
         <span className="b-palette__prompt" aria-hidden="true">
           :
@@ -379,8 +433,8 @@ export function CommandPalette({
           className="b-palette__input"
           type="text"
           value={input}
-          aria-label="jump to"
-          placeholder="command, @handle, #tag, at://"
+          aria-label="command or jump"
+          placeholder="command · theme <name> · @handle · #tag · at://"
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => {

@@ -11,6 +11,12 @@ export type Theme =
   | 'github-light'
   | 'cyberpunk'
   | 'cottagecore'
+  | 'truth-to-materials'
+  | 'bluesky'
+  | 'pumpkin-ember'
+  | 'toxic-midnight'
+  | 'candy-crypt'
+  | 'dead-leaves'
 
 export interface StrongRefModel {
   uri: string
@@ -165,11 +171,33 @@ export interface PostModel {
   reqId?: string
 }
 
+export interface ProfileLink {
+  url: string
+  title: string
+}
+
+export interface ProfileActivitySubscription {
+  post: boolean
+  reply: boolean
+}
+
+export interface ProfileViewerState {
+  following: string | null
+  followedBy: string | null
+  muted: boolean
+  mutedOnlyReposts: boolean
+  mutedOnlyQuoteposts: boolean
+  blocking: string | null
+  blockedBy: boolean
+  activitySubscription: ProfileActivitySubscription | null
+}
+
 export interface ProfileModel {
   did: string
   handle: string
   displayName: string
   description: string
+  pronouns: string
   avatar: string | null
   banner: string | null
   followersCount: number
@@ -177,6 +205,9 @@ export interface ProfileModel {
   postsCount: number
   createdAt: string | null
   labels: string[]
+  links: ProfileLink[]
+  isBot: boolean
+  viewer: ProfileViewerState
 }
 
 export interface ThreadEntry {

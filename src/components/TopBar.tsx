@@ -10,8 +10,8 @@ export function TopBar() {
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
-  const searchActive = pathname.startsWith('/search')
   const feedsActive = pathname === '/' || pathname.startsWith('/feed')
+  const notificationsActive = pathname.startsWith('/notifications')
   const profileActive = pathname.startsWith('/profile/')
   let profileHandle = ''
   if (profileActive) {
@@ -40,12 +40,12 @@ export function TopBar() {
           feeds
         </Link>
         <Link
-          href="/search"
+          href="/notifications"
           className="b-topbar__link"
-          data-active={searchActive ? 'true' : 'false'}
-          aria-current={searchActive ? 'page' : undefined}
+          data-active={notificationsActive ? 'true' : 'false'}
+          aria-current={notificationsActive ? 'page' : undefined}
         >
-          search
+          notifications
         </Link>
         {profileActive ? (
           <Link

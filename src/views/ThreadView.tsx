@@ -2,6 +2,7 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'wouter'
 import { FacetText } from '../components/FacetText'
+import { InlineComposer } from '../components/InlineComposer'
 import { PostCard } from '../components/PostCard'
 import { RelativeTime } from '../components/RelativeTime'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
@@ -35,6 +36,8 @@ export default function ThreadView() {
   const entries = thread.data?.entries ?? []
   const focus = entries.find((entry) => entry.role === 'focus')
   const openingPost = useUiStore((state) => state.openingPost)
+  const inlineCompose = useUiStore((state) => state.inlineCompose)
+  const closeInlineCompose = useUiStore((state) => state.closeInlineCompose)
   const focusPost = focus?.post ?? (openingPost?.uri === uri ? openingPost : null)
   const replies = entries.filter((entry) => entry.role === 'reply')
   useViewerSync(entries.map((entry) => entry.post))
@@ -48,7 +51,19 @@ export default function ThreadView() {
 
   useEffect(() => {
     setFocusedReply(null)
-  }, [uri])
+    closeInlineCompose()
+  }, [uri, closeInlineCompose])
+
+  useEffect(() => {
+    return () => {
+      closeInlineCompose()
+    }
+  }, [closeInlineCompose])
+
+  useEffect(() => {
+    if (inlineCompose === null || focusPost === null) return
+    if (inlineCompose.post?.uri !== focusPost.uri) closeInlineCompose()
+  }, [inlineCompose, focusPost, closeInlineCompose])
 
   useEffect(() => {
     const handleScrollKey = (event: globalThis.KeyboardEvent) => {
@@ -241,6 +256,24 @@ export default function ThreadView() {
     </div>
   )
 
+  const parentUri = focusPost?.replyParent?.uri ?? null
+  const parentContext = focusPost?.replyContext ?? null
+  const dockRequest =
+    inlineCompose !== null &&
+    focusPost !== null &&
+    inlineCompose.post !== null &&
+    inlineCompose.mode !== 'post' &&
+    inlineCompose.post.uri === focusPost.uri
+      ? inlineCompose
+      : null
+  const composeDock =
+    dockRequest !== null && dockRequest.post !== null ? (
+      <InlineComposer request={dockRequest} onClose={closeInlineCompose} />
+    ) : null
+  const quoteDock = dockRequest?.mode === 'quote' ? composeDock : null
+  const replyDock = dockRequest?.mode === 'reply' ? composeDock : null
+  const stacked = parentUri !== null || composeDock !== null
+
   return (
     <section className="b-view">
       <h1 className="visually-hidden">thread</h1>
@@ -261,18 +294,40 @@ export default function ThreadView() {
         ) : (
           <div
             ref={mainRef}
-            className="b-thread"
+            className={stacked ? 'b-thread b-thread--stack' : 'b-thread'}
             tabIndex={-1}
+            data-compose={dockRequest?.mode}
             onFocusCapture={(event) => {
               if (!(event.target instanceof HTMLElement)) return
               if (event.target.closest('.b-thread__reply') === null) setFocusedReply(null)
             }}
           >
+            {parentUri !== null ? (
+              <div className="b-thread__parent">
+                <span className="b-thread__parent-label">in reply to</span>
+                <Link
+                  href={`/thread?uri=${encodeURIComponent(parentUri)}`}
+                  className="b-thread__parent-link"
+                >
+                  @{parentContext?.author.handle ?? 'parent post'}
+                </Link>
+                {parentContext !== null && parentContext.text.length > 0 ? (
+                  <FacetText
+                    text={parentContext.text}
+                    facets={parentContext.facets}
+                    className="b-thread__parent-text"
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            {quoteDock}
             <PostCard
               post={focusPost}
               focused={focusedReply === null}
               replies={thread.isPending && focus === undefined ? loadingReplies : replyList}
+              showReplyContext={parentUri === null}
             />
+            {replyDock}
           </div>
         )}
       </div>
