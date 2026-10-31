@@ -31,9 +31,12 @@ export const APPVIEW_PRESETS: readonly AppViewPreset[] = PRESETS
 
 export const DEFAULT_APPVIEW: AppViewPreset = PRESETS[0]
 
+// WHATWG URL keeps the brackets in `hostname` and normalizes every expanded
+// spelling of the IPv6 loopback address to `[::1]`.
 const HTTP_LOOPBACK: Record<string, true> = {
   localhost: true,
   '127.0.0.1': true,
+  '[::1]': true,
 }
 
 const APPVIEW_KINDS: Record<AppViewKind, true> = {

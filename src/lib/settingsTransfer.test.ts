@@ -34,6 +34,8 @@ function portable(theme: Theme, appView: AppViewTarget, labelers: string[]): Por
     lightTheme: scheme === 'light' ? theme : 'bone',
     darkTheme: scheme === 'dark' ? theme : 'void',
     imageEffects: true,
+    highContrast: false,
+    keyboardShortcuts: true,
     appView,
     labelers,
   }
@@ -63,7 +65,7 @@ describe('settings file format', () => {
     expect(SETTINGS_FILE_VERSION).toBe(1)
   })
 
-  it('writes exactly version exportedAt and the three portable preferences', () => {
+  it('writes exactly version exportedAt and the portable preferences', () => {
     const file = buildSettingsFile(SAMPLE, FIXED_TIME)
     expect(Object.keys(file).sort()).toEqual(
       [
@@ -71,7 +73,9 @@ describe('settings file format', () => {
         'appearance',
         'darkTheme',
         'exportedAt',
+        'highContrast',
         'imageEffects',
+        'keyboardShortcuts',
         'labelers',
         'lightTheme',
         'theme',
@@ -124,7 +128,7 @@ describe('credential and session exclusion', () => {
     appViewExtra: 'secret-appview-jwt',
   }
 
-  it('never exports fields beyond theme appview and labelers', () => {
+  it('never exports fields beyond the portable preferences', () => {
     const dirty = {
       ...SAMPLE,
       ...secrets,
@@ -139,7 +143,9 @@ describe('credential and session exclusion', () => {
         'appearance',
         'darkTheme',
         'exportedAt',
+        'highContrast',
         'imageEffects',
+        'keyboardShortcuts',
         'labelers',
         'lightTheme',
         'theme',
@@ -159,12 +165,93 @@ describe('credential and session exclusion', () => {
       'appView',
       'appearance',
       'darkTheme',
+      'highContrast',
       'imageEffects',
+      'keyboardShortcuts',
       'labelers',
       'lightTheme',
       'theme',
     ])
     expect(JSON.stringify(result.settings)).not.toContain('secret')
+  })
+})
+
+describe('high contrast', () => {
+  it('exports the option and parses it back', () => {
+    const json = serializeSettings({ ...SAMPLE, highContrast: true }, FIXED_TIME)
+    expect(JSON.parse(json).highContrast).toBe(true)
+
+    const result = parseSettingsFileJson(json)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.highContrast).toBe(true)
+  })
+
+  it('reads a file without the field as normal contrast', () => {
+    const result = parseSettingsFile(validFile())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.highContrast).toBe(false)
+  })
+
+  it('falls back to normal contrast for a wrong-typed field', () => {
+    const result = parseSettingsFile(validFile({ highContrast: 'yes' }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.highContrast).toBe(false)
+  })
+
+  it('keeps legacy duotone files valid', () => {
+    const result = parseSettingsFile(validFile({ theme: 'duotone' }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.theme).toBe('cyberpunk')
+    expect(result.settings.highContrast).toBe(false)
+  })
+})
+
+describe('keyboard shortcuts', () => {
+  it('round-trips a disabled setting through the file', () => {
+    const json = serializeSettings({ ...SAMPLE, keyboardShortcuts: false }, FIXED_TIME)
+    expect(JSON.parse(json).keyboardShortcuts).toBe(false)
+
+    const result = parseSettingsFileJson(json)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.keyboardShortcuts).toBe(false)
+  })
+
+  it('exports the setting as enabled by default', () => {
+    const file = buildSettingsFile(SAMPLE, FIXED_TIME)
+    expect(file.keyboardShortcuts).toBe(true)
+  })
+
+  it('reads a file without the field as enabled', () => {
+    // files written before the option existed must keep every shortcut working
+    const result = parseSettingsFile(validFile())
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.keyboardShortcuts).toBe(true)
+
+    const snapshot = normalizePortableSettings(validFile())
+    expect(snapshot?.keyboardShortcuts).toBe(true)
+  })
+
+  it('falls back to enabled for a wrong-typed field', () => {
+    for (const keyboardShortcuts of ['no', 0, null, undefined, {}, [], 1]) {
+      const result = parseSettingsFile(validFile({ keyboardShortcuts }))
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.settings.keyboardShortcuts, `parsed ${String(keyboardShortcuts)}`).toBe(true)
+
+      const snapshot = normalizePortableSettings(validFile({ keyboardShortcuts }))
+      expect(snapshot?.keyboardShortcuts, `snapshot ${String(keyboardShortcuts)}`).toBe(true)
+    }
+  })
+
+  it('accepts an explicit disabled setting from an imported snapshot', () => {
+    const snapshot = normalizePortableSettings(validFile({ keyboardShortcuts: false }))
+    expect(snapshot?.keyboardShortcuts).toBe(false)
   })
 })
 
@@ -239,6 +326,16 @@ describe('labeler sanitization', () => {
     expect(sanitizeLabeler('did:')).toBeNull()
     expect(sanitizeLabeler('https://example.com')).toBeNull()
     expect(sanitizeLabeler(7)).toBeNull()
+  })
+
+  it('rejects values the sdk would refuse in a labeler header', () => {
+    // these pass a startsWith('did:') check but fail the sdk's isDid, and the
+    // agent throws on them while building the accept-labelers header
+    expect(sanitizeLabeler('did:plc')).toBeNull()
+    expect(sanitizeLabeler('did:plcabc')).toBeNull()
+    expect(sanitizeLabeler('did:plc:')).toBeNull()
+    expect(sanitizeLabeler(' did:plc: ')).toBeNull()
+    expect(sanitizeLabeler('did:plc:bendaylabeler')).toBe('did:plc:bendaylabeler')
   })
 
   it('drops invalid entries, deduplicates and keeps order', () => {
@@ -330,7 +427,9 @@ describe('settings file validation', () => {
       'appView',
       'appearance',
       'darkTheme',
+      'highContrast',
       'imageEffects',
+      'keyboardShortcuts',
       'labelers',
       'lightTheme',
       'theme',

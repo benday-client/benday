@@ -1,14 +1,15 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_APPVIEW, isAppViewTarget, toAppViewTarget } from './appviews'
+import { DEFAULT_APPVIEW, toAppViewTarget } from './appviews'
 import {
+  normalizeAppViewTarget,
   normalizePortableSettings,
   normalizeTheme,
   SETTINGS_LABELER_LIMIT,
   sanitizeLabeler,
   sanitizeLabelers,
 } from './settingsTransfer'
-import { THEME_SCHEMES } from './themes'
+import { resolveTheme, THEME_SCHEMES } from './themes'
 import type { AppViewTarget, Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
@@ -39,6 +40,8 @@ interface SettingsState {
   lightTheme: Theme
   darkTheme: Theme
   imageEffects: boolean
+  highContrast: boolean
+  keyboardShortcuts: boolean
   labelers: string[]
   setAppView: (appView: AppViewTarget) => void
   setTheme: (theme: Theme) => void
@@ -46,13 +49,15 @@ interface SettingsState {
   setLightTheme: (theme: Theme) => void
   setDarkTheme: (theme: Theme) => void
   setImageEffects: (enabled: boolean) => void
+  setHighContrast: (enabled: boolean) => void
+  setKeyboardShortcuts: (enabled: boolean) => void
   syncSystemTheme: () => void
   setActiveTheme: (theme: Theme) => void
   addLabeler: (did: string) => void
   removeLabeler: (did: string) => void
   /**
-   * Validates a bare portable settings snapshot and applies theme, appview and
-   * labelers in one update. Invalid input leaves the existing state untouched.
+   * Validates a bare portable settings snapshot and applies every portable
+   * preference in one update. Invalid input leaves the existing state untouched.
    */
   importSettings: (value: unknown) => boolean
 }
@@ -61,13 +66,15 @@ const INITIAL_APPVIEW = toAppViewTarget(DEFAULT_APPVIEW)
 
 export const useSettings = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       appView: INITIAL_APPVIEW,
       theme: 'void',
       appearance: 'dark',
       lightTheme: 'bone',
       darkTheme: 'void',
       imageEffects: true,
+      highContrast: false,
+      keyboardShortcuts: true,
       labelers: [],
       setAppView: (appView) => set({ appView }),
       setTheme: (theme) =>
@@ -98,10 +105,19 @@ export const useSettings = create<SettingsState>()(
               : state.theme,
         })),
       setImageEffects: (imageEffects) => set({ imageEffects }),
-      syncSystemTheme: () =>
-        set((state) => ({
-          theme: selectedTheme(state.appearance, state.lightTheme, state.darkTheme),
-        })),
+      setHighContrast: (highContrast) => set({ highContrast }),
+      setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
+      syncSystemTheme: () => {
+        // Resolve the saved pair, not the last rendered theme: October's
+        // seasonal theme is unavailable in November and becomes available again
+        // in October, so the pair has to survive the fallback either way.
+        const state = get()
+        const next = resolveTheme(
+          selectedTheme(state.appearance, state.lightTheme, state.darkTheme),
+          new Date(),
+        )
+        if (next !== state.theme) set({ theme: next })
+      },
       setActiveTheme: (theme) => set({ theme }),
       addLabeler: (did) => {
         const labeler = sanitizeLabeler(did)
@@ -119,11 +135,15 @@ export const useSettings = create<SettingsState>()(
         const settings = normalizePortableSettings(value)
         if (settings === null) return false
         set({
-          theme: settings.theme,
+          // the rendered theme follows the appearance pair, not a contradictory
+          // file field
+          theme: selectedTheme(settings.appearance, settings.lightTheme, settings.darkTheme),
           appearance: settings.appearance,
           lightTheme: settings.lightTheme,
           darkTheme: settings.darkTheme,
           imageEffects: settings.imageEffects,
+          highContrast: settings.highContrast,
+          keyboardShortcuts: settings.keyboardShortcuts,
           appView: settings.appView,
           labelers: settings.labelers,
         })
@@ -140,13 +160,17 @@ export const useSettings = create<SettingsState>()(
         lightTheme: state.lightTheme,
         darkTheme: state.darkTheme,
         imageEffects: state.imageEffects,
+        highContrast: state.highContrast,
+        keyboardShortcuts: state.keyboardShortcuts,
         labelers: state.labelers,
       }),
       merge: (persisted, current) => {
         if (typeof persisted !== 'object' || persisted === null) return current
         const stored = persisted as Record<string, unknown>
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
-        const appView = isAppViewTarget(stored['appView']) ? stored['appView'] : current.appView
+        // a stored host is rebuilt from its host so its label and kind cannot
+        // claim capabilities the host does not have
+        const appView = normalizeAppViewTarget(stored['appView']) ?? current.appView
         const legacyTheme = normalizeTheme(stored['theme'])
         const lightTheme =
           normalizeTheme(stored['lightTheme']) ??
@@ -167,6 +191,14 @@ export const useSettings = create<SettingsState>()(
           typeof stored['imageEffects'] === 'boolean'
             ? stored['imageEffects']
             : current.imageEffects
+        const highContrast =
+          typeof stored['highContrast'] === 'boolean'
+            ? stored['highContrast']
+            : current.highContrast
+        const keyboardShortcuts =
+          typeof stored['keyboardShortcuts'] === 'boolean'
+            ? stored['keyboardShortcuts']
+            : current.keyboardShortcuts
         const labelers = Array.isArray(stored['labelers'])
           ? sanitizeLabelers(stored['labelers'])
           : current.labelers
@@ -178,6 +210,8 @@ export const useSettings = create<SettingsState>()(
           lightTheme,
           darkTheme,
           imageEffects,
+          highContrast,
+          keyboardShortcuts,
           labelers,
         }
       },

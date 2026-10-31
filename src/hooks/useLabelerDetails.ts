@@ -8,10 +8,10 @@ export interface LabelerDetailsState {
   error: Error | null
 }
 
-export function useLabelerDetails(dids: readonly string[]): LabelerDetailsState {
+export function useLabelerDetails(dids: readonly string[], active = true): LabelerDetailsState {
   const target = useSettings((state) => state.appView)
   const key = dids.join('\n')
-  const enabled = dids.length > 0
+  const enabled = active && dids.length > 0
   const query = useQuery({
     queryKey: ['labeler-details', target.host, key],
     queryFn: () => fetchLabelerSummaries(target, dids),

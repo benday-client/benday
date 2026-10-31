@@ -1,3 +1,4 @@
+import { isDid } from '@atproto/api'
 import {
   appViewPresetFor,
   DEFAULT_APPVIEW,
@@ -30,6 +31,9 @@ export interface PortableSettings {
   lightTheme: Theme
   darkTheme: Theme
   imageEffects: boolean
+  highContrast: boolean
+  /** Bare single-character shortcuts; modifier chords stay available (WCAG 2.1.4). */
+  keyboardShortcuts: boolean
   appView: AppViewTarget
   labelers: string[]
 }
@@ -43,11 +47,14 @@ export type SettingsParseResult =
   | { ok: true; settings: PortableSettings }
   | { ok: false; error: string }
 
-/** Trims a labeler did and rejects anything that is not a bare did string. */
+/**
+ * Trims a labeler did and rejects anything the SDK would refuse to put in a
+ * labeler header. Validation belongs to the same predicate the wire uses.
+ */
 export function sanitizeLabeler(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
-  return trimmed.startsWith('did:') && trimmed.length > 4 ? trimmed : null
+  return isDid(trimmed) ? trimmed : null
 }
 
 /**
@@ -90,7 +97,11 @@ function portableAppearance(
   lightValue: unknown,
   darkValue: unknown,
   imageEffectValue: unknown,
-): Pick<PortableSettings, 'appearance' | 'lightTheme' | 'darkTheme' | 'imageEffects'> {
+  highContrastValue: unknown,
+): Pick<
+  PortableSettings,
+  'appearance' | 'lightTheme' | 'darkTheme' | 'imageEffects' | 'highContrast'
+> {
   const scheme = THEME_SCHEMES[theme]
   const lightTheme = normalizeTheme(lightValue) ?? (scheme === 'light' ? theme : ('bone' as Theme))
   const darkTheme = normalizeTheme(darkValue) ?? (scheme === 'dark' ? theme : ('void' as Theme))
@@ -99,6 +110,7 @@ function portableAppearance(
     lightTheme,
     darkTheme,
     imageEffects: normalizeBoolean(imageEffectValue, true),
+    highContrast: normalizeBoolean(highContrastValue, false),
   }
 }
 
@@ -113,7 +125,7 @@ export function normalizeAppViewTarget(value: unknown): AppViewTarget | null {
   return makeCustomAppView(value.host)
 }
 
-/** Validates and normalizes a bare `{ theme, appView, labelers }` snapshot. */
+/** Validates and normalizes a bare portable settings snapshot. */
 export function normalizePortableSettings(value: unknown): PortableSettings | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const record = value as Record<string, unknown>
@@ -132,16 +144,18 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
       record['lightTheme'],
       record['darkTheme'],
       record['imageEffects'],
+      record['highContrast'],
     ),
+    keyboardShortcuts: normalizeBoolean(record['keyboardShortcuts'], true),
     appView,
     labelers: sanitizeLabelers(rawLabelers),
   }
 }
 
 /**
- * Builds the exported document from exactly three preferences. Extra properties
- * on the argument are ignored by construction, which keeps credentials and
- * session material from ever reaching the file.
+ * Builds the exported document from exactly the portable preferences. Extra
+ * properties on the argument are ignored by construction, which keeps
+ * credentials and session material from ever reaching the file.
  */
 export function buildSettingsFile(settings: PortableSettings, now = new Date()): SettingsFile {
   const appView = normalizeAppViewTarget(settings.appView) ?? toAppViewTarget(DEFAULT_APPVIEW)
@@ -156,7 +170,9 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
       settings.lightTheme,
       settings.darkTheme,
       settings.imageEffects,
+      settings.highContrast,
     ),
+    keyboardShortcuts: normalizeBoolean(settings.keyboardShortcuts, true),
     appView,
     labelers: sanitizeLabelers(settings.labelers),
   }
@@ -174,7 +190,7 @@ function fail(error: string): SettingsParseResult {
 /**
  * Parses an already-decoded settings document. Unknown top-level keys are
  * ignored, including credential-shaped ones, so a hostile or sloppy file can
- * never widen the applied state beyond the three portable preferences.
+ * never widen the applied state beyond the portable preferences.
  */
 export function parseSettingsFile(value: unknown): SettingsParseResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -209,7 +225,9 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
         record['lightTheme'],
         record['darkTheme'],
         record['imageEffects'],
+        record['highContrast'],
       ),
+      keyboardShortcuts: normalizeBoolean(record['keyboardShortcuts'], true),
       appView,
       labelers: sanitizeLabelers(rawLabelers),
     },

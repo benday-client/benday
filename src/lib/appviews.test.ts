@@ -36,6 +36,16 @@ describe('normalizeAppViewHost', () => {
     expect(normalizeAppViewHost('http://api.example.com')).toBeNull()
   })
 
+  it('allows http on the ipv6 loopback and only there', () => {
+    expect(normalizeAppViewHost('http://[::1]:2583')).toBe('http://[::1]:2583')
+    // every expanded spelling normalizes to the same bracketed loopback host
+    expect(normalizeAppViewHost('http://[0:0:0:0:0:0:0:1]:2583')).toBe('http://[::1]:2583')
+    expect(normalizeAppViewHost('http://[::2]:2583')).toBeNull()
+    expect(normalizeAppViewHost('http://0.0.0.0:2583')).toBeNull()
+    expect(normalizeAppViewHost('http://[2001:db8::1]:2583')).toBeNull()
+    expect(normalizeAppViewHost('https://[::1]:2583')).toBe('https://[::1]:2583')
+  })
+
   it('rejects unsafe or ambiguous urls', () => {
     expect(normalizeAppViewHost('')).toBeNull()
     expect(normalizeAppViewHost('ftp://api.example.com')).toBeNull()
