@@ -1,27 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
 import { capabilitiesFor } from '../lib/appviews'
 import { fetchTagSuggestions } from '../lib/atproto'
 import { useSettings } from '../lib/store'
+import { useDebouncedValue } from './useDebouncedValue'
 
 export interface TagSuggestionsState {
   tags: string[]
   isPending: boolean
-}
-
-function useDebouncedValue(value: string, delay: number): string {
-  const [debounced, setDebounced] = useState(value)
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebounced(value)
-    }, delay)
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [value, delay])
-
-  return debounced
 }
 
 export function useTagSuggestions(query: string, enabled: boolean): TagSuggestionsState {
@@ -29,6 +14,7 @@ export function useTagSuggestions(query: string, enabled: boolean): TagSuggestio
   const searchSupported = capabilitiesFor(target).search
   const normalized = query.trim()
   const debounced = useDebouncedValue(normalized, 220)
+  const settled = debounced === normalized
 
   const result = useQuery({
     queryKey: ['tag-suggestions', target.host, debounced],
@@ -40,7 +26,8 @@ export function useTagSuggestions(query: string, enabled: boolean): TagSuggestio
   })
 
   return {
-    tags: searchSupported ? (result.data ?? []) : [],
-    isPending: searchSupported && enabled && normalized.length > 0 && result.isPending,
+    tags: searchSupported && enabled && settled ? (result.data ?? []) : [],
+    isPending:
+      searchSupported && enabled && normalized.length > 0 && (!settled || result.isPending),
   }
 }
