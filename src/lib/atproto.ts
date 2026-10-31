@@ -1,12 +1,19 @@
 import { AppBskyActorDefs, AppBskyFeedDefs, AppBskyLabelerDefs, AtpAgent } from '@atproto/api'
-import { getAuthAgent } from './auth'
+import { DEFAULT_APPVIEW, toAppViewTarget } from './appviews'
+import { getAuthAgent, requireViewerAgent } from './auth'
 import { applyConfiguredLabelers } from './labelers'
 import {
   flattenThread,
+  hidesAuthor,
+  mapAuthor,
   mapFeedViewPost,
   mapPostView,
   mapProfile,
+  mapProfileViewer,
+  postAuthorDids,
+  pruneHiddenPost,
   replyContextFromPost,
+  threadAuthorDids,
 } from './model'
 import type {
   AppViewTarget,
@@ -14,6 +21,8 @@ import type {
   PinnedFeedModel,
   PostModel,
   ProfileModel,
+  SearchActorModel,
+  SearchFeedModel,
   ThreadModel,
 } from './types'
 
@@ -22,8 +31,21 @@ export const DISCOVER_FEED_URI =
 
 const PAGE_LIMIT = 30
 
+// generator metadata is public, but it is read from the canonical appview so a
+// custom host never learns which feed the reader is asking about
+const PUBLIC_APPVIEW: AppViewTarget = toAppViewTarget(DEFAULT_APPVIEW)
+
 interface CursorParam {
   cursor?: string
+}
+
+/** a muted or blocked author, or a repost by one, does not enter the deck */
+function visibleFeedView(view: AppBskyFeedDefs.FeedViewPost): boolean {
+  if (hidesAuthor(mapAuthor(view.post.author))) return false
+  if (view.reason !== undefined && AppBskyFeedDefs.isReasonRepost(view.reason)) {
+    return !hidesAuthor(mapAuthor(view.reason.by))
+  }
+  return true
 }
 
 function cursorParam(cursor: string | undefined): CursorParam {
@@ -54,9 +76,13 @@ async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise
       const response = await agent.app.bsky.feed.getPosts({
         uris: parentUris.slice(index, index + 25),
       })
-      for (const view of response.data.posts) parents.set(view.uri, mapPostView(view))
+      for (const view of response.data.posts) {
+        const parent = mapPostView(view)
+        if (hidesAuthor(parent.author)) continue
+        parents.set(view.uri, parent)
+      }
     } catch {
-      return posts
+      // one failed batch keeps the contexts the other batches already resolved
     }
   }
 
@@ -68,29 +94,94 @@ async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise
   })
 }
 
+/**
+ * Search, thread and comment responses are read through a sessionless agent, so
+ * their author views carry no viewer state. Ask the account's canonical appview
+ * which of those authors it hides instead. A failed batch is best effort.
+ */
+async function hiddenAuthorDids(
+  viewerDid: string | null,
+  dids: readonly string[],
+): Promise<Set<string>> {
+  const hidden = new Set<string>()
+  if (viewerDid === null) return hidden
+
+  const reader = requireViewerAgent(viewerDid).withProxy('bsky_appview', 'did:web:api.bsky.app')
+  const unique = [...new Set(dids)]
+
+  for (let index = 0; index < unique.length; index += 25) {
+    try {
+      const response = await reader.app.bsky.actor.getProfiles({
+        actors: unique.slice(index, index + 25),
+      })
+      for (const profile of response.data.profiles) {
+        const view = profile.viewer
+        if (
+          view?.muted === true ||
+          view?.mutedByList != null ||
+          view?.blocking != null ||
+          view?.blockingByList != null ||
+          view?.blockedBy === true
+        ) {
+          hidden.add(profile.did)
+        }
+      }
+    } catch {
+      // a batch the appview cannot answer keeps its posts visible
+    }
+  }
+
+  return hidden
+}
+
+async function dropHiddenAuthors(
+  viewerDid: string | null,
+  posts: readonly PostModel[],
+): Promise<PostModel[]> {
+  if (viewerDid === null || posts.length === 0) return [...posts]
+  const dids: string[] = []
+  for (const post of posts) dids.push(...postAuthorDids(post))
+  const hidden = await hiddenAuthorDids(viewerDid, dids)
+  if (hidden.size === 0) return [...posts]
+
+  const kept: PostModel[] = []
+  for (const post of posts) {
+    // a repost by a hidden account is not re-exposed as an original post
+    if (hidden.has(post.author.did)) continue
+    if (post.reason?.type === 'repost' && hidden.has(post.reason.by.did)) continue
+    kept.push(pruneHiddenPost(post, hidden))
+  }
+  return kept
+}
+
 export async function fetchFeedPage(
   target: AppViewTarget,
   source: FeedSource,
+  viewerDid: string | null,
   cursor?: string,
   limit = PAGE_LIMIT,
 ): Promise<{ posts: PostModel[]; cursor: string | null }> {
-  const agent = createAgent(target)
-
   switch (source.kind) {
     case 'discover': {
-      const reader = getAuthAgent() ?? agent
+      // a signed-in viewer uses its own agent so JWT-gated feeds can answer;
+      // a null owner is public-only and never borrows the current account
+      const reader = viewerDid === null ? createAgent(target) : requireViewerAgent(viewerDid)
       const response = await reader.app.bsky.feed.getFeed({
         feed: DISCOVER_FEED_URI,
         limit,
         ...cursorParam(cursor),
       })
       return {
-        posts: response.data.feed.map(mapFeedViewPost),
+        posts: await dropHiddenAuthors(
+          viewerDid,
+          response.data.feed.filter(visibleFeedView).map(mapFeedViewPost),
+        ),
         cursor: normalizeCursor(response.data.cursor),
       }
     }
 
     case 'author': {
+      const agent = createAgent(target)
       const response = await agent.app.bsky.feed.getAuthorFeed({
         actor: source.actor.replace(/^@/, ''),
         limit,
@@ -98,25 +189,32 @@ export async function fetchFeedPage(
         ...cursorParam(cursor),
       })
       return {
-        posts: response.data.feed.map(mapFeedViewPost),
+        posts: await dropHiddenAuthors(
+          viewerDid,
+          response.data.feed.filter(visibleFeedView).map(mapFeedViewPost),
+        ),
         cursor: normalizeCursor(response.data.cursor),
       }
     }
 
     case 'feed': {
-      const reader = getAuthAgent() ?? agent
+      const reader = viewerDid === null ? createAgent(target) : requireViewerAgent(viewerDid)
       const response = await reader.app.bsky.feed.getFeed({
         feed: source.uri,
         limit,
         ...cursorParam(cursor),
       })
       return {
-        posts: response.data.feed.map(mapFeedViewPost),
+        posts: await dropHiddenAuthors(
+          viewerDid,
+          response.data.feed.filter(visibleFeedView).map(mapFeedViewPost),
+        ),
         cursor: normalizeCursor(response.data.cursor),
       }
     }
 
     case 'search': {
+      const agent = createAgent(target)
       const response = await agent.app.bsky.feed.searchPosts({
         q: source.query,
         limit,
@@ -124,7 +222,13 @@ export async function fetchFeedPage(
         ...cursorParam(cursor),
       })
       return {
-        posts: await attachReplyContexts(agent, response.data.posts.map(mapPostView)),
+        posts: await dropHiddenAuthors(
+          viewerDid,
+          await attachReplyContexts(
+            agent,
+            response.data.posts.map(mapPostView).filter((post) => !hidesAuthor(post.author)),
+          ),
+        ),
         cursor: normalizeCursor(response.data.cursor),
       }
     }
@@ -152,6 +256,39 @@ export async function fetchActorSuggestions(
     handle: actor.handle,
     displayName: actor.displayName ?? '',
     avatar: actor.avatar ?? null,
+  }))
+}
+
+export async function fetchActorSearch(
+  target: AppViewTarget,
+  query: string,
+  limit = 25,
+): Promise<SearchActorModel[]> {
+  const agent = createAgent(target)
+  const response = await agent.app.bsky.actor.searchActors({ q: query, limit })
+  return response.data.actors.map((actor) => ({
+    did: actor.did,
+    handle: actor.handle,
+    displayName: actor.displayName ?? '',
+    avatar: actor.avatar ?? null,
+    description: actor.description ?? '',
+  }))
+}
+
+export async function fetchFeedSearch(
+  target: AppViewTarget,
+  query: string,
+): Promise<SearchFeedModel[]> {
+  const agent = createAgent(target)
+  // the unspecced endpoint is the only public feed-generator search in the SDK;
+  // its `query` parameter filters by text, so it is a real search, not a guess
+  const response = await agent.app.bsky.unspecced.getPopularFeedGenerators({ query, limit: 25 })
+  return response.data.feeds.map((feed) => ({
+    uri: feed.uri,
+    displayName: feed.displayName,
+    creatorHandle: feed.creator.handle,
+    description: feed.description ?? '',
+    likeCount: feed.likeCount ?? 0,
   }))
 }
 
@@ -248,9 +385,8 @@ export async function fetchLabelerSummaries(
   return summaries
 }
 
-export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFeedModel[]> {
-  const agent = getAuthAgent()
-  if (agent === null) return []
+export async function fetchPinnedFeeds(viewerDid: string): Promise<PinnedFeedModel[]> {
+  const agent = requireViewerAgent(viewerDid)
 
   const prefs = await agent.clone().app.bsky.actor.getPreferences()
   const unique = pinnedFeedUris(prefs.data.preferences)
@@ -277,35 +413,106 @@ export async function fetchPinnedFeeds(_target: AppViewTarget): Promise<PinnedFe
       name: generator?.displayName ?? fallbackName,
       description: generator?.description ?? '',
       avatar: generator?.avatar ?? null,
+      generatorDid: generator?.did ?? null,
+      // the lexicon field is optional: absent metadata is "not stated", so it
+      // must stay unknown rather than turn into a refusal; only an explicit
+      // false disables feedback for the pinned feed
+      acceptsInteractions: generator?.acceptsInteractions ?? null,
     }
   })
 }
 
-export async function fetchProfile(target: AppViewTarget, actor: string): Promise<ProfileModel> {
-  const agent = createAgent(target)
-  const response = await agent.app.bsky.actor.getProfile({ actor: actor.replace(/^@/, '') })
-  return mapProfile(response.data)
+export interface FeedGeneratorInfo {
+  did: string | null
+  acceptsInteractions: boolean | null
 }
 
-export async function fetchThread(target: AppViewTarget, uri: string): Promise<ThreadModel> {
+/**
+ * The generator view names the service that serves the feed and whether it
+ * accepts feedback. A feed without a view has no target, so the failure is
+ * reported as absent metadata rather than thrown.
+ */
+export async function fetchFeedGenerator(uri: string): Promise<FeedGeneratorInfo> {
+  if (uri.length === 0) return { did: null, acceptsInteractions: null }
+  const agent = createAgent(PUBLIC_APPVIEW)
+  try {
+    const response = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
+    const view = response.data.view
+    return {
+      did: view.did.length === 0 ? null : view.did,
+      acceptsInteractions: view.acceptsInteractions ?? null,
+    }
+  } catch {
+    return { did: null, acceptsInteractions: null }
+  }
+}
+
+export async function fetchProfile(
+  target: AppViewTarget,
+  actor: string,
+  viewerDid: string | null,
+): Promise<ProfileModel> {
+  const normalized = actor.replace(/^@/, '')
+  const reader = createAgent(target)
+
+  // a null owner is public-only: the appview's own viewer field is anonymous
+  if (viewerDid === null) {
+    const response = await reader.app.bsky.actor.getProfile({ actor: normalized })
+    return mapProfile(response.data)
+  }
+
+  // bind the private read to the key's owner before either request starts
+  const viewer = requireViewerAgent(viewerDid)
+  const privateReader = viewer.withProxy('bsky_appview', 'did:web:api.bsky.app')
+  const [publicResponse, privateResponse] = await Promise.all([
+    reader.app.bsky.actor.getProfile({ actor: normalized }),
+    privateReader.app.bsky.actor.getProfile({ actor: normalized }),
+  ])
+
+  if (publicResponse.data.did !== privateResponse.data.did) {
+    throw new Error('profile identity did not match')
+  }
+
+  return {
+    ...mapProfile(publicResponse.data),
+    viewer: mapProfileViewer(privateResponse.data.viewer ?? null),
+  }
+}
+
+export async function fetchThread(
+  target: AppViewTarget,
+  uri: string,
+  viewerDid: string | null,
+): Promise<ThreadModel> {
   const agent = createAgent(target)
   const response = await agent.app.bsky.feed.getPostThread({ uri, depth: 3, parentHeight: 6 })
   if (!AppBskyFeedDefs.isThreadViewPost(response.data.thread)) {
     throw new Error('thread unavailable')
   }
-  return flattenThread(response.data.thread)
+  const raw = response.data.thread
+  // resolve canonical moderation for the whole raw tree before flattening so
+  // hidden ancestors, replies and quote authors never enter the model
+  const hidden = await hiddenAuthorDids(viewerDid, threadAuthorDids(raw))
+  return flattenThread(raw, hidden)
 }
 
-export async function fetchTopComments(target: AppViewTarget, uri: string): Promise<PostModel[]> {
+export async function fetchTopComments(
+  target: AppViewTarget,
+  uri: string,
+  viewerDid: string | null,
+): Promise<PostModel[]> {
   const agent = createAgent(target)
   const response = await agent.getPostThread({ uri, depth: 1, parentHeight: 0 })
   const thread = response.data.thread
   if (!AppBskyFeedDefs.isThreadViewPost(thread)) return []
 
   const replies = thread.replies ?? []
-  return replies
+  const posts = replies
     .filter(AppBskyFeedDefs.isThreadViewPost)
     .map((reply) => mapPostView(reply.post))
+    .filter((post) => !hidesAuthor(post.author))
+
+  return (await dropHiddenAuthors(viewerDid, posts))
     .sort((left, right) => right.likeCount - left.likeCount)
     .slice(0, 3)
 }

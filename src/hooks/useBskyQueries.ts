@@ -1,6 +1,15 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchFeedPage, fetchProfile, fetchThread } from '../lib/atproto'
+import { useMemo } from 'react'
+import {
+  fetchActorSearch,
+  fetchFeedGenerator,
+  fetchFeedPage,
+  fetchFeedSearch,
+  fetchProfile,
+  fetchThread,
+} from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
+import { normalizeError } from '../lib/errors'
 import { useSettings } from '../lib/store'
 import type {
   AppViewTarget,
@@ -9,15 +18,26 @@ import type {
   PostModel,
   ProfileModel,
   QueryState,
+  SearchActorModel,
+  SearchFeedModel,
   ThreadModel,
 } from '../lib/types'
 
 const STALE_TIME = 45_000
+// a thread stays in the cache long enough that reopening a post from a deck
+// does not refetch every reply it already resolved
+const THREAD_CACHE_TIME = 30 * 60_000
 const FEED_STALE_TIME = Number.POSITIVE_INFINITY
 
 interface FeedPage {
   posts: PostModel[]
   cursor: string | null
+}
+
+// handles and feed sources are typed loose in the palette; trim once so the
+// key, the enabled test and the request all see the same string
+function normalizeActor(actor: string): string {
+  return actor.trim().replace(/^@/, '')
 }
 
 function feedKey(
@@ -29,9 +49,9 @@ function feedKey(
     case 'discover':
       return ['feed', target.host, 'discover', viewerDid ?? 'anonymous']
     case 'author':
-      return ['feed', target.host, 'author', source.actor]
+      return ['feed', target.host, 'author', source.actor, viewerDid ?? 'anonymous']
     case 'search':
-      return ['feed', target.host, 'search', source.query]
+      return ['feed', target.host, 'search', source.query, viewerDid ?? 'anonymous']
     case 'feed':
       return ['feed', target.host, 'feed', source.uri, viewerDid ?? 'anonymous']
   }
@@ -42,17 +62,12 @@ function feedEnabled(source: FeedSource): boolean {
     case 'discover':
       return true
     case 'author':
-      return source.actor.replace(/^@/, '').trim().length > 0
+      return source.actor.length > 0
     case 'search':
-      return source.query.trim().length > 0
+      return source.query.length > 0
     case 'feed':
-      return source.uri.trim().length > 0
+      return source.uri.length > 0
   }
-}
-
-function normalizeError(error: unknown): Error | null {
-  if (error === null || error === undefined) return null
-  return error instanceof Error ? error : new Error(String(error))
 }
 
 function flattenPosts(pages: FeedPage[]): PostModel[] {
@@ -71,15 +86,47 @@ function flattenPosts(pages: FeedPage[]): PostModel[] {
 export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
   const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
-  const active = enabled && feedEnabled(source)
   const queryClient = useQueryClient()
-  const key = feedKey(target, source, viewerDid)
+
+  const kind = source.kind
+  const rawActor = source.kind === 'author' ? source.actor : ''
+  const rawQuery = source.kind === 'search' ? source.query : ''
+  const rawUri = source.kind === 'feed' ? source.uri : ''
+
+  const normalized = useMemo<FeedSource>(() => {
+    switch (kind) {
+      case 'discover':
+        return { kind: 'discover' }
+      case 'author':
+        return { kind: 'author', actor: normalizeActor(rawActor) }
+      case 'search':
+        return { kind: 'search', query: rawQuery.trim() }
+      case 'feed':
+        return { kind: 'feed', uri: rawUri.trim() }
+    }
+  }, [kind, rawActor, rawQuery, rawUri])
+
+  const active = enabled && feedEnabled(normalized)
+  const key = useMemo(() => feedKey(target, normalized, viewerDid), [target, normalized, viewerDid])
+
+  // dropping the pages and letting the observer ask again reloads exactly one
+  // first page; a plain refetch would walk every loaded page
+  const refresh = useMemo(
+    () => () => {
+      void queryClient.resetQueries({ queryKey: key, exact: true })
+    },
+    [queryClient, key],
+  )
 
   const query = useInfiniteQuery({
     queryKey: key,
-    queryFn: ({ pageParam }) => fetchFeedPage(target, source, pageParam),
+    queryFn: ({ pageParam }) => fetchFeedPage(target, normalized, viewerDid, pageParam),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
+    getNextPageParam: (lastPage, _pages, _lastPageParam, allPageParams) => {
+      const next = lastPage.cursor
+      if (next === null) return undefined
+      return allPageParams.includes(next) ? undefined : next
+    },
     enabled: active,
     staleTime: FEED_STALE_TIME,
     retry: false,
@@ -92,11 +139,10 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
     data: query.data ? flattenPosts(query.data.pages) : null,
     isPending: active ? query.isPending : false,
     isFetching: query.isFetching,
-    error: normalizeError(query.error),
-    retry: () => {
-      queryClient.setQueryData(key, undefined)
-      void query.refetch()
-    },
+    // a failed next page keeps its loaded pages; only a failure with nothing
+    // to show is a feed-level error
+    error: query.data === undefined ? normalizeError(query.error) : null,
+    retry: refresh,
     hasMore: active && query.hasNextPage && !query.isFetchNextPageError,
     isLoadingMore: query.isFetchingNextPage,
     loadMoreError: query.isFetchNextPageError,
@@ -106,7 +152,7 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
       void query.fetchNextPage()
     },
     retryLoadMore: () => {
-      if (!query.hasNextPage || query.isFetchingNextPage) return
+      if (!active || !query.hasNextPage || query.isFetchingNextPage) return
       void query.fetchNextPage()
     },
   }
@@ -114,12 +160,15 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
 
 export function useProfile(actor: string): QueryState<ProfileModel> {
   const target = useSettings((state) => state.appView)
-  const normalizedActor = actor.replace(/^@/, '').trim()
+  const viewerDid = useAuthStore((state) => state.account?.did ?? null)
+  const normalizedActor = normalizeActor(actor)
   const enabled = normalizedActor.length > 0
 
   const query = useQuery({
-    queryKey: ['profile', target.host, normalizedActor],
-    queryFn: () => fetchProfile(target, normalizedActor),
+    // the viewer belongs to the key so one account's relationship state is
+    // never served to another
+    queryKey: ['profile', target.host, normalizedActor, viewerDid ?? 'anonymous'],
+    queryFn: () => fetchProfile(target, normalizedActor, viewerDid),
     enabled,
     staleTime: STALE_TIME,
     retry: 1,
@@ -130,24 +179,122 @@ export function useProfile(actor: string): QueryState<ProfileModel> {
     data: query.data ?? null,
     isPending: enabled ? query.isPending : false,
     isFetching: query.isFetching,
-    error: normalizeError(query.error),
+    error: query.data === undefined ? normalizeError(query.error) : null,
     retry: () => {
       void query.refetch()
     },
   }
 }
 
+export function useActorSearch(query: string, enabled = true): QueryState<SearchActorModel[]> {
+  const target = useSettings((state) => state.appView)
+  const normalized = query.trim()
+  const active = enabled && normalized.length > 0
+
+  const result = useQuery({
+    queryKey: ['search-actors', target.host, normalized],
+    queryFn: () => fetchActorSearch(target, normalized),
+    enabled: active,
+    // search lists follow the feed policy: a mode switch reuses what the reader
+    // already loaded and only an explicit retry asks the appview again
+    staleTime: FEED_STALE_TIME,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  })
+
+  return {
+    data: result.data ?? null,
+    isPending: active ? result.isPending : false,
+    isFetching: result.isFetching,
+    // a failed rescan keeps the rows already on screen, so its error is
+    // reported beside them instead of being hidden until the deck empties
+    error: normalizeError(result.error),
+    retry: () => {
+      void result.refetch()
+    },
+  }
+}
+
+export function useFeedSearch(query: string, enabled = true): QueryState<SearchFeedModel[]> {
+  const target = useSettings((state) => state.appView)
+  const normalized = query.trim()
+  const active = enabled && normalized.length > 0
+
+  const result = useQuery({
+    queryKey: ['search-feeds', target.host, normalized],
+    queryFn: () => fetchFeedSearch(target, normalized),
+    enabled: active,
+    staleTime: FEED_STALE_TIME,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  })
+
+  return {
+    data: result.data ?? null,
+    isPending: active ? result.isPending : false,
+    isFetching: result.isFetching,
+    // same contract as actor search: retained rows plus a reported failure
+    error: normalizeError(result.error),
+    retry: () => {
+      void result.refetch()
+    },
+  }
+}
+
+export interface FeedGeneratorState {
+  did: string | null
+  acceptsInteractions: boolean | null
+}
+
+export function useFeedGenerator(uri: string): FeedGeneratorState {
+  const normalized = uri.trim()
+  const active = normalized.length > 0
+
+  const result = useQuery({
+    // generator metadata is public and changes only when its record does, so a
+    // long stale time keeps a deck from asking again on every mount
+    queryKey: ['feed-generator', normalized],
+    queryFn: () => fetchFeedGenerator(normalized),
+    enabled: active,
+    staleTime: FEED_STALE_TIME,
+    retry: false,
+    retryOnMount: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  })
+
+  return {
+    did: result.data?.did ?? null,
+    acceptsInteractions: result.data?.acceptsInteractions ?? null,
+  }
+}
+
 export function useThread(uri: string): QueryState<ThreadModel> {
   const target = useSettings((state) => state.appView)
+  const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const normalizedUri = uri.trim()
   const enabled = normalizedUri.length > 0
 
   const query = useQuery({
-    queryKey: ['thread', target.host, normalizedUri],
-    queryFn: () => fetchThread(target, normalizedUri),
+    // the owner belongs to the key so a delayed callback cannot read another
+    // account's muted state for this thread
+    queryKey: ['thread', target.host, viewerDid ?? 'anonymous', normalizedUri],
+    queryFn: () => fetchThread(target, normalizedUri, viewerDid),
     enabled,
     staleTime: STALE_TIME,
+    gcTime: THREAD_CACHE_TIME,
     retry: 1,
+    // reopening a post reuses the thread the reader already has; an explicit
+    // refresh or a reply of the reader's own still refetches it
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   })
 
@@ -155,7 +302,7 @@ export function useThread(uri: string): QueryState<ThreadModel> {
     data: query.data ?? null,
     isPending: enabled ? query.isPending : false,
     isFetching: query.isFetching,
-    error: normalizeError(query.error),
+    error: query.data === undefined ? normalizeError(query.error) : null,
     retry: () => {
       void query.refetch()
     },

@@ -9,6 +9,7 @@ import {
   AppBskyFeedDefs,
   AppBskyFeedPost,
   AppBskyRichtextFacet,
+  type ComAtprotoLabelDefs,
 } from '@atproto/api'
 import type {
   AuthorModel,
@@ -21,6 +22,7 @@ import type {
   PostModel,
   PostReason,
   ProfileModel,
+  ProfileViewerState,
   QuotedPostModel,
   QuoteEmbed,
   ReplyContextModel,
@@ -55,13 +57,24 @@ function readPostRecord(record: Record<string, unknown>): AppBskyFeedPost.Record
   return record as AppBskyFeedPost.Record
 }
 
-function mapAuthor(author: AppBskyActorDefs.ProfileViewBasic): AuthorModel {
+type AuthorView = AppBskyActorDefs.ProfileViewBasic | AppBskyActorDefs.ProfileView
+
+export function mapAuthor(author: AuthorView): AuthorModel {
+  const viewer = author.viewer
   return {
     did: author.did,
     handle: author.handle,
     displayName: author.displayName ?? '',
     avatar: author.avatar ?? null,
+    muted: viewer?.muted === true || viewer?.mutedByList != null,
+    blocked:
+      viewer?.blockedBy === true || viewer?.blocking != null || viewer?.blockingByList != null,
   }
+}
+
+/** a muted or blocked account does not get a card, a reply or a notification */
+export function hidesAuthor(author: AuthorModel): boolean {
+  return author.muted || author.blocked
 }
 
 function mapImage(
@@ -193,7 +206,7 @@ function isMediaEmbed(embed: EmbedModel): embed is MediaEmbed {
   )
 }
 
-export function mapEmbed(embed: EmbedView): EmbedModel {
+export function mapEmbed(embed: EmbedView): EmbedModel | null {
   if (AppBskyEmbedImages.isView(embed)) {
     const images: ImageEmbed = {
       type: 'images',
@@ -238,14 +251,20 @@ export function mapEmbed(embed: EmbedView): EmbedModel {
   }
 
   if (AppBskyEmbedRecord.isView(embed)) {
-    return mapQuotedRecord(embed.record)
+    const quote = mapQuotedRecord(embed.record)
+    // a quote of a muted or blocked account is not shown at all
+    if (quote.type === 'quote' && hidesAuthor(quote.post.author)) return null
+    return quote
   }
 
   if (AppBskyEmbedRecordWithMedia.isView(embed)) {
     const quote = mapQuotedRecord(embed.record.record)
-    if (quote.type === 'unavailable') return quote
     const media = mapEmbed(embed.media)
-    if (quote.type === 'quote' && isMediaEmbed(media)) {
+    if (quote.type === 'unavailable') return quote
+    if (quote.type === 'quote' && hidesAuthor(quote.post.author)) {
+      return media !== null && isMediaEmbed(media) ? media : null
+    }
+    if (quote.type === 'quote' && media !== null && isMediaEmbed(media)) {
       return { type: 'recordWithMedia', quote: quote.post, media }
     }
     return { type: 'unknown', typeName: typeNameOf(embed) }
@@ -300,7 +319,7 @@ export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
     replyRoot: record?.reply?.root ?? null,
     replyParent: record?.reply?.parent ?? null,
     replyContext: null,
-    labels: (view.labels ?? []).map((label) => label.val),
+    labels: readLabels(view.labels),
   }
 }
 
@@ -329,10 +348,42 @@ export function mapFeedViewPost(view: AppBskyFeedDefs.FeedViewPost): PostModel {
   }
 }
 
+// a retracted label (neg) must stop rendering, and a malformed value must not
+// stand in for one
+function readLabels(labels: readonly ComAtprotoLabelDefs.Label[] | undefined): string[] {
+  const values: string[] = []
+  for (const label of labels ?? []) {
+    if (label.neg === true) continue
+    if (typeof label.val !== 'string') continue
+    values.push(label.val)
+  }
+  return values
+}
+
+export function mapProfileViewer(
+  viewer: AppBskyActorDefs.ProfileViewDetailed['viewer'] | null,
+): ProfileViewerState {
+  return {
+    following: viewer?.following ?? null,
+    followedBy: viewer?.followedBy ?? null,
+    muted: viewer?.muted ?? false,
+    mutedOnlyReposts: viewer?.mutedOnlyReposts ?? false,
+    mutedOnlyQuoteposts: viewer?.mutedOnlyQuoteposts ?? false,
+    blocking: viewer?.blocking ?? null,
+    blockedBy: viewer?.blockedBy ?? false,
+    activitySubscription:
+      viewer?.activitySubscription === undefined
+        ? null
+        : {
+            post: viewer.activitySubscription.post,
+            reply: viewer.activitySubscription.reply,
+          },
+  }
+}
+
 export function mapProfile(view: AppBskyActorDefs.ProfileViewDetailed): ProfileModel {
-  const labels = (view.labels ?? []).map((label) => label.val)
+  const labels = readLabels(view.labels)
   const isBot = labels.some((label) => label.toLowerCase() === 'bot')
-  const viewer = view.viewer
 
   return {
     did: view.did,
@@ -352,40 +403,106 @@ export function mapProfile(view: AppBskyActorDefs.ProfileViewDetailed): ProfileM
       title: link.title ?? '',
     })),
     isBot,
-    viewer: {
-      following: viewer?.following ?? null,
-      followedBy: viewer?.followedBy ?? null,
-      muted: viewer?.muted ?? false,
-      mutedOnlyReposts: viewer?.mutedOnlyReposts ?? false,
-      mutedOnlyQuoteposts: viewer?.mutedOnlyQuoteposts ?? false,
-      blocking: viewer?.blocking ?? null,
-      blockedBy: viewer?.blockedBy ?? false,
-      activitySubscription:
-        viewer?.activitySubscription === undefined
-          ? null
-          : {
-              post: viewer.activitySubscription.post,
-              reply: viewer.activitySubscription.reply,
-            },
-    },
+    viewer: mapProfileViewer(view.viewer ?? null),
   }
 }
+
+const EMPTY_HIDDEN: ReadonlySet<string> = new Set<string>()
 
 function collectReplies(
   replies: AppBskyFeedDefs.ThreadViewPost['replies'],
   depth: number,
   entries: ThreadEntry[],
+  hidden: ReadonlySet<string>,
 ): void {
   if (!replies) return
   for (const reply of replies) {
-    if (entries.length >= MAX_THREAD_ENTRIES) return
     if (!AppBskyFeedDefs.isThreadViewPost(reply)) continue
-    entries.push({ post: mapPostView(reply.post), depth, role: 'reply' })
-    collectReplies(reply.replies, depth + 1, entries)
+    const post = mapPostView(reply.post)
+    // a hidden author takes their subtree with them
+    if (hidesAuthor(post.author) || hidden.has(post.author.did)) continue
+    // hidden replies are skipped before the cap so they cannot crowd out
+    // replies the reader can actually see
+    if (entries.length >= MAX_THREAD_ENTRIES) return
+    entries.push({ post, depth, role: 'reply' })
+    collectReplies(reply.replies, depth + 1, entries, hidden)
   }
 }
 
-export function flattenThread(thread: AppBskyFeedDefs.ThreadViewPost): ThreadModel {
+/**
+ * Every author a reader must resolve moderation state for: the post's own
+ * author, its repost author, the reply context it carries, and its quote.
+ */
+export function postAuthorDids(post: PostModel): string[] {
+  const dids = [post.author.did]
+  if (post.reason?.type === 'repost') dids.push(post.reason.by.did)
+  if (post.replyContext !== null) dids.push(post.replyContext.author.did)
+  if (post.embed?.type === 'quote') dids.push(post.embed.post.author.did)
+  if (post.embed?.type === 'recordWithMedia') dids.push(post.embed.quote.author.did)
+  return dids
+}
+
+/**
+ * Every author in the raw thread tree, including nested quote and reply-context
+ * authors. The focus post's own author is included too, but flattenThread keeps
+ * the deliberately opened focus post regardless.
+ */
+export function threadAuthorDids(thread: AppBskyFeedDefs.ThreadViewPost): string[] {
+  const dids = new Set<string>()
+
+  const addNode = (node: AppBskyFeedDefs.ThreadViewPost): void => {
+    for (const did of postAuthorDids(mapPostView(node.post))) dids.add(did)
+  }
+
+  addNode(thread)
+
+  let cursor = thread.parent
+  while (cursor) {
+    if (!AppBskyFeedDefs.isThreadViewPost(cursor)) break
+    addNode(cursor)
+    cursor = cursor.parent
+  }
+
+  const addReplies = (replies: AppBskyFeedDefs.ThreadViewPost['replies']): void => {
+    for (const reply of replies ?? []) {
+      if (!AppBskyFeedDefs.isThreadViewPost(reply)) continue
+      addNode(reply)
+      addReplies(reply.replies)
+    }
+  }
+  addReplies(thread.replies)
+
+  return [...dids]
+}
+
+/**
+ * A post that survives canonical moderation must not still point at a hidden
+ * account through its reply context or quote. A record-with-media keeps its
+ * media when only the quoted post is hidden.
+ */
+export function pruneHiddenPost(post: PostModel, hidden: ReadonlySet<string>): PostModel {
+  const replyContext =
+    post.replyContext !== null && hidden.has(post.replyContext.author.did)
+      ? null
+      : post.replyContext
+
+  let embed = post.embed
+  if (embed !== null) {
+    if (embed.type === 'quote' && hidden.has(embed.post.author.did)) {
+      embed = null
+    } else if (embed.type === 'recordWithMedia' && hidden.has(embed.quote.author.did)) {
+      embed = embed.media
+    }
+  }
+
+  if (replyContext === post.replyContext && embed === post.embed) return post
+  return { ...post, replyContext, embed }
+}
+
+export function flattenThread(
+  thread: AppBskyFeedDefs.ThreadViewPost,
+  hidden: ReadonlySet<string> = EMPTY_HIDDEN,
+): ThreadModel {
   const ancestors: AppBskyFeedDefs.ThreadViewPost[] = []
   let cursor = thread.parent
   while (cursor) {
@@ -398,22 +515,26 @@ export function flattenThread(thread: AppBskyFeedDefs.ThreadViewPost): ThreadMod
   for (let index = ancestors.length - 1; index >= 0; index -= 1) {
     const ancestor = ancestors[index]
     if (!ancestor) continue
-    entries.push({
-      post: mapPostView(ancestor.post),
-      depth: -(index + 1),
-      role: 'ancestor',
-    })
+    const post = mapPostView(ancestor.post)
+    if (hidesAuthor(post.author) || hidden.has(post.author.did)) continue
+    entries.push({ post, depth: -(index + 1), role: 'ancestor' })
   }
 
+  // the reader opened the focus post on purpose, so it stays even when its
+  // author is hidden; only its nested content is pruned
   entries.push({ post: mapPostView(thread.post), depth: 0, role: 'focus' })
-  collectReplies(thread.replies, 1, entries)
+  collectReplies(thread.replies, 1, entries, hidden)
 
+  // reply contexts come only from entries that survived moderation
   const byUri = new Map(entries.map((entry) => [entry.post.uri, entry.post]))
   const withContext = entries.map((entry) => {
     const parentUri = entry.post.replyParent?.uri
     const parent = parentUri === undefined ? undefined : byUri.get(parentUri)
-    if (parent === undefined) return entry
-    return { ...entry, post: { ...entry.post, replyContext: replyContextFromPost(parent) } }
+    const post =
+      parent === undefined
+        ? entry.post
+        : { ...entry.post, replyContext: replyContextFromPost(parent) }
+    return { ...entry, post: pruneHiddenPost(post, hidden) }
   })
 
   return { focusUri: thread.post.uri, entries: withContext }

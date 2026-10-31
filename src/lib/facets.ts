@@ -16,6 +16,14 @@ interface ResolvedSpan {
   feature: FacetFeature
 }
 
+/** UTF-8 width of a code point, with lone surrogates counted as three bytes. */
+function utf8Width(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1
+  if (codePoint <= 0x7ff) return 2
+  if (codePoint <= 0xffff) return 3
+  return 4
+}
+
 /**
  * Facet offsets from the wire are UTF-8 byte offsets. Build a table that maps
  * every byte boundary to the UTF-16 index where the byte's code point starts.
@@ -23,13 +31,14 @@ interface ResolvedSpan {
  * start of that code point instead of splitting it.
  */
 function buildByteIndex(text: string): number[] {
-  const encoder = new TextEncoder()
-  const byteLength = encoder.encode(text).length
+  let byteLength = 0
+  for (const char of text) byteLength += utf8Width(char.codePointAt(0) ?? 0xfffd)
+
   const map = new Array<number>(byteLength + 1).fill(0)
   let bytePosition = 0
   let utf16Position = 0
   for (const char of text) {
-    const width = encoder.encode(char).length
+    const width = utf8Width(char.codePointAt(0) ?? 0xfffd)
     for (let offset = 0; offset < width; offset += 1) {
       map[bytePosition + offset] = utf16Position
     }
@@ -52,6 +61,8 @@ function resolveSpan(span: FacetSpan, map: number[], byteLength: number): Resolv
 
 export function segmentText(text: string, facets: readonly FacetSpan[]): TextSegment[] {
   if (text.length === 0) return []
+  // plain text needs no byte table at all
+  if (facets.length === 0) return [{ text, features: [] }]
   const map = buildByteIndex(text)
   const byteLength = map.length - 1
   const spans: ResolvedSpan[] = []

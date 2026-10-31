@@ -5,6 +5,7 @@ import { flattenThread, mapFacets, mapFeedViewPost, mapPostView, mapProfile } fr
 const encoder = new TextEncoder()
 
 const INDEXED_AT = '2026-01-01T00:00:00.000Z'
+const HIDDEN_DID = 'did:plc:hidden'
 
 function byteRange(text: string, needle: string): { byteStart: number; byteEnd: number } {
   const index = text.indexOf(needle)
@@ -226,6 +227,8 @@ describe('mapPostView', () => {
         handle: 'ada.world',
         displayName: 'ada',
         avatar: 'https://cdn.example/ada.png',
+        muted: false,
+        blocked: false,
       },
       text: '',
       facets: [],
@@ -280,6 +283,19 @@ describe('mapPostView', () => {
     expect(model.likeCount).toBe(12)
     expect(model.quoteCount).toBe(1)
     expect(model.labels).toEqual(['nsfw'])
+  })
+
+  it('drops retracted and malformed labels', () => {
+    const view = postView({
+      labels: [
+        { val: 'nsfw' },
+        { val: 'nsfw', neg: true },
+        { val: 'spoiler', neg: true },
+        { val: 7 },
+      ] as unknown as AppBskyFeedDefs.PostView['labels'],
+    })
+
+    expect(mapPostView(view).labels).toEqual(['nsfw'])
   })
 
   it('treats a non-post record as empty text with no reply', () => {
@@ -411,6 +427,63 @@ describe('mapPostView embeds', () => {
     })
   })
 
+  it('reads the mute and block state off the author viewer', () => {
+    const muted = mapPostView(postView({ author: profileBasic({ viewer: { muted: true } }) }))
+    expect(muted.author.muted).toBe(true)
+    expect(muted.author.blocked).toBe(false)
+
+    const blocked = mapPostView(
+      postView({
+        author: profileBasic({
+          viewer: { blocking: 'at://did:plc:ada/app.bsky.graph.block/1' },
+        }),
+      }),
+    )
+    expect(blocked.author.blocked).toBe(true)
+
+    const blockedBy = mapPostView(
+      postView({ author: profileBasic({ viewer: { blockedBy: true } }) }),
+    )
+    expect(blockedBy.author.blocked).toBe(true)
+  })
+
+  it('drops a quote from a hidden account but keeps the media beside it', () => {
+    const quoted = {
+      $type: 'app.bsky.embed.record#viewRecord',
+      uri: 'at://did:plc:bob/app.bsky.feed.post/9',
+      cid: 'cid-quoted',
+      author: profileBasic({
+        did: 'did:plc:bob',
+        handle: 'bob.world',
+        displayName: 'bob',
+        viewer: { muted: true },
+      }),
+      value: postRecord({ text: 'quoted text' }),
+      indexedAt: '2026-01-02T00:00:00.000Z',
+    }
+    const quoteView = postView({
+      embed: { $type: 'app.bsky.embed.record#view', record: quoted },
+    })
+    expect(mapPostView(quoteView).embed).toBeNull()
+
+    const withMedia = postView({
+      embed: {
+        $type: 'app.bsky.embed.recordWithMedia#view',
+        record: { record: quoted },
+        media: {
+          $type: 'app.bsky.embed.images#view',
+          images: [
+            { $type: 'app.bsky.embed.images#viewImage', thumb: 't', fullsize: 'f', alt: '' },
+          ],
+        },
+      },
+    })
+    expect(mapPostView(withMedia).embed).toEqual({
+      type: 'images',
+      images: [{ thumb: 't', fullsize: 'f', alt: '', width: null, height: null }],
+    })
+  })
+
   it('maps record quotes only when the quoted value is a post', () => {
     const quoted = {
       $type: 'app.bsky.embed.record#viewRecord',
@@ -448,6 +521,8 @@ describe('mapPostView embeds', () => {
           handle: 'bob.world',
           displayName: 'bob',
           avatar: 'https://cdn.example/ada.png',
+          muted: false,
+          blocked: false,
         },
         text: 'quoted text',
         facets: [],
@@ -534,6 +609,8 @@ describe('mapPostView embeds', () => {
           handle: 'bob.world',
           displayName: 'ada',
           avatar: 'https://cdn.example/ada.png',
+          muted: false,
+          blocked: false,
         },
         text: 'quoted text',
         facets: [],
@@ -573,6 +650,8 @@ describe('mapFeedViewPost', () => {
         handle: 'rep.world',
         displayName: 'rep',
         avatar: 'https://cdn.example/ada.png',
+        muted: false,
+        blocked: false,
       },
     })
     expect(mapFeedViewPost(pin).reason).toEqual({ type: 'pin' })
@@ -647,6 +726,37 @@ describe('mapProfile', () => {
   })
 })
 
+describe('mapProfile labels', () => {
+  function profileWithLabels(labels: unknown[]): AppBskyActorDefs.ProfileViewDetailed {
+    return {
+      $type: 'app.bsky.actor.defs#profileViewDetailed',
+      did: 'did:plc:x',
+      handle: 'x.world',
+      labels,
+    } as unknown as AppBskyActorDefs.ProfileViewDetailed
+  }
+
+  it('marks a bot only from a live label', () => {
+    const model = mapProfile(profileWithLabels([{ val: 'bot' }]))
+
+    expect(model.isBot).toBe(true)
+    expect(model.labels).toEqual(['bot'])
+  })
+
+  it('does not revive a retracted bot label', () => {
+    const model = mapProfile(profileWithLabels([{ val: 'bot', neg: true }]))
+
+    expect(model.isBot).toBe(false)
+    expect(model.labels).toEqual([])
+  })
+
+  it('ignores malformed label values', () => {
+    const model = mapProfile(profileWithLabels([{ val: 42 }, { neg: true }, { val: 'nsfw' }]))
+
+    expect(model.labels).toEqual(['nsfw'])
+  })
+})
+
 describe('flattenThread', () => {
   it('orders ancestors root first, then focus, then replies in pre-order', () => {
     const root = threadNode('root')
@@ -700,5 +810,81 @@ describe('flattenThread', () => {
 
     expect(model.entries).toHaveLength(80)
     expect(model.entries[79]?.post.uri).toBe('r78')
+  })
+
+  it('omits a hidden ancestor and leaves the focus reply context null', () => {
+    const hiddenAuthor = profileBasic({ did: HIDDEN_DID, handle: 'hidden.test' })
+    const hiddenParent = threadNode('parent', {
+      post: postView({ uri: 'parent', author: hiddenAuthor }),
+    })
+    const focus = threadNode('focus', {
+      parent: hiddenParent,
+      post: postView({
+        uri: 'focus',
+        record: postRecord({
+          reply: {
+            root: { uri: 'parent', cid: 'cid-1' },
+            parent: { uri: 'parent', cid: 'cid-1' },
+          },
+        }),
+      }),
+    })
+
+    const model = flattenThread(focus, new Set([HIDDEN_DID]))
+
+    expect(model.entries.map((entry) => entry.post.uri)).toEqual(['focus'])
+    expect(model.entries[0]?.post.replyContext).toBeNull()
+  })
+
+  it('takes a hidden reply subtree with it and prunes its quote', () => {
+    const hiddenAuthor = profileBasic({ did: HIDDEN_DID, handle: 'hidden.test' })
+    const hiddenReply = threadNode('hidden-reply', {
+      post: postView({ uri: 'hidden-reply', author: hiddenAuthor }),
+      replies: [threadNode('visible-child')],
+    })
+    const focus = threadNode('focus', {
+      post: postView({
+        uri: 'focus',
+        embed: {
+          $type: 'app.bsky.embed.record#view',
+          record: {
+            $type: 'app.bsky.embed.record#viewRecord',
+            uri: 'at://did:plc:hidden/app.bsky.feed.post/quoted',
+            cid: 'cid-quoted',
+            author: hiddenAuthor,
+            value: postRecord({ text: 'hidden quote' }),
+            indexedAt: INDEXED_AT,
+          },
+        },
+      }),
+      replies: [hiddenReply, threadNode('visible')],
+    })
+
+    const model = flattenThread(focus, new Set([HIDDEN_DID]))
+
+    expect(model.entries.map((entry) => entry.post.uri)).toEqual(['focus', 'visible'])
+    expect(model.entries[0]?.post.embed).toBeNull()
+  })
+
+  it('counts the eighty-entry cap after hidden replies are removed', () => {
+    const hiddenReplies = Array.from({ length: 80 }, (_, index) =>
+      threadNode(`h${index}`, {
+        post: postView({
+          uri: `h${index}`,
+          author: profileBasic({ did: HIDDEN_DID, handle: 'hidden.test' }),
+        }),
+      }),
+    )
+    const visibleReplies = Array.from({ length: 20 }, (_, index) => threadNode(`v${index}`))
+
+    const model = flattenThread(
+      threadNode('focus', { replies: [...hiddenReplies, ...visibleReplies] }),
+      new Set([HIDDEN_DID]),
+    )
+
+    expect(model.entries.map((entry) => entry.post.uri)).toEqual([
+      'focus',
+      ...visibleReplies.map((_, index) => `v${index}`),
+    ])
   })
 })

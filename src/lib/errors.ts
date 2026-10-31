@@ -16,8 +16,20 @@ function displayTitle(raw: string): string {
   return raw.replace(/([a-z\d])([A-Z])/g, '$1 $2').toLowerCase()
 }
 
+function timeoutInfo(): ErrorInfo {
+  return { title: 'timeout', detail: 'the appview did not answer in time', status: null }
+}
+
+export function normalizeError(error: unknown): Error | null {
+  if (error === null || error === undefined) return null
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 export function errorInfo(error: unknown): ErrorInfo {
   if (error instanceof XRPCError) {
+    // The SDK wraps an aborted or timed-out fetch in an XRPCError whose cause is
+    // the DOMException. That is a transport timeout, not a server-side failure.
+    if (isAbortLike(error.cause)) return timeoutInfo()
     const title = displayTitle(error.error)
     return {
       title,
@@ -26,13 +38,12 @@ export function errorInfo(error: unknown): ErrorInfo {
     }
   }
 
-  if (isAbortLike(error)) {
-    return { title: 'timeout', detail: 'the appview did not answer in time', status: null }
-  }
+  if (isAbortLike(error)) return timeoutInfo()
 
+  // An application error is the app's own failure, not a network condition.
   if (error instanceof Error) {
     return {
-      title: 'network error',
+      title: 'error',
       detail: error.message.length > 0 ? error.message : String(error),
       status: null,
     }

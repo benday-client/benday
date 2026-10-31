@@ -1,55 +1,738 @@
-import type { AppBskyActorDefs, AtpAgent } from '@atproto/api'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DISCOVER_FEED_URI, fetchFeedPage, pinnedFeedUris } from './atproto'
-import { getAuthAgent } from './auth'
+import type { AppBskyActorDefs, AtpSessionData } from '@atproto/api'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
+import {
+  DISCOVER_FEED_URI,
+  fetchFeedGenerator,
+  fetchFeedPage,
+  fetchPinnedFeeds,
+  fetchProfile,
+  fetchThread,
+  fetchTopComments,
+  pinnedFeedUris,
+} from './atproto'
+import { useAuthStore } from './auth'
+import { fetchNotifications } from './notifications'
 import type { AppViewTarget } from './types'
 
-vi.mock('./auth', () => ({
-  getAuthAgent: vi.fn(),
-}))
+const ALICE: AtpSessionData = {
+  did: 'did:plc:alice',
+  handle: 'alice.test',
+  accessJwt: 'alice-access',
+  refreshJwt: 'alice-refresh',
+  active: true,
+}
 
-const TARGET: AppViewTarget = {
-  id: 'canonical',
-  label: 'canonical',
-  host: 'https://api.bsky.app',
-  kind: 'official',
+const BRAVO: AtpSessionData = {
+  did: 'did:plc:bravo',
+  handle: 'bravo.test',
+  accessJwt: 'bravo-access',
+  refreshJwt: 'bravo-refresh',
+  active: true,
+}
+
+// lexicon validation rejects invented cid strings
+const CID = 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'
+
+const FEED_URI = 'at://did:plc:test/app.bsky.feed.generator/one'
+
+const PDS_A = 'https://pds.a.test'
+const PDS_B = 'https://pds.b.test'
+const CUSTOM: AppViewTarget = {
+  id: 'custom',
+  label: 'custom',
+  host: 'https://custom.test',
+  kind: 'custom',
   note: 'test',
 }
 
+function wirePost(index: number, parentUri?: string) {
+  const record: Record<string, unknown> = {
+    $type: 'app.bsky.feed.post',
+    text: `post ${index}`,
+    createdAt: '2026-10-29T12:00:00.000Z',
+  }
+  if (parentUri !== undefined) {
+    const ref = { uri: parentUri, cid: CID }
+    record['reply'] = { root: ref, parent: ref }
+  }
+  return {
+    uri: `at://did:plc:test/app.bsky.feed.post/${index}`,
+    cid: CID,
+    author: { did: 'did:plc:test', handle: 'test.bsky.social' },
+    record,
+    indexedAt: '2026-10-29T12:00:00.000Z',
+  }
+}
+
+function profileView(overrides: Record<string, unknown> = {}) {
+  return { did: 'did:plc:target', handle: 'target.test', displayName: 'target host', ...overrides }
+}
+
+const HIDDEN_DID = 'did:plc:hidden'
+const HIDDEN_AUTHOR = { did: HIDDEN_DID, handle: 'hidden.test' }
+const VISIBLE_AUTHOR = { did: 'did:plc:test', handle: 'test.bsky.social' }
+
+function hiddenWirePost(index: number) {
+  return { ...wirePost(index), author: HIDDEN_AUTHOR }
+}
+
+function quoteViewRecord(author: Record<string, unknown>, text: string) {
+  return {
+    $type: 'app.bsky.embed.record#viewRecord',
+    uri: `at://${String(author['did'])}/app.bsky.feed.post/quoted`,
+    cid: CID,
+    author,
+    value: { $type: 'app.bsky.feed.post', text, createdAt: '2026-10-29T12:00:00.000Z' },
+    indexedAt: '2026-10-29T12:00:00.000Z',
+  }
+}
+
+function quoteEmbed(author: Record<string, unknown>, text: string) {
+  return { $type: 'app.bsky.embed.record#view', record: quoteViewRecord(author, text) }
+}
+
+const IMAGES_VIEW = {
+  $type: 'app.bsky.embed.images#view',
+  images: [
+    {
+      $type: 'app.bsky.embed.images#viewImage',
+      thumb: 'https://cdn.example/thumb.png',
+      fullsize: 'https://cdn.example/full.png',
+      alt: '',
+    },
+  ],
+}
+
+function threadViewPost(post: Record<string, unknown>, replies: unknown[] = []) {
+  return { $type: 'app.bsky.feed.defs#threadViewPost', post, replies }
+}
+
+let transport: TestTransport
+
+beforeEach(async () => {
+  transport = installTransport()
+  transport.route('POST', `${PDS_A}/xrpc/com.atproto.server.createSession`, () =>
+    jsonResponse(200, ALICE),
+  )
+  transport.route('POST', `${PDS_B}/xrpc/com.atproto.server.createSession`, () =>
+    jsonResponse(200, BRAVO),
+  )
+  transport.route('POST', `${PDS_A}/xrpc/com.atproto.server.deleteSession`, () =>
+    jsonResponse(200, {}),
+  )
+  transport.route('POST', `${PDS_B}/xrpc/com.atproto.server.deleteSession`, () =>
+    jsonResponse(200, {}),
+  )
+
+  await useAuthStore.getState().signOut()
+  transport.calls.length = 0
+})
+
+async function signIn(session: AtpSessionData, service: string): Promise<void> {
+  await expect(useAuthStore.getState().signIn(session.handle, 'password', service)).resolves.toBe(
+    true,
+  )
+}
+
 describe('fetchFeedPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  it('distinguishes the public reader from the signed-in one by origin', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: wirePost(1) }] }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: wirePost(2) }] }),
+    )
+
+    const anonymous = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+    expect(anonymous.posts[0]?.text).toBe('post 1')
+
+    await signIn(ALICE, PDS_A)
+    const signedIn = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+    expect(signedIn.posts[0]?.text).toBe('post 2')
   })
 
-  it('reads discover through the signed-in agent when one exists', async () => {
-    const getFeed = vi.fn(async () => ({ data: { feed: [] } }))
-    vi.mocked(getAuthAgent).mockReturnValue({
-      app: { bsky: { feed: { getFeed } } },
-    } as unknown as AtpAgent)
+  it('drops muted and blocked authors and their reposts from a page', async () => {
+    const muted = {
+      ...wirePost(1),
+      author: { did: 'did:plc:muted', handle: 'muted.test', viewer: { muted: true } },
+    }
+    const blocked = {
+      ...wirePost(2),
+      author: { did: 'did:plc:blocked', handle: 'blocked.test', viewer: { blockedBy: true } },
+    }
+    const reposted = {
+      post: wirePost(4),
+      reason: {
+        $type: 'app.bsky.feed.defs#reasonRepost',
+        by: { did: 'did:plc:muted', handle: 'muted.test', viewer: { muted: true } },
+        indexedAt: '2026-10-29T12:00:00.000Z',
+      },
+    }
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, {
+        feed: [{ post: muted }, { post: blocked }, { post: wirePost(3) }, reposted],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
 
-    await fetchFeedPage(TARGET, { kind: 'discover' })
+    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+    expect(page.posts.map((post) => post.text)).toEqual(['post 3'])
+  })
 
-    expect(getFeed).toHaveBeenCalledWith({
-      feed: DISCOVER_FEED_URI,
-      limit: 30,
+  it('reads author and search feeds from the selected appview for any owner', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+      jsonResponse(200, { feed: [] }),
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, { posts: [] }),
+    )
+    await signIn(ALICE, PDS_A)
+    transport.calls.length = 0
+
+    await fetchFeedPage(CUSTOM, { kind: 'author', actor: 'alice.test' }, ALICE.did)
+    await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+
+    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([
+      CUSTOM.host,
+      CUSTOM.host,
+    ])
+  })
+
+  it('keeps resolved parent contexts when a later batch fails', async () => {
+    const parents = Array.from(
+      { length: 26 },
+      (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, (request) => {
+      const uris = new URL(request.url).searchParams.getAll('uris')
+      if (uris.includes('at://did:plc:test/app.bsky.feed.post/parent-25')) {
+        return jsonResponse(500, { error: 'InternalServerError', message: 'batch failed' })
+      }
+      return jsonResponse(200, {
+        posts: uris.map((uri) => ({
+          uri,
+          cid: CID,
+          author: { did: 'did:plc:test', handle: 'test.bsky.social' },
+          record: {
+            $type: 'app.bsky.feed.post',
+            text: 'parent',
+            createdAt: '2026-10-29T12:00:00.000Z',
+          },
+          indexedAt: '2026-10-29T12:00:00.000Z',
+        })),
+      })
+    })
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+
+    expect(page.posts).toHaveLength(26)
+    expect(page.posts.filter((post) => post.replyContext !== null)).toHaveLength(25)
+    expect(page.posts[25]?.replyContext).toBeNull()
+  })
+
+  it('drops a search author the canonical appview reports as muted', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, {
+        posts: [
+          wirePost(1),
+          { ...wirePost(2), author: { did: 'did:plc:muted', handle: 'muted.test' } },
+        ],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [
+          { did: 'did:plc:test', handle: 'test.bsky.social' },
+          { did: 'did:plc:muted', handle: 'muted.test', viewer: { muted: true } },
+        ],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+    transport.calls.length = 0
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+
+    expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
+    const viewerStateCalls = transport.calls.filter((call) =>
+      call.url.includes('app.bsky.actor.getProfiles'),
+    )
+    expect(viewerStateCalls.map((call) => new URL(call.url).origin)).toEqual([PDS_A])
+    expect(transport.calls.some((call) => new URL(call.url).origin === CUSTOM.host)).toBe(true)
+  })
+
+  it('keeps search posts for an anonymous reader without asking for viewer state', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, {
+        posts: [{ ...wirePost(1), author: { did: 'did:plc:muted', handle: 'muted.test' } }],
+      }),
+    )
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+
+    expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
+    const viewerStateCalls = transport.calls.filter((call) =>
+      call.url.includes('app.bsky.actor.getProfiles'),
+    )
+    expect(viewerStateCalls).toEqual([])
+  })
+
+  it('prunes hidden reply contexts, quotes and media quotes from a search page', async () => {
+    const parentUri = `at://${HIDDEN_DID}/app.bsky.feed.post/parent`
+    const visibleParentUri = 'at://did:plc:test/app.bsky.feed.post/visible-parent'
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, {
+        posts: [
+          wirePost(1, parentUri),
+          { ...wirePost(2), embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote') },
+          {
+            ...wirePost(3),
+            embed: {
+              $type: 'app.bsky.embed.recordWithMedia#view',
+              record: { record: quoteViewRecord(HIDDEN_AUTHOR, 'hidden media quote') },
+              media: IMAGES_VIEW,
+            },
+          },
+          { ...wirePost(4), embed: quoteEmbed(VISIBLE_AUTHOR, 'visible quote') },
+          wirePost(5, visibleParentUri),
+        ],
+      }),
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, () =>
+      jsonResponse(200, {
+        posts: [
+          { ...hiddenWirePost(9), uri: parentUri },
+          { ...wirePost(8), uri: visibleParentUri },
+        ],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+    const byText = new Map(page.posts.map((post) => [post.text, post]))
+
+    expect(byText.get('post 1')?.replyContext).toBeNull()
+    // the same read still resolves a visible parent, so the null above is the
+    // moderation result, not a missing context
+    expect(byText.get('post 5')?.replyContext?.author.handle).toBe('test.bsky.social')
+    expect(byText.get('post 2')?.embed).toBeNull()
+    // a record-with-media keeps its images when only the quoted post is hidden
+    expect(byText.get('post 3')?.embed).toEqual({
+      type: 'images',
+      images: [
+        {
+          thumb: 'https://cdn.example/thumb.png',
+          fullsize: 'https://cdn.example/full.png',
+          alt: '',
+          width: null,
+          height: null,
+        },
+      ],
+    })
+    expect(byText.get('post 4')?.embed?.type).toBe('quote')
+  })
+
+  it('discards a post reposted by a hidden account without exposing the original', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+      jsonResponse(200, {
+        feed: [
+          {
+            post: wirePost(2),
+            reason: {
+              $type: 'app.bsky.feed.defs#reasonRepost',
+              by: HIDDEN_AUTHOR,
+              indexedAt: '2026-10-29T12:00:00.000Z',
+            },
+          },
+          { post: wirePost(1) },
+        ],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [
+          {
+            did: HIDDEN_DID,
+            handle: 'hidden.test',
+            viewer: { blocking: 'at://did:plc:alice/app.bsky.graph.block/1' },
+          },
+        ],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'author', actor: 'candidate.test' }, ALICE.did)
+
+    expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
+  })
+
+  it('prunes a hidden quote from a signed-in custom feed page', async () => {
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, {
+        feed: [{ post: { ...wirePost(1), embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote') } }],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'feed', uri: FEED_URI }, ALICE.did)
+
+    expect(page.posts).toHaveLength(1)
+    expect(page.posts[0]?.embed).toBeNull()
+  })
+
+  it('prunes a hidden quote from top comments', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: threadViewPost(wirePost(1), [
+          threadViewPost({
+            ...wirePost(2),
+            embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote'),
+            likeCount: 5,
+          }),
+        ]),
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const comments = await fetchTopComments(
+      CUSTOM,
+      'at://did:plc:test/app.bsky.feed.post/1',
+      ALICE.did,
+    )
+
+    expect(comments.map((comment) => comment.text)).toEqual(['post 2'])
+    expect(comments[0]?.embed).toBeNull()
+  })
+})
+
+describe('fetchThread', () => {
+  it('keeps the focus post and drops a reply the viewer has muted', async () => {
+    const mutedReply = {
+      $type: 'app.bsky.feed.defs#threadViewPost',
+      post: { ...wirePost(2), author: { did: 'did:plc:muted', handle: 'muted.test' } },
+      replies: [],
+    }
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: {
+          $type: 'app.bsky.feed.defs#threadViewPost',
+          post: wirePost(1),
+          replies: [mutedReply],
+        },
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [
+          {
+            did: 'did:plc:muted',
+            handle: 'muted.test',
+            viewer: { blocking: 'at://did:plc:alice/app.bsky.graph.block/1' },
+          },
+        ],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+
+    expect(thread.entries.map((entry) => entry.role)).toEqual(['focus'])
+    expect(thread.entries[0]?.post.text).toBe('post 1')
+  })
+
+  it('takes a hidden reply subtree with it and prunes the focus quote', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: threadViewPost(
+          { ...wirePost(1), embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote') },
+          [
+            threadViewPost(hiddenWirePost(2), [threadViewPost(wirePost(3))]),
+            threadViewPost(wirePost(4)),
+          ],
+        ),
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+
+    // the focus post stays, the hidden reply and its visible child do not
+    expect(thread.entries.map((entry) => entry.post.text)).toEqual(['post 1', 'post 4'])
+    expect(thread.entries[0]?.post.embed).toBeNull()
+  })
+
+  it('keeps the focus post when its only ancestor is hidden', async () => {
+    const parentUri = `at://${HIDDEN_DID}/app.bsky.feed.post/parent`
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: {
+          ...threadViewPost(wirePost(2, parentUri)),
+          parent: threadViewPost({ ...hiddenWirePost(1), uri: parentUri }),
+        },
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/2', ALICE.did)
+
+    expect(thread.entries.map((entry) => entry.post.text)).toEqual(['post 2'])
+    // the hidden ancestor's text must not survive as the focus reply context
+    expect(thread.entries[0]?.post.replyContext).toBeNull()
+  })
+
+  it('counts the thread cap after hidden replies are removed', async () => {
+    const hiddenReplies = Array.from({ length: 80 }, (_, index) =>
+      threadViewPost({
+        ...hiddenWirePost(index),
+        uri: `at://did:plc:hidden/app.bsky.feed.post/h${index}`,
+      }),
+    )
+    const visibleReplies = Array.from({ length: 20 }, (_, index) =>
+      threadViewPost({
+        ...wirePost(index),
+        uri: `at://did:plc:test/app.bsky.feed.post/v${index}`,
+      }),
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: threadViewPost(wirePost(1), [...hiddenReplies, ...visibleReplies]),
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
+      jsonResponse(200, {
+        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+
+    expect(thread.entries).toHaveLength(21)
+    expect(thread.entries.slice(1).map((entry) => entry.post.uri)).toEqual(
+      visibleReplies.map((reply) => reply.post['uri']),
+    )
+  })
+})
+
+describe('account-scoped reads', () => {
+  it('refuses a delayed query for a previous account without sending it', async () => {
+    await signIn(ALICE, PDS_A)
+    await signIn(BRAVO, PDS_B)
+    transport.calls.length = 0
+
+    await expect(fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)).rejects.toThrow(
+      'account changed before the request could be sent',
+    )
+    await expect(fetchPinnedFeeds(ALICE.did)).rejects.toThrow(
+      'account changed before the request could be sent',
+    )
+    await expect(fetchNotifications(ALICE.did)).rejects.toThrow(
+      'account changed before the request could be sent',
+    )
+    expect(transport.calls).toEqual([])
+  })
+
+  it('keeps pinned preferences and generator metadata off a custom appview', async () => {
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getPreferences`, () =>
+      jsonResponse(200, {
+        preferences: [
+          {
+            $type: 'app.bsky.actor.defs#savedFeedsPrefV2',
+            items: [{ id: '1', type: 'feed', value: FEED_URI, pinned: true }],
+          },
+        ],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeedGenerators`, () =>
+      jsonResponse(200, {
+        feeds: [
+          {
+            uri: FEED_URI,
+            cid: CID,
+            did: 'did:plc:test',
+            creator: { did: 'did:plc:test', handle: 'test.bsky.social' },
+            displayName: 'One',
+            description: 'first',
+            indexedAt: '2026-10-29T12:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    await signIn(ALICE, PDS_A)
+    transport.calls.length = 0
+
+    const feeds = await fetchPinnedFeeds(ALICE.did)
+
+    expect(feeds).toEqual([
+      {
+        uri: FEED_URI,
+        name: 'One',
+        description: 'first',
+        avatar: null,
+        generatorDid: 'did:plc:test',
+        // the lexicon field is optional, so omitted metadata is unknown rather
+        // than a refusal; only an explicit false disables feed feedback
+        acceptsInteractions: null,
+      },
+    ])
+    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([PDS_A, PDS_A])
+    expect(transport.calls.some((call) => new URL(call.url).origin === CUSTOM.host)).toBe(false)
+  })
+
+  it('reads the discover feed through the canonical generator uri', async () => {
+    await signIn(ALICE, PDS_A)
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [] }),
+    )
+
+    await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+
+    const call = transport.calls.find((entry) => entry.url.includes('getFeed'))
+    expect(new URL(call?.url ?? '').searchParams.get('feed')).toBe(DISCOVER_FEED_URI)
+    expect(new URL(call?.url ?? '').origin).toBe(PDS_A)
+  })
+})
+
+describe('fetchFeedGenerator', () => {
+  const CANONICAL = 'https://api.bsky.app'
+  const VIEW = {
+    uri: FEED_URI,
+    cid: CID,
+    did: 'did:web:feeds.test',
+    creator: { did: 'did:plc:test', handle: 'test.bsky.social' },
+    displayName: 'one',
+    acceptsInteractions: true,
+    indexedAt: '2026-10-29T12:00:00.000Z',
+  }
+
+  it('reads the generator service did from the canonical appview', async () => {
+    transport.route('GET', `${CANONICAL}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
+      jsonResponse(200, { view: VIEW, isOnline: true, isValid: true }),
+    )
+
+    await expect(fetchFeedGenerator(FEED_URI)).resolves.toEqual({
+      did: 'did:web:feeds.test',
+      acceptsInteractions: true,
+    })
+    const [call] = transport.calls
+    expect(new URL(call?.url ?? '').origin).toBe(CANONICAL)
+    expect(new URL(call?.url ?? '').searchParams.get('feed')).toBe(FEED_URI)
+  })
+
+  it('reports absent metadata instead of throwing for a missing generator', async () => {
+    transport.route('GET', `${CANONICAL}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
+      jsonResponse(400, { error: 'InvalidRequest', message: 'unknown feed' }),
+    )
+
+    await expect(fetchFeedGenerator(FEED_URI)).resolves.toEqual({
+      did: null,
+      acceptsInteractions: null,
     })
   })
 
-  it('reads custom feeds through the signed-in agent', async () => {
-    const getFeed = vi.fn(async () => ({ data: { feed: [] } }))
-    vi.mocked(getAuthAgent).mockReturnValue({
-      app: { bsky: { feed: { getFeed } } },
-    } as unknown as AtpAgent)
+  it('does not ask the appview about an empty uri', async () => {
+    await expect(fetchFeedGenerator('')).resolves.toEqual({ did: null, acceptsInteractions: null })
+    expect(transport.calls).toHaveLength(0)
+  })
+})
 
-    await fetchFeedPage(TARGET, {
-      kind: 'feed',
-      uri: 'at://did:plc:test/app.bsky.feed.generator/for-you',
-    })
+describe('fetchProfile', () => {
+  it('keeps public fields from the selected host and private state from the account', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(200, profileView({ displayName: 'custom host name' })),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(
+        200,
+        profileView({
+          displayName: 'canonical name',
+          viewer: {
+            following: 'at://did:plc:alice/app.bsky.graph.follow/1',
+            muted: true,
+            activitySubscription: { post: true, reply: false },
+          },
+        }),
+      ),
+    )
+    await signIn(ALICE, PDS_A)
+    transport.calls.length = 0
 
-    expect(getFeed).toHaveBeenCalledWith({
-      feed: 'at://did:plc:test/app.bsky.feed.generator/for-you',
-      limit: 30,
-    })
+    const profile = await fetchProfile(CUSTOM, 'target.test', ALICE.did)
+
+    expect(profile.displayName).toBe('custom host name')
+    expect(profile.viewer.following).toBe('at://did:plc:alice/app.bsky.graph.follow/1')
+    expect(profile.viewer.muted).toBe(true)
+    expect(profile.viewer.activitySubscription).toEqual({ post: true, reply: false })
+    expect(transport.calls.map((call) => new URL(call.url).origin).sort()).toEqual(
+      [CUSTOM.host, PDS_A].sort(),
+    )
+  })
+
+  it('fails the profile when the private read fails', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(200, profileView()),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(500, { error: 'InternalServerError', message: 'viewer read failed' }),
+    )
+    await signIn(ALICE, PDS_A)
+
+    await expect(fetchProfile(CUSTOM, 'target.test', ALICE.did)).rejects.toThrow(
+      'viewer read failed',
+    )
+  })
+
+  it('rejects a private record for a different identity', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(200, profileView()),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(200, profileView({ did: 'did:plc:impostor' })),
+    )
+    await signIn(ALICE, PDS_A)
+
+    await expect(fetchProfile(CUSTOM, 'target.test', ALICE.did)).rejects.toThrow(
+      'profile identity did not match',
+    )
+  })
+
+  it('reads no private state for an anonymous viewer', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(200, profileView()),
+    )
+
+    const profile = await fetchProfile(CUSTOM, 'target.test', null)
+
+    expect(profile.viewer.following).toBeNull()
+    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([CUSTOM.host])
   })
 })
 
@@ -59,18 +742,21 @@ describe('pinnedFeedUris', () => {
       {
         $type: 'app.bsky.actor.defs#savedFeedsPrefV2',
         items: [
-          { id: '1', type: 'feed', value: 'at://feed/one', pinned: true },
+          { id: '1', type: 'feed', value: FEED_URI, pinned: true },
           { id: '2', type: 'feed', value: 'at://feed/two', pinned: false },
           { id: '3', type: 'timeline', value: 'at://timeline', pinned: true },
         ],
       },
       {
         $type: 'app.bsky.actor.defs#savedFeedsPref',
-        pinned: ['at://feed/legacy', 'at://feed/one'],
+        pinned: ['at://did:plc:test/app.bsky.feed.generator/legacy', FEED_URI],
         saved: [],
       },
     ] as unknown as AppBskyActorDefs.Preferences
 
-    expect(pinnedFeedUris(preferences)).toEqual(['at://feed/one', 'at://feed/legacy'])
+    expect(pinnedFeedUris(preferences)).toEqual([
+      FEED_URI,
+      'at://did:plc:test/app.bsky.feed.generator/legacy',
+    ])
   })
 })

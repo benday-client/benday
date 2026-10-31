@@ -47,6 +47,24 @@ export interface AuthorModel {
   handle: string
   displayName: string
   avatar: string | null
+  muted: boolean
+  blocked: boolean
+}
+
+export interface SearchActorModel {
+  did: string
+  handle: string
+  displayName: string
+  avatar: string | null
+  description: string
+}
+
+export interface SearchFeedModel {
+  uri: string
+  displayName: string
+  creatorHandle: string
+  description: string
+  likeCount: number
 }
 
 export type FacetFeature =
@@ -138,6 +156,10 @@ export interface PinnedFeedModel {
   name: string
   description: string
   avatar: string | null
+  /** the feed generator's service DID, the target for feedback */
+  generatorDid: string | null
+  /** null when the generator record could not be resolved */
+  acceptsInteractions: boolean | null
 }
 
 export interface ReplyContextModel {

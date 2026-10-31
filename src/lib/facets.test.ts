@@ -124,6 +124,18 @@ describe('segmentText', () => {
       { text: '🚀', features: [] },
     ])
   })
+
+  it('counts a lone surrogate as three bytes and still rebuilds the text', () => {
+    const text = 'a\uD800b'
+    const segments = segmentText(text, [{ start: 1, end: 4, feature: tag }])
+
+    expect(segments).toEqual([
+      { text: 'a', features: [] },
+      { text: '\uD800', features: [tag] },
+      { text: 'b', features: [] },
+    ])
+    expect(segments.map((segment) => segment.text).join('')).toBe(text)
+  })
 })
 
 describe('facetHref', () => {
