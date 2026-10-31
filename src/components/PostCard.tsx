@@ -1,16 +1,27 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Link, useLocation } from 'wouter'
 import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
+import { focusOwningDeck } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
+import { characterShortcutAllowed } from '../lib/keymap'
 import { postWebUrl } from '../lib/postUrl'
 import { invalidateNonFeedQueries } from '../lib/queries'
+import { useSettings } from '../lib/store'
 import type { PostModel } from '../lib/types'
-import { useUiStore } from '../lib/ui'
-import { DitherImage } from './DitherImage'
+import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
+import { Avatar } from './Avatar'
 import { Embeds } from './Embeds'
 import { FacetText } from './FacetText'
 import { MediaViewer, mediaItems } from './MediaViewer'
@@ -24,8 +35,38 @@ export interface PostCardProps {
   eyebrow?: string
   replies?: ReactNode
   showReplyContext?: boolean
-  onFeedback?: (event: FeedFeedbackEvent) => void
+  onFeedback?: (event: FeedFeedbackEvent) => Promise<void>
   onDismiss?: () => void
+  onOpen?: () => void
+}
+
+function mediaWord(embed: PostModel['embed']): string {
+  if (embed === null) return 'media'
+  if (embed.type === 'video') return 'video'
+  if (embed.type === 'images') return 'image'
+  if (embed.type === 'recordWithMedia') return mediaWord(embed.media)
+  return 'media'
+}
+
+/**
+ * Whether revealing a label would actually uncover media. Text-only quotes,
+ * unavailable or unknown embeds, empty grids and thumbless external cards have
+ * nothing to hide, so they must never offer a reveal control.
+ */
+function concealableMedia(embed: PostModel['embed']): boolean {
+  if (embed === null) return false
+  switch (embed.type) {
+    case 'images':
+      return embed.images.length > 0
+    case 'video':
+      return true
+    case 'external':
+      return embed.thumb !== null && embed.thumb.length > 0
+    case 'recordWithMedia':
+      return concealableMedia(embed.media)
+    default:
+      return false
+  }
 }
 
 function quotedPostUri(post: PostModel): string | null {
@@ -42,6 +83,9 @@ function isOwnPostUri(uri: string, did: string): boolean {
   return rkey.length > 0 && !rkey.includes('/')
 }
 
+/** how long `d` stays armed before the confirm expires */
+const DELETE_ARM_MS = 4000
+
 export function PostCard({
   post,
   index,
@@ -51,12 +95,12 @@ export function PostCard({
   showReplyContext = true,
   onFeedback,
   onDismiss,
+  onOpen,
 }: PostCardProps) {
   const [, navigate] = useLocation()
   const quotedUri = quotedPostUri(post)
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
-  const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
   const profileHref = `/profile/${encodeURIComponent(handle)}`
   const threadHref = `/thread?uri=${encodeURIComponent(post.uri)}`
 
@@ -65,16 +109,72 @@ export function PostCard({
   const queryClient = useQueryClient()
   const cardRef = useRef<HTMLElement>(null)
   const [inView, setInView] = useState(false)
+  // a labelled post hides its media until the reader asks for it
+  const [revealed, setRevealed] = useState(false)
+  useEffect(() => {
+    setRevealed(false)
+  }, [post.uri])
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // a successful write replaces the card's actions with a local result
+  const [deleted, setDeleted] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
   const [mediaOpen, setMediaOpen] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+  const [feedbackPending, setFeedbackPending] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const media = mediaItems(post.embed)
+  // a new array per render would re-run every media consumer
+  const media = useMemo(() => mediaItems(post.embed), [post.embed])
+  // only media that can actually be hidden is concealed; a text-only quote
+  // under a label keeps its text, links and focus
+  const concealable = concealableMedia(post.embed)
+  const mediaConcealed = post.labels.length > 0 && !revealed && concealable
+  // labelled media stays closed until the reader asks for it; the badges obey
+  // the same rule, because a key that is refused must not advertise itself
+  const mediaReady = post.labels.length === 0 || revealed
+  // the overlay only decorates the card the deck has focused, and only with
+  // actions this state can actually run
+  const mediaHints: string[] = []
+  if (focused) {
+    if (mediaReady && media.length > 0) mediaHints.push('card-media')
+    if (mediaReady && post.embed !== null && post.embed.type === 'video') {
+      mediaHints.push('card-video')
+    }
+    if (quotedUri !== null) mediaHints.push('card-quoted')
+  }
   const dismissTimerRef = useRef<number | null>(null)
   const copyTimerRef = useRef<number | null>(null)
+  const deleteArmTimerRef = useRef<number | null>(null)
+  // the primary delete control keeps its DOM node across arm, confirm and
+  // cancel; cancel returns focus to it explicitly
+  const deleteButtonRef = useRef<HTMLButtonElement>(null)
+  const clearDeleteArmTimer = useCallback(() => {
+    if (deleteArmTimerRef.current !== null) {
+      window.clearTimeout(deleteArmTimerRef.current)
+      deleteArmTimerRef.current = null
+    }
+  }, [])
+  const cancelDelete = useCallback(() => {
+    clearDeleteArmTimer()
+    setConfirmingDelete(false)
+  }, [clearDeleteArmTimer])
+  // the visible cancel control clears the pending arm and returns focus to the
+  // primary button it disarmed
+  const cancelArmedDelete = useCallback(() => {
+    cancelDelete()
+    deleteButtonRef.current?.focus()
+  }, [cancelDelete])
+  // a delete waits 4s for its confirm, then forgets the arm
+  const armDelete = useCallback(() => {
+    clearDeleteArmTimer()
+    setConfirmingDelete(true)
+    deleteArmTimerRef.current = window.setTimeout(() => {
+      deleteArmTimerRef.current = null
+      setConfirmingDelete(false)
+    }, DELETE_ARM_MS)
+  }, [clearDeleteArmTimer])
   const own =
     authed &&
     accountDid !== null &&
@@ -129,36 +229,53 @@ export function PostCard({
   }, [post])
 
   const feedbackAction = useCallback(
-    (kind: FeedFeedbackEvent) => {
+    async (kind: FeedFeedbackEvent) => {
       if (!authed) {
         openDialog('login')
         return
       }
-      if (feedbackSent) return
-      if (kind === 'less' && onDismiss !== undefined && !leaving) {
-        setLeaving(true)
-        dismissTimerRef.current = window.setTimeout(onDismiss, 240)
+      // one submission at a time; the operator hears about it once
+      if (feedbackSent || feedbackPending || onFeedback === undefined) return
+      // the pressed control is about to be disabled or removed; the deck takes
+      // keyboard ownership before that happens
+      focusOwningDeck(cardRef.current)
+      setFeedbackPending(true)
+      setFeedbackError(null)
+      try {
+        await onFeedback(kind)
+        if (kind === 'more') setFeedbackSent(true)
+        // dismissal waits for the operator to accept the less signal
+        if (kind === 'less' && onDismiss !== undefined) {
+          setLeaving(true)
+          dismissTimerRef.current = window.setTimeout(onDismiss, 240)
+        }
+      } catch (caught) {
+        setFeedbackError(errorInfo(caught).detail)
+      } finally {
+        setFeedbackPending(false)
       }
-      onFeedback?.(kind)
-      if (kind === 'more') setFeedbackSent(true)
     },
-    [authed, openDialog, onDismiss, onFeedback, leaving, feedbackSent],
+    [authed, openDialog, onDismiss, onFeedback, feedbackSent, feedbackPending],
   )
 
   useEffect(() => {
-    setConfirmingDelete(false)
+    cancelDelete()
+    setDeleted(false)
     setDeleteError(null)
     setLeaving(false)
     setFeedbackSent(false)
+    setFeedbackPending(false)
+    setFeedbackError(null)
     setCopyState('idle')
-  }, [post.uri, own])
+  }, [post.uri, own, cancelDelete])
 
   useEffect(() => {
     return () => {
       if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
       if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+      clearDeleteArmTimer()
     }
-  }, [])
+  }, [clearDeleteArmTimer])
 
   useEffect(() => {
     const node = cardRef.current
@@ -189,6 +306,8 @@ export function PostCard({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
+      // an IME composition owns its keystrokes; never treat them as shortcuts
+      if (event.isComposing) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
@@ -196,11 +315,30 @@ export function PostCard({
         if (event.target.closest('a') !== null) return
       }
 
-      const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null || ui.inlineCompose !== null) return
+      if (uiOwnsKeyboard()) return
       if (document.querySelector('dialog[open]') !== null) return
+      // every card shortcut is a bare printable key; the opt-out leaves Esc
+      // and a confirming Enter alone
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
 
-      if (event.key === 'v' && cardRef.current !== null) {
+      // a deleted card mutates and opens nothing; only the copy affordance
+      // remains, matching the visible footer
+      if (deleted) {
+        if (event.key === 'y') {
+          event.preventDefault()
+          void copyLink()
+        }
+        return
+      }
+
+      // x is the keyboard path to labelled media: reveal first, then v and m
+      if (event.key === 'x' && !revealed && concealable) {
+        event.preventDefault()
+        setRevealed(true)
+        return
+      }
+
+      if (event.key === 'v' && mediaReady && cardRef.current !== null) {
         const poster = cardRef.current.querySelector<HTMLButtonElement>('.b-video-player__poster')
         if (poster !== null) {
           event.preventDefault()
@@ -219,13 +357,14 @@ export function PostCard({
         }
       }
 
-      if (event.key === 'm' && media.length > 0) {
+      if (event.key === 'm' && mediaReady && media.length > 0) {
         event.preventDefault()
         setMediaOpen(true)
         return
       }
 
-      if (event.key === '0' && quotedUri !== null) {
+      // o opens the quoted post; 0 stays as a one-release alias
+      if ((event.key === 'o' || event.key === '0') && quotedUri !== null) {
         event.preventDefault()
         navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
         return
@@ -237,6 +376,7 @@ export function PostCard({
         return
       }
 
+      const ui = useUiStore.getState()
       const authenticated = useAuthStore.getState().status === 'authenticated'
       const interact = (action: () => void) => {
         if (!authenticated) {
@@ -277,12 +417,12 @@ export function PostCard({
         case '+':
           if (onFeedback === undefined) break
           event.preventDefault()
-          feedbackAction('more')
+          void feedbackAction('more')
           break
         case '-':
           if (onFeedback === undefined) break
           event.preventDefault()
-          feedbackAction('less')
+          void feedbackAction('less')
           break
         default:
           break
@@ -293,29 +433,51 @@ export function PostCard({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focused, post, feedbackAction, copyLink, navigate, quotedUri, replies, media.length])
+  }, [
+    focused,
+    post,
+    feedbackAction,
+    copyLink,
+    navigate,
+    quotedUri,
+    replies,
+    media.length,
+    mediaReady,
+    deleted,
+    concealable,
+  ])
 
-  const confirmDelete = async () => {
+  const confirmDelete = useCallback(async () => {
     if (deleting) return
+    // the confirm IS the second press; the arm timer must not race the write
+    clearDeleteArmTimer()
+    // the confirming control is disabled for the write, so the deck owns
+    // keyboard focus before that happens
+    focusOwningDeck(cardRef.current)
     setDeleting(true)
     setDeleteError(null)
 
     try {
       await deletePost(post.uri)
       await invalidateNonFeedQueries(queryClient)
+      // a successful write leaves a local result instead of the actions
       setConfirmingDelete(false)
+      setDeleted(true)
     } catch (error) {
       setDeleteError(errorInfo(error).detail)
+      // a failed confirm stays armed only for another 4s
+      armDelete()
     } finally {
       setDeleting(false)
     }
-  }
+  }, [deleting, post.uri, queryClient, clearDeleteArmTimer, armDelete])
 
   useEffect(() => {
-    if (!focused || !own) return
+    if (!focused || !own || deleted) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
+      if (event.isComposing) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
@@ -323,24 +485,38 @@ export function PostCard({
         if (event.target.closest('a') !== null) return
       }
 
-      const ui = useUiStore.getState()
-      if (ui.dialog !== null || ui.compose !== null || ui.inlineCompose !== null) return
+      if (uiOwnsKeyboard()) return
       if (document.querySelector('dialog[open]') !== null) return
-      if (event.key !== 'd') return
+      // every card shortcut is a bare printable key; the opt-out leaves Esc
+      // and a confirming Enter alone
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
+
+      // esc disarms without deleting; only an armed card claims it
+      if (event.key === 'Escape') {
+        if (!confirmingDelete) return
+        event.preventDefault()
+        cancelDelete()
+        return
+      }
+
+      // enter confirms an armed delete; d arms and then confirms
+      if (event.key !== 'd' && !(confirmingDelete && event.key === 'Enter')) return
 
       event.preventDefault()
       if (confirmingDelete) {
         void confirmDelete()
       } else {
-        setConfirmingDelete(true)
+        armDelete()
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
+    // capture: an armed delete must confirm before the deck's bubble-phase
+    // enter/space activation can open the card
+    window.addEventListener('keydown', handleKeyDown, true)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keydown', handleKeyDown, true)
     }
-  }, [focused, own, confirmingDelete, deleting, post, quotedUri, navigate, replies])
+  }, [focused, own, deleted, confirmingDelete, confirmDelete, armDelete, cancelDelete])
 
   const reasonLabels: string[] = []
   if (post.reason !== null) {
@@ -352,6 +528,11 @@ export function PostCard({
     }
   }
   if (post.isReply) reasonLabels.push('reply')
+
+  // a card with no index, eyebrow or reason reads better with no head band at
+  // all; the timestamp moves down beside the author instead of floating alone
+  const hasHead =
+    index !== undefined || (eyebrow !== undefined && eyebrow.length > 0) || reasonLabels.length > 0
 
   const liked = entry?.likeUri != null
   const reposted = entry?.repostUri != null
@@ -372,37 +553,63 @@ export function PostCard({
   if (focused) classes.push('b-post-card--focused')
   if (leaving) classes.push('b-post-card--leaving')
 
-  return (
-    <article ref={cardRef} className={classes.join(' ')}>
-      <header className="b-frame__head b-post-card__head">
-        <span className="b-post-card__head-left">
-          {index !== undefined ? (
-            <span className="b-post-card__index">
-              [{String(Math.max(0, index)).padStart(2, '0')}]
-            </span>
-          ) : null}
-          {eyebrow !== undefined && eyebrow.length > 0 ? <Tag tone="accent">{eyebrow}</Tag> : null}
-          {reasonLabels.map((label) => (
-            <Tag key={label} tone="default">
-              {label}
-            </Tag>
-          ))}
-        </span>
-        <span className="b-post-card__head-right">
-          <RelativeTime iso={post.indexedAt} />
-        </span>
-      </header>
+  // the card opens its thread on a plain click; anything that owns its own
+  // click, including the comment rows and the media, keeps it. a deleted card
+  // has nowhere to open.
+  const handleCardClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if (onOpen === undefined || deleted || event.defaultPrevented) return
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    if (
+      target.closest(
+        'a, button, input, textarea, select, summary, label, dialog, [role="button"], [role="link"], [contenteditable="true"], .b-post-card__comments, .b-post-card__media, .b-post-card__foot',
+      ) !== null
+    ) {
+      return
+    }
+    onOpen()
+  }
 
+  return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the deck owns keyboard activation
+    <article
+      ref={cardRef}
+      className={classes.join(' ')}
+      onClick={handleCardClick}
+      data-clickable={onOpen !== undefined && !deleted ? 'true' : undefined}
+      aria-busy={deleting || feedbackPending ? true : undefined}
+    >
       <div className="b-frame__body b-post-card__body">
+        {hasHead ? (
+          <div className="b-post-card__meta">
+            {index !== undefined ? (
+              <span className="b-post-card__index">
+                [{String(Math.max(0, index)).padStart(2, '0')}]
+              </span>
+            ) : null}
+            {eyebrow !== undefined && eyebrow.length > 0 ? (
+              <Tag tone="accent">{eyebrow}</Tag>
+            ) : null}
+            {reasonLabels.map((label) => (
+              <Tag key={label} tone="default">
+                {label}
+              </Tag>
+            ))}
+          </div>
+        ) : null}
+
         <div className="b-post-card__author">
           <Link href={profileHref} className="b-post-card__avatar">
-            <DitherImage src={post.author.avatar} alt={`avatar of @${handle}`} fallback={initial} />
+            <Avatar src={post.author.avatar} alt={`avatar of @${handle}`} name={displayName} />
           </Link>
           <span className="b-post-card__identity">
             <Link href={profileHref} className="b-post-card__name">
               <span>{displayName}</span>
             </Link>
             <span className="b-post-card__handle">@{handle}</span>
+          </span>
+          <span className="b-post-card__time">
+            <RelativeTime iso={post.indexedAt} />
           </span>
         </div>
 
@@ -445,7 +652,30 @@ export function PostCard({
           </div>
         ) : null}
 
-        {post.embed !== null ? <Embeds embed={post.embed} /> : null}
+        {post.embed !== null ? (
+          <div
+            className="b-post-card__media"
+            data-spoil={mediaConcealed ? 'true' : undefined}
+            data-keyhint={mediaHints.length === 0 ? undefined : mediaHints.join(' ')}
+          >
+            <Embeds embed={post.embed} concealed={mediaConcealed} />
+            {mediaConcealed ? (
+              <button
+                type="button"
+                className="b-spoil"
+                aria-label={`show ${mediaWord(post.embed)} behind the ${post.labels.join(' ')} label`}
+                onClick={(event) => {
+                  // revealing media must never follow the embed's link
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setRevealed(true)
+                }}
+              >
+                show {mediaWord(post.embed)}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {replies}
 
@@ -454,6 +684,8 @@ export function PostCard({
             <p className="b-post-card__comments-label">top comments</p>
             {topComments.isPending ? (
               <p className="b-post-card__comments-note">loading comments</p>
+            ) : topComments.error !== null && topComments.comments.length === 0 ? (
+              <p className="b-post-card__comments-note">comments unavailable</p>
             ) : topComments.comments.length === 0 ? (
               <p className="b-post-card__comments-note">no visible comments</p>
             ) : (
@@ -501,7 +733,11 @@ export function PostCard({
 
       <footer className="b-post-card__foot">
         <div className="b-post-card__actions">
-          {authed ? (
+          {deleted ? (
+            <span className="b-post-card__feedback-sent" role="status">
+              post deleted
+            </span>
+          ) : authed ? (
             <>
               <Link href={threadHref} className="b-post-card__action">
                 re {post.replyCount}
@@ -510,11 +746,13 @@ export function PostCard({
                 type="button"
                 className="b-post-card__action"
                 data-kind="like"
+                data-keyhint={focused ? 'card-like' : undefined}
                 aria-pressed={liked}
                 aria-label={`like, ${likeCount}`}
-                title={error ?? undefined}
+                aria-busy={pending ? true : undefined}
                 disabled={pending}
                 onClick={() => {
+                  focusOwningDeck(cardRef.current)
                   void useActionStore.getState().toggleLike(post)
                 }}
               >
@@ -524,20 +762,32 @@ export function PostCard({
                 type="button"
                 className="b-post-card__action"
                 data-kind="repost"
+                data-keyhint={focused ? 'card-repost' : undefined}
                 aria-pressed={reposted}
                 aria-label={`repost, ${repostCount}`}
-                title={error ?? undefined}
+                aria-busy={pending ? true : undefined}
                 disabled={pending}
                 onClick={() => {
+                  focusOwningDeck(cardRef.current)
                   void useActionStore.getState().toggleRepost(post)
                 }}
               >
                 rt {repostCount}
               </button>
-              <button type="button" className="b-post-card__action" onClick={openReplyCompose}>
+              <button
+                type="button"
+                className="b-post-card__action"
+                data-keyhint={focused ? 'card-reply' : undefined}
+                onClick={openReplyCompose}
+              >
                 reply
               </button>
-              <button type="button" className="b-post-card__action" onClick={openQuoteCompose}>
+              <button
+                type="button"
+                className="b-post-card__action"
+                data-keyhint={focused ? 'card-quote' : undefined}
+                onClick={openQuoteCompose}
+              >
                 quote
               </button>
               {onFeedback !== undefined ? (
@@ -550,10 +800,13 @@ export function PostCard({
                     <button
                       type="button"
                       className="b-post-card__action"
+                      data-keyhint={focused ? 'card-more' : undefined}
                       title="more like this · +"
                       aria-label="more like this"
+                      aria-busy={feedbackPending ? true : undefined}
+                      disabled={feedbackPending}
                       onClick={() => {
-                        feedbackAction('more')
+                        void feedbackAction('more')
                       }}
                     >
                       more
@@ -561,10 +814,13 @@ export function PostCard({
                     <button
                       type="button"
                       className="b-post-card__action"
+                      data-keyhint={focused ? 'card-fewer' : undefined}
                       title="less like this · -"
                       aria-label="less like this"
+                      aria-busy={feedbackPending ? true : undefined}
+                      disabled={feedbackPending}
                       onClick={() => {
-                        feedbackAction('less')
+                        void feedbackAction('less')
                       }}
                     >
                       less
@@ -573,42 +829,48 @@ export function PostCard({
                 )
               ) : null}
               {own ? (
-                confirmingDelete ? (
-                  <>
-                    <button
-                      type="button"
-                      className="b-post-card__action b-post-card__action--danger"
-                      disabled={deleting}
-                      title="delete · d"
-                      onClick={() => {
+                <>
+                  <button
+                    ref={deleteButtonRef}
+                    type="button"
+                    className="b-post-card__action b-post-card__action--danger"
+                    data-keyhint={focused ? 'card-delete' : undefined}
+                    title="delete · d"
+                    aria-busy={deleting ? true : undefined}
+                    disabled={deleting}
+                    onClick={() => {
+                      // one node arms and then confirms; the second press on
+                      // the armed control is the confirm
+                      if (confirmingDelete) {
                         void confirmDelete()
-                      }}
-                    >
-                      {deleting ? 'deleting' : 'confirm delete'}
-                    </button>
+                        return
+                      }
+                      armDelete()
+                    }}
+                  >
+                    {confirmingDelete ? (deleting ? 'deleting' : 'confirm delete') : 'delete'}
+                  </button>
+                  {confirmingDelete ? (
                     <button
                       type="button"
                       className="b-post-card__action"
                       disabled={deleting}
-                      onClick={() => {
-                        setConfirmingDelete(false)
-                      }}
+                      onClick={cancelArmedDelete}
                     >
                       cancel
                     </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="b-post-card__action b-post-card__action--danger"
-                    title="delete · d"
-                    onClick={() => {
-                      setConfirmingDelete(true)
-                    }}
-                  >
-                    delete
-                  </button>
-                )
+                  ) : null}
+                  {confirmingDelete ? (
+                    <span
+                      className="visually-hidden"
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                    >
+                      delete armed, press again to confirm
+                    </span>
+                  ) : null}
+                </>
               ) : null}
               {deleteError !== null ? (
                 <span className="b-post-card__delete-error" role="alert">
@@ -621,6 +883,7 @@ export function PostCard({
             type="button"
             className="b-post-card__action"
             data-state={copyState}
+            data-keyhint={focused ? 'card-copy' : undefined}
             title="copy bsky.app link · y"
             aria-live="polite"
             onClick={() => {
@@ -634,6 +897,16 @@ export function PostCard({
                 : 'copy link'}
           </button>
         </div>
+        {error !== null ? (
+          <p className="b-post-card__action-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {feedbackError !== null ? (
+          <p className="b-post-card__action-error" role="alert">
+            {feedbackError}
+          </p>
+        ) : null}
       </footer>
       <MediaViewer
         open={mediaOpen}
