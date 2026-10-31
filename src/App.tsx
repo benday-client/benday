@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
-import { Link, Route, Switch, useLocation, useSearch } from 'wouter'
+import { type ReactNode, useCallback, useEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
+import { type AroundNavHandler, Link, Route, Router, Switch, useLocation, useSearch } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AppViewDialog } from './components/AppViewDialog'
@@ -8,18 +9,28 @@ import { CommandPalette } from './components/CommandPalette'
 import { ComposeDialog } from './components/ComposeDialog'
 import { DitherDefs } from './components/DitherDefs'
 import { HelpDialog } from './components/HelpDialog'
+import { KeyHints } from './components/KeyHints'
 import { LoginDialog } from './components/LoginDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { TopBar } from './components/TopBar'
 import { EmptyState } from './components/ui'
-import { type Hotkey, isEditableTarget, useHotkeys } from './hooks/useHotkeys'
+import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
 import { getAuthAgent, useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
+import { goBackOrFallback, THREAD_FALLBACK_VIEW, withAppHistory } from './lib/history'
+import {
+  bindingFor,
+  globalHotkeys,
+  matchesBinding,
+  matchesChord,
+  type PrimaryModifier,
+} from './lib/keymap'
+import { applyConfiguredLabelers } from './lib/labelers'
 import { invalidateNonFeedQueries } from './lib/queries'
 import { useSettings } from './lib/store'
-import { resolveTheme, THEME_COLORS } from './lib/themes'
-import { useUiStore } from './lib/ui'
+import { resolveTheme, themeColor } from './lib/themes'
+import { uiOwnsKeyboard, useUiStore } from './lib/ui'
 import FeedView from './views/FeedView'
 import NotificationsView from './views/NotificationsView'
 import ProfileView from './views/ProfileView'
@@ -27,6 +38,12 @@ import SearchView from './views/SearchView'
 import ThreadView from './views/ThreadView'
 
 const TAB_ROUTES = ['/feed', '/notifications'] as const
+
+// Read the platform once: meta on macOS, ctrl everywhere else. Allowing both
+// would shadow the macOS Spaces gesture for ctrl+arrows.
+const IS_MAC =
+  typeof navigator !== 'undefined' && /mac/i.test(navigator.platform || navigator.userAgent)
+const PRIMARY_MODIFIER: PrimaryModifier = IS_MAC ? 'meta' : 'ctrl'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +54,51 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// A route swap is a crossfade: the browser snapshots the leaving screen, the
+// update callback commits the arriving route, and the two fade into each
+// other. Same-path query updates (the feed switcher, a search submit) are not
+// route swaps and stay instant, and browsers without the API — or a reader who
+// asks for reduced motion — get the plain render.
+function TransitionRouter({ children }: { children: ReactNode }) {
+  const pendingRef = useRef<ViewTransition | null>(null)
+  const sequenceRef = useRef(0)
+
+  const aroundNav = useCallback<AroundNavHandler>((navigate, to, options) => {
+    const target = to.split('?')[0] ?? to
+    const animates =
+      target !== window.location.pathname &&
+      typeof document.startViewTransition === 'function' &&
+      !(
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      )
+
+    if (!animates) {
+      navigate(to, withAppHistory(options))
+      return
+    }
+
+    const sequence = ++sequenceRef.current
+    // a newer navigation owns the screen, so the older snapshot is dropped
+    // instead of finishing on top of the route that replaced it
+    pendingRef.current?.skipTransition()
+    const transition = document.startViewTransition(() => {
+      if (sequence !== sequenceRef.current) return
+      // the commit has to happen inside the transition, or the browser
+      // snapshots the old route twice
+      flushSync(() => {
+        navigate(to, withAppHistory(options))
+      })
+    })
+    pendingRef.current = transition
+    void transition.finished.then(() => {
+      if (pendingRef.current === transition) pendingRef.current = null
+    })
+  }, [])
+
+  return <Router aroundNav={aroundNav}>{children}</Router>
+}
 
 function NotFound() {
   return (
@@ -50,6 +112,33 @@ function NotFound() {
   )
 }
 
+/**
+ * The browser tab follows the route, not the reverse: the document title is
+ * derived from the same pathname and query the views read. A malformed actor
+ * escape is shown as typed rather than repaired, and the not-found title is
+ * what the empty state says.
+ */
+function routeTitle(pathname: string, search: string): string {
+  if (pathname === '/' || pathname === '/feed' || pathname.startsWith('/feed/')) return 'feeds'
+  if (pathname === '/notifications' || pathname.startsWith('/notifications/')) {
+    return 'notifications'
+  }
+  if (pathname === '/search' || pathname.startsWith('/search/')) {
+    const query = new URLSearchParams(search).get('q')?.trim() ?? ''
+    return query.length > 0 ? `search · ${query}` : 'search'
+  }
+  if (pathname.startsWith('/profile/')) {
+    const raw = pathname.slice('/profile/'.length)
+    try {
+      return `@${decodeURIComponent(raw)}`
+    } catch {
+      return `@${raw}`
+    }
+  }
+  if (pathname === '/thread' || pathname.startsWith('/thread/')) return 'thread'
+  return 'nothing here'
+}
+
 function AppShell() {
   const [pathname, navigate] = useLocation()
   const search = useSearch()
@@ -60,8 +149,12 @@ function AppShell() {
   const closeDialog = useUiStore((state) => state.closeDialog)
   const openCompose = useUiStore((state) => state.openCompose)
   const closeCompose = useUiStore((state) => state.closeCompose)
-  const lastViewRef = useRef<string | null>(null)
+  const mainRef = useRef<HTMLElement | null>(null)
+  const landedPathRef = useRef<string | null>(null)
   const baseViewRef = useRef<string | null>(null)
+  const previousViewRef = useRef<string | null>(null)
+  const previousPathRef = useRef<string | null>(null)
+  const previousTabRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
   const authStatus = useAuthStore((state) => state.status)
   const labelers = useSettings((state) => state.labelers)
@@ -70,6 +163,7 @@ function AppShell() {
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
+  const highContrast = useSettings((state) => state.highContrast)
   const appearance = useSettings((state) => state.appearance)
   const setActiveTheme = useSettings((state) => state.setActiveTheme)
   const syncSystemTheme = useSettings((state) => state.syncSystemTheme)
@@ -80,9 +174,20 @@ function AppShell() {
 
   useEffect(() => {
     const view = `${pathname}${search.length > 0 ? `?${search}` : ''}`
-    if (!pathname.startsWith('/thread')) {
-      lastViewRef.current = view
+    // the tab a search or notifications view was opened from is where its
+    // Escape returns, so record the one being left before it is replaced
+    const previousPath = previousPathRef.current
+    if (
+      previousPath !== null &&
+      previousPath !== pathname &&
+      (previousPath === '/feed' ||
+        previousPath === '/notifications' ||
+        previousPath.startsWith('/profile/'))
+    ) {
+      previousTabRef.current = previousViewRef.current
     }
+    previousPathRef.current = pathname
+    previousViewRef.current = view
     if (
       pathname === '/' ||
       pathname.startsWith('/feed') ||
@@ -94,20 +199,100 @@ function AppShell() {
   }, [pathname, search])
 
   useEffect(() => {
-    if (lastLabelerKeyRef.current === labelerKey) return
-    lastLabelerKeyRef.current = labelerKey
-    getAuthAgent()?.configureLabelers(labelers)
-    void invalidateNonFeedQueries(queryClient)
-  }, [labelerKey, labelers, queryClient])
+    // a same-path query update rewrites the title but never moves focus
+    document.title = `benday // ${routeTitle(pathname, search)}`
+  }, [pathname, search])
 
   useEffect(() => {
+    const main = mainRef.current
+    if (main === null) return
+    // the first commit is a landing, not a swap: the route focuses itself
+    const landed = landedPathRef.current
+    landedPathRef.current = pathname
+    if (landed === null || landed === pathname) return
+    const focusMain = () => {
+      // a later route has already committed; its own effect owns focus now
+      if (landedPathRef.current !== pathname) return
+      // the incoming route may have focused its own control (query field,
+      // deck, menu), and that focus is always more useful than the container
+      if (main.contains(document.activeElement)) return
+      // a store dialog or composer took the keyboard back while we waited
+      if (uiOwnsKeyboard()) return
+      // a native modal is still in the top layer; its close will hand focus on
+      if (document.querySelector('dialog[open]') !== null) return
+      main.focus({ preventScroll: true })
+    }
+
+    // a live modal keeps the keyboard for itself, so the route change beneath
+    // it does not move focus at all
+    if (uiOwnsKeyboard()) return
+
+    const closing = document.querySelector('dialog[open]')
+    if (closing === null) {
+      focusMain()
+      return
+    }
+    // the route changed under a dialog that is animating closed: wait for its
+    // one close event, then take focus only if nothing else owns it
+    const handleClose = () => focusMain()
+    closing.addEventListener('close', handleClose, { once: true })
+    return () => closing.removeEventListener('close', handleClose)
+  }, [pathname])
+
+  useEffect(() => {
+    if (lastLabelerKeyRef.current === labelerKey) return
+    lastLabelerKeyRef.current = labelerKey
+    const agent = getAuthAgent()
+    if (agent !== null) applyConfiguredLabelers(agent)
+    void invalidateNonFeedQueries(queryClient)
+  }, [labelerKey, queryClient])
+
+  useEffect(() => {
+    // Contrast first: the palette a theme resolves to depends on the scheme,
+    // and the cursors decode real colors, so both attributes must be on the
+    // root before anything reads them.
+    document.documentElement.dataset['contrast'] = highContrast ? 'high' : 'normal'
     const effectiveTheme = resolveTheme(theme, new Date())
     document.documentElement.dataset['theme'] = effectiveTheme
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta instanceof HTMLMetaElement) meta.content = THEME_COLORS[effectiveTheme]
+    if (meta instanceof HTMLMetaElement) meta.content = themeColor(effectiveTheme, highContrast)
     installCursors()
     if (effectiveTheme !== theme) setActiveTheme(effectiveTheme)
-  }, [theme, setActiveTheme])
+  }, [theme, highContrast, setActiveTheme])
+
+  // A seasonal theme expires at local midnight, and a tab left open past it
+  // would otherwise keep an unavailable theme until reload. This runs for every
+  // appearance mode: an explicit light or dark choice also resolves from the
+  // saved pair, so it expires exactly like a system one. One timer that
+  // reschedules itself is cheaper than polling, and a tab that was hidden when
+  // it fired catches up once it is visible again.
+  useEffect(() => {
+    let timer: number | undefined
+    const schedule = () => {
+      window.clearTimeout(timer)
+      const now = new Date()
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
+      timer = window.setTimeout(
+        () => {
+          syncSystemTheme()
+          schedule()
+        },
+        midnight.getTime() - now.getTime() + 1000,
+      )
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      syncSystemTheme()
+      schedule()
+    }
+    schedule()
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.clearTimeout(timer)
+    }
+  }, [syncSystemTheme])
 
   useEffect(() => {
     if (appearance !== 'system' || typeof window.matchMedia !== 'function') return
@@ -122,7 +307,8 @@ function AppShell() {
   }, [appearance, syncSystemTheme])
 
   const focusSearch = () => {
-    navigate('/search')
+    // staying on /search keeps the accepted query in the address bar
+    if (!pathname.startsWith('/search')) navigate('/search')
     window.setTimeout(() => {
       const input = document.querySelector<HTMLInputElement>('.b-view__form .b-input__control')
       input?.focus()
@@ -139,7 +325,10 @@ function AppShell() {
         : pathname === route || pathname.startsWith(`${route}/`),
     )
     const next = (Math.max(current, 0) + direction + routes.length) % routes.length
-    navigate(routes[next] ?? '/feed')
+    const target = routes[next] ?? '/feed'
+    // a single available tab must not push the current path again
+    if (target === pathname) return
+    navigate(target)
   }
 
   const startCompose = () => {
@@ -150,26 +339,59 @@ function AppShell() {
     }
   }
 
+  const tabBinding = bindingFor('tabs')
+
   useEffect(() => {
     if (dialog !== null || compose !== null || inlineCompose !== null) return
 
     const handleTabKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat) return
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-      if (isEditableTarget(event.target)) {
-        const target = event.target
-        if (!(target instanceof HTMLElement) || target.closest('.b-view__form') === null) return
-      }
+      if (event.defaultPrevented || event.repeat) return
+      if (event.isComposing || event.keyCode === 229) return
+      // a caret word-jump inside a field belongs to the field
+      if (isEditableTarget(event.target)) return
+      if (document.querySelector('dialog[open]') !== null) return
+
+      const chord = tabBinding.chords.find((candidate) =>
+        matchesChord(event, candidate, PRIMARY_MODIFIER),
+      )
+      if (chord === undefined) return
 
       event.preventDefault()
-      changeTab(event.key === 'ArrowLeft' ? -1 : 1)
+      changeTab(chord.key === 'ArrowLeft' ? -1 : 1)
     }
 
     window.addEventListener('keydown', handleTabKey, { capture: true })
     return () => {
       window.removeEventListener('keydown', handleTabKey, true)
     }
-  }, [dialog, compose, inlineCompose, pathname, authStatus])
+  }, [dialog, compose, inlineCompose, pathname, authStatus, tabBinding])
+
+  // the palette chord toggles itself closed, so it is matched before the guard
+  // chain that an open dialog normally arms. it is a chord, so it may fire from
+  // a text field without stealing a character
+  useEffect(() => {
+    const handlePaletteToggle = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return
+      if (event.isComposing || event.keyCode === 229) return
+      if (!matchesBinding(event, bindingFor('palette'))) return
+
+      if (dialog === 'palette') {
+        event.preventDefault()
+        closeDialog()
+        return
+      }
+      if (dialog !== null || compose !== null || inlineCompose !== null) return
+      if (document.querySelector('dialog[open]') !== null) return
+
+      event.preventDefault()
+      openDialog('palette')
+    }
+
+    window.addEventListener('keydown', handlePaletteToggle, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', handlePaletteToggle, true)
+    }
+  }, [dialog, compose, inlineCompose, openDialog, closeDialog])
 
   const closeOrBack = () => {
     if (pathname.startsWith('/profile/')) {
@@ -177,26 +399,76 @@ function AppShell() {
       return
     }
     if (pathname.startsWith('/thread')) {
-      if (lastViewRef.current !== null) {
-        window.history.back()
-      } else {
-        navigate(baseViewRef.current ?? '/feed')
-      }
+      goBackOrFallback(navigate, THREAD_FALLBACK_VIEW)
+      return
     }
+    // search and notifications step back to the tab they were opened from
+    if (pathname.startsWith('/search') || pathname.startsWith('/notifications')) {
+      const view = `${pathname}${search.length > 0 ? `?${search}` : ''}`
+      const target = previousTabRef.current
+      navigate(target !== null && target !== view ? target : '/feed')
+      return
+    }
+    // a feed deck is the bottom of the app: Escape never leaves it
   }
 
-  const hotkeys: readonly Hotkey[] = [
-    { key: 'k', ctrlOrMeta: true, handler: () => openDialog('palette') },
-    { key: '/', handler: () => openDialog('palette') },
-    { key: 's', handler: focusSearch },
-    { key: 'c', handler: startCompose },
-    { key: 'a', handler: () => openDialog('appview') },
-    { key: '?', handler: () => openDialog('help') },
-    { key: ',', handler: () => openDialog('settings') },
-    { key: 'Escape', handler: closeOrBack },
-  ]
+  const backBinding = bindingFor('back')
+
+  // One Escape stack. Every layer above the route claims the key before this
+  // bubble listener: the composer's suggestion list and the search field in
+  // their own React handlers, a mode switcher in a capture listener, a native
+  // dialog through its cancel event. Anything still unconsumed here is the
+  // app's own "one level up".
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) return
+      // an IME owns the key that commits its composition
+      if (event.isComposing || event.keyCode === 229) return
+      if (!matchesBinding(event, backBinding)) return
+
+      if (dialog !== null) {
+        // the browser would raise cancel for this same key; preventing the
+        // keydown suppresses that duplicate and keeps a single close path
+        event.preventDefault()
+        closeDialog()
+        return
+      }
+      if (compose !== null) {
+        event.preventDefault()
+        closeCompose()
+        return
+      }
+      // a locally controlled modal (the media viewer) is not in the UI store
+      if (document.querySelector('dialog[open]') !== null) return
+      // the inline dock owns Escape through its own handler and the thread
+      if (uiOwnsKeyboard()) return
+      // an editable target owns the key; the search field clears itself
+      if (isEditableTarget(event.target)) return
+
+      event.preventDefault()
+      closeOrBack()
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [backBinding, dialog, compose, closeDialog, closeCompose, pathname, search, navigate])
+
+  const hotkeys = globalHotkeys({
+    search: focusSearch,
+    compose: startCompose,
+    appview: () => openDialog('appview'),
+    settings: () => openDialog('settings'),
+    // `?` is not a plain hotkey: KeyHints owns it so a tap still opens the help
+    // dialog and a hold reveals the key badges instead
+  })
 
   useHotkeys(hotkeys, dialog === null && compose === null && inlineCompose === null)
+
+  // a route swap ends a hold: the badges describe the surface that was on
+  // screen when the key went down
+  const route = `${pathname}${search.length > 0 ? `?${search}` : ''}`
 
   return (
     <div className="b-app">
@@ -204,9 +476,9 @@ function AppShell() {
         skip to content
       </a>
 
-      <TopBar />
+      <TopBar onSearch={focusSearch} />
 
-      <main id="main" className="b-main">
+      <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
         <Switch>
           <Route path="/" component={FeedView} />
           <Route path="/search" component={SearchView} />
@@ -231,6 +503,7 @@ function AppShell() {
       <LoginDialog open={dialog === 'login'} onClose={closeDialog} />
       <AccountDialog open={dialog === 'account'} onClose={closeDialog} />
       <ComposeDialog open={compose !== null} request={compose} onClose={closeCompose} />
+      <KeyHints route={route} />
     </div>
   )
 }
@@ -240,7 +513,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <DitherDefs />
       <AppErrorBoundary>
-        <AppShell />
+        <TransitionRouter>
+          <AppShell />
+        </TransitionRouter>
       </AppErrorBoundary>
     </QueryClientProvider>
   )

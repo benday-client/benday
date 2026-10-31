@@ -1,9 +1,24 @@
 import { Link, useLocation } from 'wouter'
 import { useAuthStore } from '../lib/auth'
+import { bindingFor, displayKeys } from '../lib/keymap'
 import { useUiStore } from '../lib/ui'
-import { Button, Kbd } from './ui'
+import { Button } from './ui'
 
-export function TopBar() {
+// every key the bar prints comes from the keyboard registry, so the toolbar and
+// the hold-to-reveal badges can never disagree about what a control answers to
+const COMPOSE_KEY = displayKeys(bindingFor('compose'))[0] ?? ''
+const PALETTE_KEY = displayKeys(bindingFor('palette'))[0] ?? ''
+const SEARCH_KEY = displayKeys(bindingFor('search'))[0] ?? ''
+const APPVIEW_KEY = displayKeys(bindingFor('appview'))[0] ?? ''
+const SETTINGS_KEY = displayKeys(bindingFor('settings'))[0] ?? ''
+const HELP_KEY = displayKeys(bindingFor('help'))[0] ?? ''
+
+export interface TopBarProps {
+  /** The `/` action itself: swap to search and focus its field. */
+  onSearch: () => void
+}
+
+export function TopBar({ onSearch }: TopBarProps) {
   const [pathname] = useLocation()
   const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
@@ -83,21 +98,20 @@ export function TopBar() {
             log in
           </Button>
         ) : null}
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          onClick={() => {
-            if (authenticated) {
+        {authenticated ? (
+          <Button
+            variant="ghost"
+            className="b-topbar__icon"
+            onClick={() => {
               openCompose({ mode: 'post', post: null })
-            } else {
-              openDialog('login')
-            }
-          }}
-          aria-label="compose"
-          title="compose · c"
-        >
-          +
-        </Button>
+            }}
+            aria-label="compose"
+            title={`compose · ${COMPOSE_KEY}`}
+            data-keyhint="compose"
+          >
+            <span className="b-topbar__label">compose</span>
+          </Button>
+        ) : null}
 
         <Button
           variant="ghost"
@@ -106,9 +120,34 @@ export function TopBar() {
             openDialog('palette')
           }}
           aria-label="jump"
-          title="jump"
+          title={`jump · ${PALETTE_KEY}`}
+          data-keyhint="palette"
         >
-          <Kbd>/</Kbd>
+          <span className="b-topbar__label">jump</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={onSearch}
+          aria-label="search"
+          title={`search · ${SEARCH_KEY}`}
+          data-keyhint="search"
+        >
+          <span className="b-topbar__label">search</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={() => {
+            openDialog('appview')
+          }}
+          aria-label="appview"
+          title={`appview · ${APPVIEW_KEY}`}
+          data-keyhint="appview"
+        >
+          <span className="b-topbar__label">appview</span>
         </Button>
 
         <Button
@@ -118,9 +157,10 @@ export function TopBar() {
             openDialog('help')
           }}
           aria-label="keyboard help"
-          title="keyboard help · ?"
+          title={`keyboard help · ${HELP_KEY}`}
+          data-keyhint="help"
         >
-          <Kbd>?</Kbd>
+          <span className="b-topbar__label">help</span>
         </Button>
 
         <Button
@@ -130,11 +170,10 @@ export function TopBar() {
             openDialog('settings')
           }}
           aria-label="settings"
-          title="settings · ,"
+          title={`settings · ${SETTINGS_KEY}`}
+          data-keyhint="settings"
         >
-          <span className="b-topbar__glyph" aria-hidden="true">
-            ⚙
-          </span>
+          <span className="b-topbar__label">settings</span>
         </Button>
       </div>
     </header>

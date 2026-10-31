@@ -45,3 +45,13 @@ export const useUiStore = create<UiState>()((set) => ({
   openInlineCompose: (request) => set({ inlineCompose: request, compose: null, dialog: null }),
   closeInlineCompose: () => set({ inlineCompose: null }),
 }))
+
+/**
+ * A store-backed dialog or composer owns the keyboard while it is open. Global
+ * key layers ask this inside their handler, because an effect that unmounts
+ * the layer can lag a frame behind the store.
+ */
+export function uiOwnsKeyboard(): boolean {
+  const state = useUiStore.getState()
+  return state.dialog !== null || state.compose !== null || state.inlineCompose !== null
+}

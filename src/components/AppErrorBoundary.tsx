@@ -1,37 +1,41 @@
 import { Component, type ReactNode } from 'react'
+import { errorInfo } from '../lib/errors'
 import { Button, Frame } from './ui'
 
 interface AppErrorBoundaryProps {
   children: ReactNode
 }
 
-interface AppErrorBoundaryState {
-  error: Error | null
-}
-
-function messageFor(error: Error | null): string {
-  if (error === null) return ''
-  return error.message.length > 0 ? error.message : String(error)
-}
+/**
+ * A crash is a status, not a nullable error: `ok` is the live app and `failed`
+ * carries whatever was thrown. `unknown` is deliberate — a render fault can
+ * throw a string, `null` or an object, and none of them may crash the recovery
+ * screen itself.
+ */
+type AppErrorBoundaryState = { status: 'ok' } | { status: 'failed'; error: unknown }
 
 export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
-  constructor(props: AppErrorBoundaryProps) {
-    super(props)
-    this.state = { error: null }
+  override state: AppErrorBoundaryState = { status: 'ok' }
+
+  static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
+    return { status: 'failed', error }
   }
 
-  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
-    return { error }
+  // The crash root is the recovery target: mounting it focuses and announces
+  // the failure, and the stable callback identity means a later re-render does
+  // not steal focus back from the reload button.
+  private readonly focusCrash = (element: HTMLDivElement | null): void => {
+    element?.focus()
   }
 
   override render(): ReactNode {
-    const { error } = this.state
-    if (error === null) return this.props.children
+    const state = this.state
+    if (state.status === 'ok') return this.props.children
 
     return (
-      <div className="b-crash">
+      <div className="b-crash" role="alert" tabIndex={-1} ref={this.focusCrash}>
         <Frame className="b-crash__frame" label="something snapped" tone="accent">
-          <p className="b-crash__message">{messageFor(error)}</p>
+          <p className="b-crash__message">{errorInfo(state.error).detail}</p>
           <p className="b-crash__hint">the reader hit a render fault.</p>
           <Button
             variant="solid"

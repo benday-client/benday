@@ -17,6 +17,13 @@
   overflow: hidden;
 }
 
+/* main is a route-context target, not a control: it takes programmatic focus
+   after navigation without painting a control outline. every real control
+   keeps the global focus ring. */
+.b-main:focus {
+  outline: none;
+}
+
 .b-main > * {
   flex: 1 1 auto;
   min-width: 0;
@@ -145,7 +152,7 @@
   min-height: 24px;
   padding: 2px var(--space-2);
   border: 1px solid transparent;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step-0);
   letter-spacing: 0.08em;
   text-transform: lowercase;
@@ -165,9 +172,9 @@
 }
 
 .b-topbar__link[data-active="true"] {
-  border-color: var(--blue-deep);
+  border-color: var(--blue);
   background: var(--void);
-  color: var(--accent-2);
+  color: var(--ink);
   box-shadow:
     inset 0 -1px 0 var(--neon),
     0 0 9px -5px var(--neon);
@@ -192,20 +199,21 @@
 .b-button.b-topbar__icon {
   min-width: 38px;
   min-height: 36px;
-  padding: 2px var(--space-1);
-  font-size: var(--step-2);
-  letter-spacing: 0.04em;
+  padding: 2px var(--space-3);
+  font-size: var(--step-0);
+  letter-spacing: 0.08em;
 }
 
-.b-button.b-topbar__icon .b-kbd {
-  min-width: 24px;
+/* the word says what the control does; the chord waits for hold-? */
+.b-topbar__label {
   font-size: inherit;
+  letter-spacing: inherit;
+  color: var(--text-muted);
 }
 
-.b-topbar__glyph {
-  color: var(--blue);
-  font-size: 1.25em;
-  line-height: 1;
+.b-button.b-topbar__icon:hover .b-topbar__label,
+.b-button.b-topbar__icon:focus-visible .b-topbar__label {
+  color: var(--ink);
 }
 
 .b-topbar__login {
@@ -218,7 +226,7 @@
 .b-topbar__account {
   max-width: 18ch;
   overflow: hidden;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.04em;
   text-overflow: ellipsis;
@@ -258,7 +266,7 @@
 }
 
 .b-crash__hint {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
