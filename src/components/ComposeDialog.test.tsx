@@ -1,68 +1,577 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import { createReply } from '../lib/actions'
+import type { QueryClient } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Router, useLocation, useSearch } from 'wouter'
+import { memoryLocation } from 'wouter/memory-location'
+import { createQuote, createReply } from '../lib/actions'
+import { draftKeyFor, readDraft } from '../lib/drafts'
+import type { ComposeRequest } from '../lib/ui'
+import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
+import { createTestQueryClient } from '../test/queryClient'
+import { installTransport, jsonResponse } from '../test/transport'
 import { ComposeDialog } from './ComposeDialog'
 
 vi.mock('../lib/actions', () => ({
-  createPost: vi.fn(),
+  createPost: vi.fn(async () => ({ uri: 'at://post', cid: 'post-cid' })),
   createReply: vi.fn(async () => ({ uri: 'at://reply', cid: 'reply-cid' })),
-  createQuote: vi.fn(),
-  likePost: vi.fn(),
-  unlikePost: vi.fn(),
-  repostPost: vi.fn(),
-  unrepostPost: vi.fn(),
-  fetchViewerStates: vi.fn(),
+  createQuote: vi.fn(async () => ({ uri: 'at://quote', cid: 'quote-cid' })),
 }))
 
+function LocationProbe() {
+  const [location] = useLocation()
+  const search = useSearch()
+  return (
+    <span data-testid="location">{search.length > 0 ? `${location}?${search}` : location}</span>
+  )
+}
+
+type RouterHooks = Required<Pick<ComponentProps<typeof Router>, 'hook' | 'searchHook'>>
+
+function Harness({ queryClient, hooks }: { queryClient: QueryClient; hooks: RouterHooks }) {
+  const compose = useUiStore((state) => state.compose)
+  const closeCompose = useUiStore((state) => state.closeCompose)
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router hook={hooks.hook} searchHook={hooks.searchHook}>
+        <ComposeDialog open={compose !== null} request={compose} onClose={closeCompose} />
+        <LocationProbe />
+      </Router>
+    </QueryClientProvider>
+  )
+}
+
+function renderComposer(queryClient = createTestQueryClient()) {
+  const memory = memoryLocation({ path: '/thread?uri=at%3A%2F%2Fx', record: true })
+  render(<Harness queryClient={queryClient} hooks={memory} />)
+  return memory
+}
+
+function open(request: ComposeRequest) {
+  act(() => {
+    useUiStore.setState({ compose: request, dialog: null, inlineCompose: null })
+  })
+}
+
+function type(value: string) {
+  fireEvent.change(screen.getByRole('textbox'), { target: { value } })
+}
+
+/** Types at an explicit caret so a mid-token acceptance can be exercised. */
+function composerInput(value: string, caret: number): HTMLTextAreaElement {
+  const input = screen.getByRole('textbox')
+  if (!(input instanceof HTMLTextAreaElement)) throw new Error('missing compose textarea')
+  fireEvent.change(input, { target: { value, selectionStart: caret, selectionEnd: caret } })
+  return input
+}
+
+function composerClientWithActor(query: string, handle: string) {
+  const queryClient = createTestQueryClient()
+  const key = ['actor-suggestions', 'https://api.bsky.app', query]
+  queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
+  queryClient.setQueryData(key, [
+    { did: `did:plc:${handle}`, handle, displayName: '', avatar: null },
+  ])
+  return queryClient
+}
+
+/** Two settled handles so the arrow keys have somewhere to move. */
+function composerClientWithActors() {
+  const queryClient = createTestQueryClient()
+  const key = ['actor-suggestions', 'https://api.bsky.app', 'ad']
+  queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
+  queryClient.setQueryData(key, [
+    { did: 'did:plc:ada', handle: 'ada.test', displayName: '', avatar: null },
+    { did: 'did:plc:amir', handle: 'amir.test', displayName: '', avatar: null },
+  ])
+  return queryClient
+}
+
+/**
+ * A send invalidates every non-feed query, which refetches the still-watched
+ * suggestion query, so those cases need a real answer on the wire too.
+ */
+function stubTypeahead() {
+  const transport = installTransport()
+  transport.route('GET', 'https://api.bsky.app/xrpc/app.bsky.actor.searchActorsTypeahead', () =>
+    jsonResponse(200, {
+      actors: [
+        { did: 'did:plc:ada', handle: 'ada.test', displayName: '', avatar: null },
+        { did: 'did:plc:amir', handle: 'amir.test', displayName: '', avatar: null },
+      ],
+    }),
+  )
+  return transport
+}
+
+const MODE_REQUESTS: readonly ComposeRequest[] = [
+  { mode: 'post', post: null },
+  { mode: 'reply', post: postFixture() },
+  { mode: 'quote', post: postFixture() },
+]
+
+/** Opens a reply whose mention list is already settled with two actors. */
+async function openMentionOptions() {
+  stubTypeahead()
+  const post = postFixture()
+  renderComposer(composerClientWithActors())
+  open({ mode: 'reply', post })
+  const input = composerInput('hi @ad', 6)
+  const first = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+  expect(input).toHaveAttribute('aria-activedescendant', first.id)
+  return { input, post, first }
+}
+
+function awaitingGate() {
+  const gate = Promise.withResolvers<{ uri: string; cid: string }>()
+  vi.mocked(createReply).mockReturnValueOnce(gate.promise)
+  return gate
+}
+
+function submit() {
+  const form = screen.getByRole('textbox').closest('form')
+  if (!(form instanceof HTMLFormElement)) throw new Error('missing compose form')
+  fireEvent.submit(form)
+}
+
+beforeEach(() => {
+  useUiStore.setState({ compose: null, inlineCompose: null, dialog: null, openingPost: null })
+})
+
 describe('ComposeDialog', () => {
-  it('submits a reply and refreshes without opening an unindexed thread', async () => {
+  it('sends a reply, keeps feed pages and invalidates everything else', async () => {
     const post = postFixture()
-    const onClose = vi.fn()
-    const queryClient = new QueryClient()
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const queryClient = createTestQueryClient()
+    const feedKey = ['feed', 'api.bsky.app', 'discover', 'anonymous']
+    const threadKey = ['thread', 'api.bsky.app', post.uri]
+    // keep the seeded entries alive: the test client otherwise collects
+    // unobserved queries immediately
+    queryClient.setQueryDefaults(feedKey, { gcTime: Number.POSITIVE_INFINITY })
+    queryClient.setQueryDefaults(threadKey, { gcTime: Number.POSITIVE_INFINITY })
+    queryClient.setQueryData(feedKey, { pages: [] })
+    queryClient.setQueryData(threadKey, { posts: [] })
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ComposeDialog open request={{ mode: 'reply', post }} onClose={onClose} />
-      </QueryClientProvider>,
-    )
+    const memory = renderComposer(queryClient)
+    open({ mode: 'reply', post })
+    type('hello')
+    submit()
 
-    const input = screen.getByLabelText('compose post')
-    fireEvent.change(input, { target: { value: 'hello' } })
-    const form = input.closest('form')
-    if (!(form instanceof HTMLFormElement)) throw new Error('missing compose form')
-    fireEvent.submit(form)
-
-    await vi.waitFor(() => {
-      expect(createReply).toHaveBeenCalledWith('hello', post)
-    })
-    await vi.waitFor(() => {
-      expect(onClose).toHaveBeenCalled()
-    })
-    expect(invalidate).toHaveBeenCalled()
+    await waitFor(() => expect(createReply).toHaveBeenCalledWith('hello', post))
+    await waitFor(() => expect(queryClient.getQueryState(threadKey)?.isInvalidated).toBe(true))
+    expect(queryClient.getQueryState(feedKey)?.isInvalidated).toBe(false)
+    expect(screen.getByTestId('location')).toHaveTextContent('/thread?uri=at%3A%2F%2Fx')
+    expect(memory.history).toEqual(['/thread?uri=at%3A%2F%2Fx'])
   })
 
   it('sends with ctrl+enter', async () => {
     const post = postFixture()
-    const onClose = vi.fn()
-    const queryClient = new QueryClient()
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ComposeDialog open request={{ mode: 'reply', post }} onClose={onClose} />
-      </QueryClientProvider>,
-    )
+    renderComposer()
+    open({ mode: 'reply', post })
+    type('sent fast')
 
-    const input = screen.getByLabelText('compose post')
-    fireEvent.change(input, { target: { value: 'sent fast' } })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true })
+
+    await waitFor(() => expect(createReply).toHaveBeenCalledWith('sent fast', post))
+    expect(useUiStore.getState().compose).toBeNull()
+  })
+
+  it('keeps a reply draft when the request switches to quote before the delay', async () => {
+    const post = postFixture()
+    renderComposer()
+    open({ mode: 'reply', post })
+    type('reply draft')
+
+    open({ mode: 'quote', post })
+    type('quote draft')
+
+    expect(readDraft(draftKeyFor('reply', post.uri, null))).toBe('reply draft')
+    await waitFor(() => expect(readDraft(draftKeyFor('quote', post.uri, null))).toBe('quote draft'))
+  })
+
+  it('restores independent drafts when the same target comes back', () => {
+    const post = postFixture()
+    renderComposer()
+
+    open({ mode: 'reply', post })
+    type('first composition')
+    open({ mode: 'post', post: null })
+    type('second composition')
+    open({ mode: 'reply', post })
+
+    expect(screen.getByRole('textbox')).toHaveValue('first composition')
+  })
+
+  it('leaves a reopened draft alone when a dismissed identical send resolves', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    const gate = Promise.withResolvers<{ uri: string; cid: string }>()
+    vi.mocked(createReply).mockReturnValueOnce(gate.promise)
+
+    renderComposer()
+    open({ mode: 'reply', post })
+    type('same text')
+    submit()
+
+    fireEvent.click(screen.getByText('cancel'))
+    expect(useUiStore.getState().compose).toBeNull()
+    expect(readDraft(key)).toBe('same text')
+
+    open({ mode: 'reply', post })
+    expect(screen.getByRole('textbox')).toHaveValue('same text')
+
+    await act(async () => {
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+    })
+
+    expect(readDraft(key)).toBe('same text')
+  })
+
+  it('keeps the draft and shows the failure when a send is rejected', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('quote', post.uri, null)
+    vi.mocked(createQuote).mockRejectedValueOnce(new Error('pds said no'))
+
+    renderComposer()
+    open({ mode: 'quote', post })
+    type('keep me')
+    submit()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('pds said no')
+    expect(useUiStore.getState().compose).not.toBeNull()
+    expect(readDraft(key)).toBe('keep me')
+  })
+
+  it('counts graphemes for the submission boundary', async () => {
+    const post = postFixture()
+    renderComposer()
+    open({ mode: 'reply', post })
+    const send = screen.getAllByRole('button').find((button) => button.textContent === 'reply')
+    if (send === undefined) throw new Error('missing send button')
+
+    type('a'.repeat(301))
+    expect(send).toBeDisabled()
+    submit()
+    expect(createReply).not.toHaveBeenCalled()
+
+    type('👩‍👩‍👧‍👦'.repeat(50))
+    expect(send).toBeEnabled()
+
+    type('a'.repeat(300))
+    expect(send).toBeEnabled()
+  })
+
+  it('accepts a suggestion with a trailing space at the caret', async () => {
+    const post = postFixture()
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'hi @ad' } })
+
+    const options = await screen.findAllByRole('option', undefined, { timeout: 2000 })
+    fireEvent.click(options[0] as HTMLElement)
+
+    expect(screen.getByRole('textbox')).toHaveValue('hi @ad ')
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'hi @ad more' },
+    })
+    expect(screen.getByRole('textbox')).toHaveValue('hi @ad more')
+  })
+
+  it('accepts a mention before existing text without merging or doubling the separator', async () => {
+    const post = postFixture()
+    renderComposer(composerClientWithActor('ad', 'ada.test'))
+    open({ mode: 'reply', post })
+
+    const input = composerInput('hi @ad there', 6)
+    const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+    fireEvent.click(option)
+
+    expect(input).toHaveValue('hi @ada.test there')
+    await waitFor(() => expect(input.selectionStart).toBe(13))
+
+    const caret = input.selectionStart ?? 0
+    const typed = 'fresh '
+    fireEvent.change(input, {
+      target: {
+        value: `${input.value.slice(0, caret)}${typed}${input.value.slice(caret)}`,
+        selectionStart: caret + typed.length,
+        selectionEnd: caret + typed.length,
+      },
+    })
+
+    expect(input).toHaveValue('hi @ada.test fresh there')
+  })
+
+  it('keeps a comma after the accepted mention and never adds a space', async () => {
+    const post = postFixture()
+    renderComposer(composerClientWithActor('ad', 'ada.test'))
+    open({ mode: 'reply', post })
+
+    const input = composerInput('hi @ad, there', 6)
+    const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+    fireEvent.click(option)
+
+    expect(input).toHaveValue('hi @ada.test, there')
+    await waitFor(() => expect(input.selectionStart).toBe(12))
+    expect(input.value.charAt(input.selectionStart)).toBe(',')
+  })
+
+  it('treats a trailing dot as punctuation instead of part of the handle', async () => {
+    const post = postFixture()
+    renderComposer(composerClientWithActor('ad', 'ada.test'))
+    open({ mode: 'reply', post })
+
+    const input = composerInput('hi @ad.', 7)
+    const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+    fireEvent.click(option)
+
+    expect(input).toHaveValue('hi @ada.test.')
+    await waitFor(() => expect(input.selectionStart).toBe(12))
+    expect(input.value.charAt(input.selectionStart)).toBe('.')
+  })
+
+  it('accepts a hashtag before a trailing dot without moving it', async () => {
+    const post = postFixture()
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    const input = composerInput('look #tag.', 10)
+    const label = await screen.findByText('#tag')
+    const option = label.closest('button')
+    if (option === null) throw new Error('missing tag option')
+    fireEvent.click(option)
+
+    expect(input).toHaveValue('look #tag.')
+    await waitFor(() => expect(input.selectionStart).toBe(9))
+    expect(input.value.charAt(input.selectionStart)).toBe('.')
+  })
+
+  it('renders the shared composer head and actions', () => {
+    renderComposer()
+    open({ mode: 'post', post: null })
+
+    const dialog = screen.getByRole('dialog')
+    const head = dialog.querySelector('.b-dialog__head')
+    expect(head?.querySelector('.b-dialog__title')).toHaveTextContent('compose')
+    expect(head?.querySelector('.b-dialog__close')).toHaveAttribute('aria-label', 'close compose')
+
+    const actions = dialog.querySelector('.b-dialog__foot > .b-compose__actions')
+    expect(actions).not.toBeNull()
+    expect(actions?.querySelector('.b-compose__count')).toHaveTextContent('0/300')
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'cancel' }))
+    expect(actions).toContainElement(screen.getByRole('button', { name: 'post' }))
+  })
+
+  it('counts graphemes and gates sending from the shared footer', () => {
+    renderComposer()
+    open({ mode: 'reply', post: postFixture() })
+    const send = screen.getByRole('button', { name: 'reply' })
+    expect(screen.getByText('0/300')).toHaveAttribute('data-over', 'false')
+
+    type('a'.repeat(301))
+    expect(screen.getByText('301/300')).toHaveAttribute('data-over', 'true')
+    expect(send).toBeDisabled()
+
+    type('a'.repeat(300))
+    expect(send).toBeEnabled()
+  })
+
+  it('truncates a target excerpt without splitting an emoji', () => {
+    const family = '👩‍👩‍👧‍👦'
+    const post = postFixture({ text: `${'a'.repeat(116)}${family}${'b'.repeat(40)}` })
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    const excerpt = document.querySelector('.b-compose__target-text')?.textContent ?? ''
+    expect(excerpt.length).toBeGreaterThan(0)
+    expect(excerpt).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    expect(excerpt).not.toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
+  })
+
+  it.each(MODE_REQUESTS)('exposes a native $mode textbox as compose $mode', ({ mode, post }) => {
+    renderComposer()
+    open({ mode, post })
+
+    const input = screen.getByRole('textbox', { name: `compose ${mode}` })
+    expect(input.tagName).toBe('TEXTAREA')
+    // a textarea is its own textbox: no combobox override and no expanded state
+    expect(input).not.toHaveAttribute('role')
+    expect(input).not.toHaveAttribute('aria-expanded')
+    expect(input).toHaveAttribute('aria-haspopup', 'listbox')
+    // neither popup reference may exist before a real option does
+    expect(input).not.toHaveAttribute('aria-controls')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('names the suggestion listbox and active option only while options exist', async () => {
+    renderComposer(composerClientWithActors())
+    open({ mode: 'reply', post: postFixture() })
+
+    const input = composerInput('hi @ad', 6)
+    const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+    const list = screen.getByRole('listbox', { name: 'suggestions' })
+
+    expect(input).toHaveAttribute('aria-controls', list.id)
+    expect(input).toHaveAttribute('aria-activedescendant', option.id)
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+
+    type('hi there')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(input).not.toHaveAttribute('aria-controls')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('leaves shifted and modified accept and send keys native while options are open', async () => {
+    const { input, first } = await openMentionOptions()
+
+    const attempts: Array<[string, KeyboardEventInit]> = [
+      ['Tab', { shiftKey: true }],
+      ['Enter', { shiftKey: true }],
+      ['Tab', { ctrlKey: true }],
+      ['ArrowDown', { ctrlKey: true }],
+      ['ArrowUp', { ctrlKey: true }],
+      ['Enter', { ctrlKey: true, shiftKey: true }],
+    ]
+    for (const [key, init] of attempts) {
+      // true means the event was not cancelled, so the browser still owns it
+      expect(fireEvent.keyDown(input, { key, ...init })).toBe(true)
+      expect(input).toHaveValue('hi @ad')
+      expect(input).toHaveAttribute('aria-activedescendant', first.id)
+    }
+    expect(createReply).not.toHaveBeenCalled()
+  })
+
+  it('moves and accepts only on the bare arrow, enter and tab chords', async () => {
+    const { input, first } = await openMentionOptions()
+
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(false)
+    const second = screen.getAllByRole('option')[1] as HTMLElement
+    expect(input).toHaveAttribute('aria-activedescendant', second.id)
+
+    expect(fireEvent.keyDown(input, { key: 'ArrowUp' })).toBe(false)
+    expect(input).toHaveAttribute('aria-activedescendant', first.id)
+
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(false)
+    expect(input).toHaveValue('hi @ada.test ')
+    expect(screen.queryByRole('option')).toBeNull()
+
+    // the list reopens for the next token and Tab accepts just as well
+    composerInput('again @ad', 9)
+    await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+    expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(false)
+    expect(input).toHaveValue('again @ada.test ')
+  })
+
+  it('sends once on the exact send chord while the suggestion list is open', async () => {
+    const { input, post } = await openMentionOptions()
+
+    expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })).toBe(false)
+
+    await waitFor(() => expect(createReply).toHaveBeenCalledTimes(1))
+    expect(createReply).toHaveBeenCalledWith('hi @ad', post)
+    // the chord sends the draft instead of accepting the highlighted handle
+    expect(input).not.toHaveValue('hi @ada.test ')
+  })
+
+  it('keeps a keyboard send focused read-only and suggestion-free until it settles', async () => {
+    stubTypeahead()
+    const gate = awaitingGate()
+    renderComposer(composerClientWithActors())
+    open({ mode: 'reply', post: postFixture() })
+
+    const input = composerInput('hi @ad', 6)
+    await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
+
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    await waitFor(() => expect(input.readOnly).toBe(true))
 
-    await vi.waitFor(() => {
-      expect(createReply).toHaveBeenCalledWith('sent fast', post)
+    expect(input).not.toBeDisabled()
+    expect(document.activeElement).toBe(input)
+    expect(screen.getByRole('button', { name: 'reply' })).toBeDisabled()
+    expect(input).not.toHaveAttribute('aria-controls')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+
+    const describedBy = input.getAttribute('aria-describedby')?.split(' ') ?? []
+    expect(describedBy).toHaveLength(1)
+    expect(document.getElementById(describedBy[0] ?? '')).toHaveTextContent('/300')
+
+    await act(async () => {
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
     })
-    await vi.waitFor(() => {
-      expect(onClose).toHaveBeenCalled()
+    await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
+  })
+
+  it('keeps the editor focused when the pending send starts from the button', async () => {
+    const gate = awaitingGate()
+    renderComposer()
+    open({ mode: 'reply', post: postFixture() })
+
+    type('hello')
+    const input = screen.getByRole('textbox')
+    if (!(input instanceof HTMLTextAreaElement)) throw new Error('missing compose textarea')
+    fireEvent.click(screen.getByRole('button', { name: 'reply' }))
+
+    await waitFor(() => expect(input.readOnly).toBe(true))
+    expect(document.activeElement).toBe(input)
+    expect(input).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'reply' })).toBeDisabled()
+
+    await act(async () => {
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
     })
+    await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
+  })
+
+  it('associates the count and the submission error with the editor', async () => {
+    vi.mocked(createQuote).mockRejectedValueOnce(new Error('pds said no'))
+    renderComposer()
+    open({ mode: 'quote', post: postFixture() })
+
+    type('keep me')
+    submit()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('pds said no')
+    const input = screen.getByRole('textbox')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+
+    const describedBy = input.getAttribute('aria-describedby')?.split(' ') ?? []
+    expect(describedBy).toHaveLength(2)
+    expect(document.getElementById(describedBy[0] ?? '')).toHaveTextContent('/300')
+    expect(document.getElementById(describedBy[1] ?? '')).toHaveTextContent('pds said no')
+  })
+
+  it('marks the editor invalid and announces the limit crossing once', async () => {
+    renderComposer()
+    open({ mode: 'reply', post: postFixture() })
+
+    const input = screen.getByRole('textbox')
+    const status = screen.getByRole('status')
+    const records: MutationRecord[] = []
+    const observer = new MutationObserver((batch) => records.push(...batch))
+    observer.observe(status, { subtree: true, childList: true, characterData: true })
+
+    type('a'.repeat(301))
+    await waitFor(() => expect(status).toHaveTextContent('over the 300 grapheme limit'))
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(records).toHaveLength(1)
+
+    // further over-limit keystrokes change the counter, not the live status
+    type('a'.repeat(302))
+    type('a'.repeat(303))
+    await act(async () => undefined)
+    expect(records).toHaveLength(1)
+    expect(status).toHaveTextContent('over the 300 grapheme limit')
+
+    type('a'.repeat(5))
+    await waitFor(() => expect(status).toHaveTextContent('within the 300 grapheme limit'))
+    expect(input).not.toHaveAttribute('aria-invalid')
+    expect(records).toHaveLength(2)
+
+    observer.disconnect()
   })
 })

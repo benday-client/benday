@@ -21,36 +21,37 @@
   gap: var(--space-1) var(--space-2);
   min-width: 0;
   padding: var(--space-1) var(--space-2);
-  border-left: 2px solid var(--blue-deep);
+  border-left: 2px solid var(--blue);
   background: var(--panel);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
 
 .b-thread__parent-label {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .b-thread__parent-link {
-  color: var(--ink-dim);
-  text-decoration: none;
+  color: var(--text-link);
+  text-decoration: underline;
+  text-decoration-color: var(--blue);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .b-thread__parent-link:hover {
-  color: var(--blue);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: 2px;
 }
 
 .b-thread__parent-text {
   flex: 1 1 100%;
   min-width: 0;
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -67,7 +68,7 @@
   min-height: 0;
   max-height: min(52dvh, 420px);
   padding: var(--space-2);
-  border: 1px solid var(--blue-deep);
+  border: 1px solid var(--blue);
   background: var(--panel-raised);
   box-shadow: 0 -10px 28px color-mix(in srgb, var(--shadow) 55%, transparent);
   overflow-y: auto;
@@ -82,26 +83,30 @@
   box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 55%, transparent);
 }
 
-.b-compose-dock__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
-  color: var(--ink-faint);
-  font-size: var(--step--1);
-  letter-spacing: 0.04em;
+/* the dock head reuses the dialog head classes and its actions row is the one
+   both composers render, so a dock reads as the same box as the modal; the
+   dock only drops the dialog's inset padding and keeps the hint next to the
+   close cross instead of two competing auto margins */
+.b-compose-dock > .b-dialog__head {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
 }
 
-.b-compose-dock__label {
-  color: var(--accent-2);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+/* both placements push the title to the left edge and leave the hint beside
+   the close cross, so the two heads cannot drift apart */
+.b-compose > .b-dialog__head > .b-dialog__title,
+.b-compose-dock > .b-dialog__head > .b-dialog__title {
+  margin-right: auto;
 }
 
-.b-compose-dock__hint {
-  margin-left: auto;
-  color: var(--ink-faint);
+.b-compose .b-dialog__close,
+.b-compose-dock .b-dialog__close {
+  margin-left: 0;
+}
+
+.b-compose__hint {
+  color: var(--text-muted);
   font-size: var(--step--2);
   white-space: nowrap;
 }
@@ -115,20 +120,40 @@
   max-height: 220px;
 }
 
-.b-compose-dock .b-compose__meta {
-  flex-wrap: wrap;
-  row-gap: var(--space-1);
-}
-
 .b-compose-dock .b-compose__markdown {
   flex: 1 1 100%;
 }
 
-.b-compose-dock__actions {
+/* options measure their offsetTop against the list, so the list is the offset
+   parent and the composer can scroll it without touching its ancestors */
+.b-compose__suggestions {
+  position: relative;
+}
+
+.b-compose__actions {
   display: flex;
   flex: 0 0 auto;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+  width: 100%;
+}
+
+.b-compose__actions .b-compose__count {
+  margin-right: auto;
+}
+
+/* the dock scrolls its own content, so its action row sticks to the bottom of
+   that scrollport; the negative offsets swallow the dock padding so the row
+   sits flush, and the opaque panel keeps the draft from showing through */
+.b-compose-dock > .b-compose__actions {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  margin: 0 calc(var(--space-2) * -1) calc(var(--space-2) * -1);
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  background: var(--panel-raised);
 }
 
 /* reserve room above the card so the reply card scrolls instead of the dock */
@@ -146,7 +171,7 @@
     padding: var(--space-2);
   }
 
-  .b-compose-dock__hint {
+  .b-compose__hint {
     display: none;
   }
 
@@ -154,7 +179,7 @@
     min-height: 76px;
   }
 
-  .b-compose-dock__actions > .b-button {
+  .b-compose__actions > .b-button {
     flex: 1 1 0;
   }
 
