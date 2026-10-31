@@ -1,4 +1,12 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { useLocation } from 'wouter'
 import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
@@ -6,13 +14,22 @@ import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { APPVIEW_PRESETS, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
+import { bindingFor, matchesBinding } from '../lib/keymap'
 import { useSettings } from '../lib/store'
 import { availableThemeGroups, THEME_LABELS } from '../lib/themes'
 import { useUiStore } from '../lib/ui'
-import { Dialog, Kbd } from './ui'
+import { Dialog } from './ui'
 
 const HISTORY_KEY = 'benday:jump-history'
 const HISTORY_LIMIT = 5
+// breathing room between the selected row and the list edge
+const SCROLL_MARGIN = 4
+// rows moved by page keys when the list reports no metrics (layout-less runs)
+const FALLBACK_PAGE_ROWS = 5
+
+const TOGGLE_BINDING = bindingFor('palette')
+const MOVE_BINDING = bindingFor('palette-move')
+const RUN_BINDING = bindingFor('palette-run')
 
 interface JumpEntry {
   href: string
@@ -64,6 +81,14 @@ interface PaletteCommand {
   run: () => void
 }
 
+interface PaletteSuggestion {
+  key: string
+  value: string
+  label: string
+  detail: string
+  kind: 'mention' | 'tag'
+}
+
 export function CommandPalette({
   open,
   onClose,
@@ -85,7 +110,11 @@ export function CommandPalette({
   const [selected, setSelected] = useState(0)
   const [history, setHistory] = useState<JumpEntry[]>(readHistory)
   const inputRef = useRef<HTMLInputElement>(null)
-  const listRef = useRef<HTMLUListElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const listboxId = useId()
+  // last hover coordinates: an event carrying the same position did not come
+  // from the pointer moving, only from the list scrolling underneath it
+  const pointerRef = useRef({ x: Number.NaN, y: Number.NaN })
   const selectedIdRef = useRef<string | null>(null)
   const justOpenedRef = useRef(false)
   const token = open ? suggestionAt(input, cursor) : null
@@ -98,7 +127,7 @@ export function CommandPalette({
     token?.kind === 'tag',
   )
 
-  const suggestions =
+  const suggestions: PaletteSuggestion[] =
     token?.kind === 'tag'
       ? (tagSuggestions.tags.length > 0
           ? tagSuggestions.tags
@@ -203,15 +232,29 @@ export function CommandPalette({
           ]
         : []
 
-  const pinnedCommands: PaletteCommand[] = pinned.feeds.map((feed) => ({
-    id: `pinned-feed:${feed.uri}`,
-    label: feed.name,
-    meta: 'pinned',
-    keywords: `feed ${feed.description}`,
-    run: () => {
-      go(`/feed?uri=${encodeURIComponent(feed.uri)}`, feed.name)
-    },
-  }))
+  const pinnedCommands: PaletteCommand[] =
+    pinned.error !== null
+      ? [
+          {
+            id: 'pinned-unavailable',
+            label: 'could not load pinned feeds',
+            meta: 'retry',
+            keywords: 'feed pinned error retry',
+            run: () => {
+              pinned.reload()
+              onClose()
+            },
+          },
+        ]
+      : pinned.feeds.map((feed) => ({
+          id: `pinned-feed:${feed.uri}`,
+          label: feed.name,
+          meta: 'pinned',
+          keywords: `feed ${feed.description}`,
+          run: () => {
+            go(`/feed?uri=${encodeURIComponent(feed.uri)}`, feed.name)
+          },
+        }))
 
   const meCommand: PaletteCommand = {
     id: 'me',
@@ -316,22 +359,31 @@ export function CommandPalette({
         }))
       : []
 
-  const autocompleteCommands: PaletteCommand[] = suggestions.map((suggestion) => ({
-    id: `jump-suggestion:${suggestion.kind}:${suggestion.value}`,
-    label: suggestion.label,
-    meta: suggestion.detail,
-    keywords: '',
-    run: () => {
-      const parsed = parseCommand(
-        suggestion.kind === 'tag' ? `#${suggestion.value}` : `@${suggestion.value}`,
-      )
-      if (parsed !== null) {
-        remember(parsed.href, parsed.label)
-        navigate(parsed.href)
-      }
-      onClose()
-    },
-  }))
+  // an exact `@me` query is answered by the real account command, not by a
+  // literal handle that would resolve to a made-up /profile/me
+  const exactMeMention = token?.kind === 'mention' && token.query.trim().toLowerCase() === 'me'
+  const mentionSuggestions: PaletteSuggestion[] = exactMeMention
+    ? suggestions.filter((suggestion) => suggestion.value.toLowerCase() !== 'me')
+    : suggestions
+  const autocompleteCommands: PaletteCommand[] = [
+    ...(exactMeMention ? [meCommand] : []),
+    ...mentionSuggestions.map((suggestion) => ({
+      id: `jump-suggestion:${suggestion.kind}:${suggestion.value}`,
+      label: suggestion.label,
+      meta: suggestion.detail,
+      keywords: '',
+      run: () => {
+        const parsed = parseCommand(
+          suggestion.kind === 'tag' ? `#${suggestion.value}` : `@${suggestion.value}`,
+        )
+        if (parsed !== null) {
+          remember(parsed.href, parsed.label)
+          navigate(parsed.href)
+        }
+        onClose()
+      },
+    })),
+  ]
 
   const autocompleteActive =
     token !== null && (suggestionsPending || autocompleteCommands.length > 0)
@@ -347,6 +399,10 @@ export function CommandPalette({
 
   const selectedIndex = filtered.length === 0 ? 0 : Math.min(selected, filtered.length - 1)
   const selectedId = filtered[selectedIndex]?.id ?? null
+  const optionId = (index: number) => `${listboxId}-option-${index}`
+  // a closed palette owns no popup; an open one owns it only while rows exist
+  const listboxOpen = open && filtered.length > 0
+  const activeOptionId = listboxOpen && selectedId !== null ? optionId(selectedIndex) : undefined
 
   useEffect(() => {
     if (justOpenedRef.current) {
@@ -375,18 +431,44 @@ export function CommandPalette({
     selectedIdRef.current = filtered[clamped]?.id ?? null
   }, [filtered, selected])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current
     if (list === null || selectedId === null) return
     const row = list.children[selectedIndex]
     if (!(row instanceof HTMLElement)) return
-    if (typeof row.scrollIntoView !== 'function') return
-    row.scrollIntoView({ block: 'nearest' })
-  }, [selectedIndex, selectedId])
+    // layout-less environments (jsdom) report no metrics, so there is nothing
+    // to keep in view
+    if (list.clientHeight === 0) return
+
+    const box = list.getBoundingClientRect()
+    const rect = row.getBoundingClientRect()
+    if (rect.height === 0) return
+
+    // only the list scrolls here: scrollIntoView would also move the centred
+    // dialog and every scrollable ancestor above it
+    const above = box.top + SCROLL_MARGIN - rect.top
+    const below = rect.bottom - (box.top + list.clientHeight - SCROLL_MARGIN)
+    if (above > 0) {
+      list.scrollTop -= above
+    } else if (below > 0) {
+      list.scrollTop += below
+    }
+  }, [selectedIndex, selectedId, filtered.length])
 
   const selectIndex = (index: number) => {
     setSelected(index)
     selectedIdRef.current = filtered[index]?.id ?? null
+  }
+
+  // arrowing scrolls rows under a parked pointer, and the browser re-dispatches
+  // hover events for whatever row arrived there; only a real pointer move may
+  // take the selection away from the keyboard
+  const hoverSelect = (index: number, event: ReactMouseEvent<HTMLButtonElement>) => {
+    const pointer = pointerRef.current
+    const moved = pointer.x !== event.clientX || pointer.y !== event.clientY
+    pointer.x = event.clientX
+    pointer.y = event.clientY
+    if (moved) selectIndex(index)
   }
 
   const moveSelection = (step: number) => {
@@ -396,6 +478,27 @@ export function CommandPalette({
     selectIndex(next)
   }
 
+  // page keys move by the rows that actually fit in the results box; layout-less
+  // runs fall back to a fixed page. Unlike arrowing, they clamp at either end
+  // instead of wrapping.
+  const movePage = (direction: number) => {
+    if (filtered.length === 0) return
+    const list = listRef.current
+    const row = list?.children[0]
+    const rowHeight = row instanceof HTMLElement ? row.getBoundingClientRect().height : 0
+    const page =
+      list !== null && rowHeight > 0 && list.clientHeight > 0
+        ? Math.max(1, Math.floor(list.clientHeight / rowHeight))
+        : FALLBACK_PAGE_ROWS
+    const current = Math.min(selected, filtered.length - 1)
+    selectIndex(Math.min(Math.max(current + direction * page, 0), filtered.length - 1))
+  }
+
+  const moveToEdge = (last: boolean) => {
+    if (filtered.length === 0) return
+    selectIndex(last ? filtered.length - 1 : 0)
+  }
+
   const onChange = (value: string) => {
     setInput(value)
     setCursor(value.length)
@@ -403,65 +506,67 @@ export function CommandPalette({
     selectedIdRef.current = null
   }
 
+  // whatever row is visibly highlighted wins, exactly like clicking it; the
+  // parser only reads the query when nothing is listed
   const runSelected = () => {
-    const normalizedInput = input.trim().toLowerCase()
-    if (normalizedInput === '@me') {
-      meCommand.run()
-      return
-    }
-
-    if (autocompleteActive) {
-      const command = filtered[selectedIndex]
-      if (command !== undefined) {
-        command.run()
-        return
-      }
-    }
-
-    const trimmed = input.trim()
-    const explicitTarget =
-      trimmed.startsWith('@') || trimmed.startsWith('at://') || trimmed.startsWith('#')
-
-    if (trimmed.length > 0 && explicitTarget) {
-      const parsed = parseCommand(trimmed)
-      if (parsed !== null) {
-        remember(parsed.href, parsed.label)
-        navigate(parsed.href)
-        onClose()
-        return
-      }
-    }
-
     const command = filtered[selectedIndex]
     if (command !== undefined) {
       command.run()
       return
     }
 
-    if (trimmed.length > 0) {
-      const parsed = parseCommand(trimmed)
-      if (parsed !== null) {
-        remember(parsed.href, parsed.label)
-        navigate(parsed.href)
-        onClose()
-      }
-    }
+    const trimmed = input.trim()
+    if (trimmed.length === 0) return
+    const parsed = parseCommand(trimmed)
+    if (parsed === null) return
+    remember(parsed.href, parsed.label)
+    navigate(parsed.href)
+    onClose()
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'ArrowDown') {
+    // an IME owns the key that commits its composition; the global palette
+    // toggle may already have closed this dialog in its capture listener
+    if (event.nativeEvent.isComposing || event.keyCode === 229 || event.defaultPrevented) return
+
+    // ctrl/cmd k from inside the field toggles the palette shut
+    if (matchesBinding(event, TOGGLE_BINDING)) {
       event.preventDefault()
-      moveSelection(1)
+      onClose()
       return
     }
 
-    if (event.key === 'ArrowUp') {
+    // the registry owns the chord list, so the field cannot drift from the
+    // help dialog or the badge overlay
+    if (matchesBinding(event, MOVE_BINDING)) {
+      if (filtered.length === 0) {
+        // nothing to walk: Home/End and the arrows still edit the query, so
+        // their native caret behaviour survives instead of being swallowed
+        if (
+          event.key === 'ArrowDown' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'Home' ||
+          event.key === 'End'
+        ) {
+          return
+        }
+      }
       event.preventDefault()
-      moveSelection(-1)
+      if (event.key === 'ArrowDown' || event.key === 'n') {
+        moveSelection(1)
+      } else if (event.key === 'ArrowUp' || event.key === 'p') {
+        moveSelection(-1)
+      } else if (event.key === 'PageDown') {
+        movePage(1)
+      } else if (event.key === 'PageUp') {
+        movePage(-1)
+      } else {
+        moveToEdge(event.key === 'End')
+      }
       return
     }
 
-    if (event.key === 'Enter') {
+    if (matchesBinding(event, RUN_BINDING)) {
       event.preventDefault()
       runSelected()
     }
@@ -477,8 +582,13 @@ export function CommandPalette({
           ref={inputRef}
           className="b-palette__input"
           type="text"
+          role="combobox"
           value={input}
           aria-label="command or jump"
+          aria-autocomplete="list"
+          aria-expanded={open ? listboxOpen : undefined}
+          aria-controls={listboxOpen ? listboxId : undefined}
+          aria-activedescendant={activeOptionId}
           placeholder="command · theme <name> · @handle · #tag · at://"
           autoComplete="off"
           spellCheck={false}
@@ -492,42 +602,53 @@ export function CommandPalette({
         />
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="b-palette__empty">
-          {suggestionsPending
-            ? 'searching handles and tags'
-            : 'no matching command · enter searches the network'}
-        </p>
-      ) : (
-        <ul ref={listRef} className="b-palette__list" aria-label="commands">
-          {filtered.map((command, index) => {
-            const isSelected = index === selectedIndex
-            return (
-              <li key={command.id} className="b-palette__row">
-                <button
-                  type="button"
-                  className="b-palette__command"
-                  data-selected={isSelected ? 'true' : 'false'}
-                  aria-current={isSelected ? 'true' : undefined}
-                  onClick={() => {
-                    selectIndex(index)
-                    command.run()
-                  }}
-                  onMouseEnter={() => {
-                    selectIndex(index)
-                  }}
-                >
-                  <span className="b-palette__marker" aria-hidden="true">
-                    {isSelected ? '>' : '\u00a0'}
-                  </span>
-                  <span className="b-palette__label">{command.label}</span>
-                  <span className="b-palette__meta">{command.meta}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      <div className="b-palette__results">
+        {filtered.length === 0 ? (
+          <p className="b-palette__empty">
+            {suggestionsPending
+              ? 'searching handles and tags'
+              : 'no matching command · enter searches the network'}
+          </p>
+        ) : (
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            className="b-palette__list"
+            aria-label="commands"
+          >
+            {filtered.map((command, index) => {
+              const isSelected = index === selectedIndex
+              return (
+                <div key={command.id} role="presentation" className="b-palette__row">
+                  <button
+                    type="button"
+                    id={optionId(index)}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={isSelected}
+                    className="b-palette__command"
+                    data-selected={isSelected ? 'true' : 'false'}
+                    onClick={() => {
+                      selectIndex(index)
+                      command.run()
+                    }}
+                    onMouseMove={(event) => {
+                      hoverSelect(index, event)
+                    }}
+                  >
+                    <span className="b-palette__marker" aria-hidden="true">
+                      {isSelected ? '>' : '\u00a0'}
+                    </span>
+                    <span className="b-palette__label">{command.label}</span>
+                    <span className="b-palette__meta">{command.meta}</span>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <footer className="b-palette__hint">
         <span>
@@ -544,9 +665,6 @@ export function CommandPalette({
         </span>
         <span>
           <span className="b-palette__hint-glyph">#</span> search
-        </span>
-        <span className="b-palette__hint-esc">
-          <Kbd>esc</Kbd> close
         </span>
       </footer>
     </Dialog>

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
@@ -6,14 +6,18 @@ import { memoryLocation } from 'wouter/memory-location'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
+import { createTestQueryClient } from '../test/queryClient'
 import { CommandPalette } from './CommandPalette'
 
 const pinnedState = vi.hoisted(() => ({
   feeds: [] as { uri: string; name: string; description: string; avatar: string | null }[],
+  isPending: false,
+  error: null as Error | null,
+  reload: () => undefined,
 }))
 
 vi.mock('../hooks/usePinnedFeeds', () => ({
-  usePinnedFeeds: () => ({ feeds: pinnedState.feeds, isPending: false }),
+  usePinnedFeeds: () => pinnedState,
 }))
 
 interface RenderOptions {
@@ -31,7 +35,7 @@ function renderPalette(options: RenderOptions = {}) {
   const onOpenHelp = options.onOpenHelp ?? vi.fn()
   const onOpenSettings = options.onOpenSettings ?? vi.fn()
 
-  const queryClient = new QueryClient()
+  const queryClient = createTestQueryClient()
 
   const view = (open: boolean) => (
     <QueryClientProvider client={queryClient}>
@@ -74,6 +78,7 @@ describe('CommandPalette', () => {
     pinnedState.feeds = []
     useSettings.setState({ theme: 'void' })
     useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
+    useUiStore.setState({ dialog: null })
   })
 
   it('sets a theme from the command prompt', () => {
@@ -100,6 +105,97 @@ describe('CommandPalette', () => {
     const { history } = renderPalette()
     submit('@me')
     expect(history.at(-1)).toBe('/profile/me.test')
+  })
+
+  it('answers @me with the real account row and never with a literal /profile/me', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:me', handle: 'me.test' },
+      pending: false,
+      error: null,
+    })
+    const { history } = renderPalette()
+    const input = screen.getByLabelText('command or jump')
+    fireEvent.change(input, { target: { value: '@me' } })
+
+    const options = screen.getAllByRole('option')
+    // the account row replaced the literal handle row rather than joining it
+    expect(options).toHaveLength(1)
+    expect(options[0]?.textContent).toContain('@me.test')
+
+    fireEvent.click(options[0] as HTMLElement)
+    expect(history.at(-1)).toBe('/profile/me.test')
+    expect(history).not.toContain('/profile/me')
+  })
+
+  it('asks for sign in from the @me row when signed out', () => {
+    const { history } = renderPalette()
+    submit('@me')
+    expect(useUiStore.getState().dialog).toBe('login')
+    expect(history).not.toContain('/profile/me')
+    expect(history.at(-1)).toBe('/')
+  })
+
+  it('runs the highlighted row for a bare @ instead of searching its text', () => {
+    const { history, onClose } = renderPalette()
+    submit('@')
+    expect(useUiStore.getState().dialog).toBe('login')
+    expect(onClose).toHaveBeenCalled()
+    expect(history.at(-1)).toBe('/')
+  })
+
+  it('wires the combobox to one listbox and one selected option', () => {
+    const { rerender } = renderPalette()
+    const input = screen.getByLabelText('command or jump')
+    const listbox = screen.getByRole('listbox', { name: 'commands' })
+
+    expect(input).toHaveAttribute('role', 'combobox')
+    expect(input).toHaveAttribute('aria-autocomplete', 'list')
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(input).toHaveAttribute('aria-controls', listbox.id)
+
+    const options = screen.getAllByRole('option')
+    const selected = options.filter((option) => option.getAttribute('aria-selected') === 'true')
+    expect(selected).toHaveLength(1)
+    expect(input).toHaveAttribute('aria-activedescendant', selected[0]?.id)
+    for (const option of options) {
+      expect(option.tabIndex).toBe(-1)
+    }
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    const rows = screen.getAllByRole('option')
+    const moved = rows.filter((option) => option.getAttribute('aria-selected') === 'true')
+    expect(moved).toHaveLength(1)
+    expect(moved[0]?.id).not.toBe(selected[0]?.id)
+    expect(input).toHaveAttribute('aria-activedescendant', moved[0]?.id)
+
+    rerender(false)
+    expect(input).not.toHaveAttribute('aria-expanded')
+    expect(input).not.toHaveAttribute('aria-controls')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('leaves Home, End and the arrows to the caret when nothing matches', () => {
+    renderPalette()
+    const input = screen.getByLabelText('command or jump')
+    fireEvent.change(input, { target: { value: 'zzzz' } })
+    expect(fireEvent.keyDown(input, { key: 'Home' })).toBe(true)
+    expect(fireEvent.keyDown(input, { key: 'End' })).toBe(true)
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(true)
+    expect(fireEvent.keyDown(input, { key: 'ArrowUp' })).toBe(true)
+
+    // with rows on screen the palette keeps owning list navigation
+    fireEvent.change(input, { target: { value: 'theme' } })
+    expect(fireEvent.keyDown(input, { key: 'Home' })).toBe(false)
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(false)
+  })
+
+  it('closes once through the dialog cancel event', () => {
+    const { onClose } = renderPalette()
+    const dialog = document.querySelector('dialog.b-palette')
+    if (dialog === null) throw new Error('palette dialog missing')
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('opens settings from the settings command', () => {
@@ -139,6 +235,25 @@ describe('CommandPalette', () => {
     ).toBe('false')
   })
 
+  it('offers a retry instead of an invented empty preference list', () => {
+    const reload = vi.fn()
+    pinnedState.feeds = []
+    pinnedState.error = new Error('preferences failed')
+    pinnedState.reload = reload
+    const { onClose } = renderPalette()
+
+    const retry = screen.getByText('could not load pinned feeds')
+    expect(retry).toBeInTheDocument()
+    expect(screen.queryByText('@me')).toBeInTheDocument()
+
+    fireEvent.click(retry)
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalled()
+
+    pinnedState.error = null
+    pinnedState.reload = () => undefined
+  })
+
   it('keeps the highlight in range when pinned feeds shrink', () => {
     const feed = (name: string) => ({
       uri: `at://did:plc:test/app.bsky.feed.generator/${name}`,
@@ -176,6 +291,34 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalled()
     expect(useUiStore.getState().dialog).toBe('login')
     expect(history.at(-1)).toBe('/')
+  })
+
+  it('moves the selection with the arrow keys and wraps at both ends', () => {
+    renderPalette()
+    const input = screen.getByLabelText('command or jump')
+    const rows = () => Array.from(document.querySelectorAll('.b-palette__command'))
+    const selectedIndex = () =>
+      rows().findIndex((row) => row.getAttribute('data-selected') === 'true')
+    const selectedLabel = () => rows()[selectedIndex()]?.textContent ?? ''
+
+    expect(selectedLabel()).toContain('sign in')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(selectedLabel()).toContain('@me')
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(selectedLabel()).toContain('feeds')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(selectedLabel()).toContain('@me')
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(selectedIndex()).toBe(0)
+
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(selectedIndex()).toBe(rows().length - 1)
+    expect(selectedLabel()).toContain('keyboard help')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(selectedIndex()).toBe(0)
   })
 
   it('falls through to a network search when no command matches', () => {
