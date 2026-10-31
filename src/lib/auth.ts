@@ -41,6 +41,10 @@ let restorePromise: Promise<void> | null = null
 // slow restore can never overwrite a fresh sign-in and a stale agent can never
 // resurrect a session that was signed out.
 let authEpoch = 0
+// The epoch of the auth operation currently in flight, if any. A committed
+// agent that expires while a newer operation is pending must clear its own
+// local session without advancing the epoch that operation owns.
+let pendingAuthEpoch: number | null = null
 
 function isSessionData(value: unknown): value is AtpSessionData {
   if (typeof value !== 'object' || value === null) return false
@@ -99,6 +103,36 @@ async function fetchJson(url: string): Promise<unknown> {
   return response.json()
 }
 
+function decodeSegment(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return null
+  }
+}
+
+// did:web resolution per the method spec: the host component may carry an
+// encoded port, and a bare host reads /.well-known/did.json while a
+// colon-delimited path reads the document from that path.
+function didWebDocumentUrl(did: string): string | null {
+  const methodSpecific = did.slice('did:web:'.length)
+  const [hostPart, ...pathParts] = methodSpecific.split(':')
+  if (hostPart === undefined || hostPart.length === 0) return null
+
+  const host = decodeSegment(hostPart)
+  if (host === null || host.length === 0) return null
+
+  const path: string[] = []
+  for (const part of pathParts) {
+    const decoded = decodeSegment(part)
+    if (decoded === null || decoded.length === 0) return null
+    path.push(decoded)
+  }
+
+  const base = `https://${host}`
+  return path.length > 0 ? `${base}/${path.join('/')}/did.json` : `${base}/.well-known/did.json`
+}
+
 async function resolvePds(identifier: string): Promise<{ did: string; service: string }> {
   const cleaned = identifier.trim().replace(/^@/, '')
   let did: string | null = cleaned.startsWith('did:') ? cleaned : null
@@ -116,20 +150,19 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
   }
 
   let service = FALLBACK_PDS
-  const didWebHost = did.startsWith('did:web:')
-    ? did.slice('did:web:'.length).replaceAll(':', '/')
-    : null
   const docUrl = did.startsWith('did:plc:')
     ? `https://plc.directory/${did}`
-    : didWebHost !== null
-      ? `https://${didWebHost}/.well-known/did.json`
+    : did.startsWith('did:web:')
+      ? didWebDocumentUrl(did)
       : null
 
   if (docUrl !== null) {
     try {
       const document = await fetchJson(docUrl)
       if (typeof document === 'object' && document !== null) {
-        const services = (document as Record<string, unknown>)['service']
+        const record = document as Record<string, unknown>
+        // a document served for a different did cannot speak for this one
+        const services = record['id'] === did ? record['service'] : null
         if (Array.isArray(services)) {
           for (const entry of services) {
             if (typeof entry !== 'object' || entry === null) continue
@@ -153,23 +186,43 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
 }
 
 function makeAgent(service: string): AtpAgent {
+  // the generation this agent was created in, kept as ownership metadata; the
+  // live-session test below is the agent identity itself so a retained agent
+  // keeps refreshing after a newer operation starts
   const createdEpoch = authEpoch
   const agent = new AtpAgent({
     service,
     persistSession: (event: AtpSessionEvent, session: AtpSessionData | undefined) => {
-      // A session event from an agent that a newer auth action superseded must
-      // not write storage or collapse the current account.
-      if (authEpoch !== createdEpoch) return
+      // Only the committed agent owns the stored session. A pending candidate
+      // cannot persist before it is committed, and a superseded agent can
+      // neither persist over the current account nor expire it.
+      if (activeAgent !== agent) return
 
       if (event === 'create' || event === 'update') {
-        if (session !== undefined) writeStoredAuth(service, session)
+        if (session === undefined) return
+        writeStoredAuth(service, session)
+        // A token refresh can carry a handle rename. The stored session now
+        // has the new handle, so the live account must adopt it too; same did
+        // and same agent, so neither the epoch nor interaction state moves.
+        const { account } = useAuthStore.getState()
+        if (account !== null && account.did === session.did && account.handle !== session.handle) {
+          useAuthStore.setState({ account: { did: account.did, handle: session.handle } })
+        }
         return
       }
 
       if (event === 'expired') {
-        authEpoch += 1
         clearStoredAuth()
         activeAgent = null
+
+        // A newer auth operation owns the epoch while it is pending. Clearing
+        // its pending flag here would cancel a login that may still succeed.
+        if (pendingAuthEpoch !== null) {
+          useAuthStore.setState({ status: 'anonymous', account: null })
+          return
+        }
+
+        authEpoch = Math.max(authEpoch, createdEpoch) + 1
         useAuthStore.setState({ status: 'anonymous', account: null, pending: false })
       }
     },
@@ -180,6 +233,19 @@ function makeAgent(service: string): AtpAgent {
 
 export function getAuthAgent(): AtpAgent | Agent | null {
   return activeAgent
+}
+
+/**
+ * Account-scoped reads must run as the account their query key names. A query
+ * callback that fires after a switch gets this error instead of borrowing
+ * whoever happens to be signed in now.
+ */
+export function requireViewerAgent(viewerDid: string): AtpAgent | Agent {
+  const agent = activeAgent
+  if (agent === null || agent.did !== viewerDid) {
+    throw new Error('account changed before the request could be sent')
+  }
+  return agent
 }
 
 export const useAuthStore = create<AuthState>()((set) => ({
@@ -268,7 +334,14 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     authEpoch += 1
     const epoch = authEpoch
-    set({ pending: true, error: null, status: 'anonymous', account: null })
+    pendingAuthEpoch = epoch
+    // The committed account and its agent stay paired until a replacement is
+    // actually committed, so a failed switch leaves the current session alone.
+    set({ pending: true, error: null })
+
+    const release = () => {
+      if (pendingAuthEpoch === epoch) pendingAuthEpoch = null
+    }
 
     try {
       let service: string
@@ -292,6 +365,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       await signOutOAuth()
       if (epoch !== authEpoch) return false
 
+      release()
       activeAgent = candidate
       writeStoredAuth(service, session)
       set({
@@ -303,16 +377,23 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return true
     } catch (error) {
       if (epoch !== authEpoch) return false
-      // A rejected explicit sign-in discards the stored refresh token too so an
-      // old account cannot be restored on the next load.
-      clearStoredAuth()
-      activeAgent = null
-      set({
-        status: 'anonymous',
-        account: null,
-        pending: false,
-        error: errorInfo(error).detail,
-      })
+      const info = errorInfo(error)
+      release()
+      // A rejected credential discards the stored refresh token too so an old
+      // account cannot be restored on the next load. Every other failure
+      // leaves the committed pair untouched.
+      if (info.status === 400 || info.status === 401) {
+        clearStoredAuth()
+        activeAgent = null
+        set({
+          status: 'anonymous',
+          account: null,
+          pending: false,
+          error: info.detail,
+        })
+        return false
+      }
+      set({ pending: false, error: info.detail })
       return false
     }
   },
@@ -326,21 +407,24 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     authEpoch += 1
     const epoch = authEpoch
-    set({ pending: true, error: null, status: 'anonymous', account: null })
+    pendingAuthEpoch = epoch
+    // the redirect may still land; until it does the committed pair is intact
+    set({ pending: true, error: null })
+
+    const release = () => {
+      if (pendingAuthEpoch === epoch) pendingAuthEpoch = null
+    }
 
     try {
       await signInOAuth(cleaned)
       if (epoch !== authEpoch) return false
+      release()
       set({ pending: false })
       return false
     } catch (error) {
       if (epoch !== authEpoch) return false
-      set({
-        status: 'anonymous',
-        account: null,
-        pending: false,
-        error: errorInfo(error).detail,
-      })
+      release()
+      set({ pending: false, error: errorInfo(error).detail })
       return false
     }
   },
@@ -348,10 +432,14 @@ export const useAuthStore = create<AuthState>()((set) => ({
   signOut: async () => {
     authEpoch += 1
     const epoch = authEpoch
-    set({ pending: true })
+    pendingAuthEpoch = null
     const current = activeAgent
+
+    // Local auth ends before the network does: a failed revocation must never
+    // leave the account looking signed in.
     activeAgent = null
     clearStoredAuth()
+    set({ status: 'anonymous', account: null, pending: true, error: null })
 
     // Revoke both mechanisms when present, not only whichever one is active.
     try {
@@ -369,6 +457,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
 
     if (epoch !== authEpoch) return
-    set({ status: 'anonymous', account: null, pending: false, error: null })
+    set({ pending: false, error: null })
   },
 }))

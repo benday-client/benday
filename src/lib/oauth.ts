@@ -29,6 +29,31 @@ export function canUseOAuth(): boolean {
   return typeof window !== 'undefined' && isLoopbackHost(window.location.hostname)
 }
 
+export interface LoopbackLocation {
+  hostname: string
+  port: string
+  pathname: string
+}
+
+// the client id is baked into every token, so it must not follow the route:
+// signing in on /feed and then opening /notifications would present a token
+// issued to a different client and the pds answers "token was not issued to
+// this client". one canonical callback keeps the id stable across routes.
+export const OAUTH_REDIRECT_PATH = '/feed'
+
+/**
+ * A loopback client id must carry no path: `http://localhost/feed?...` is
+ * rejected with "Value must not contain a path component". benday serves every
+ * route from the origin, so the client id drops the path and the redirect uses
+ * the one canonical route.
+ */
+export function loopbackClientId(location: LoopbackLocation): string {
+  const host = location.hostname === 'localhost' ? '127.0.0.1' : location.hostname
+  const port = location.port.length > 0 ? `:${location.port}` : ''
+  const redirectUri = `http://${host}${port}${OAUTH_REDIRECT_PATH}`
+  return `http://localhost?redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(OAUTH_SCOPE)}`
+}
+
 async function getClient(): Promise<BrowserOAuthClient | null> {
   if (!canUseOAuth()) return null
 
@@ -36,12 +61,8 @@ async function getClient(): Promise<BrowserOAuthClient | null> {
     clientPromise = (async () => {
       // The browser OAuth client touches window and BroadcastChannel when its
       // module loads. Keep it lazy so the auth store stays importable in tests.
-      const { BrowserOAuthClient, buildLoopbackClientId } = await import(
-        '@atproto/oauth-client-browser'
-      )
-      const base = buildLoopbackClientId(window.location)
-      const separator = base.includes('?') ? '&' : '?'
-      const clientId = `${base}${separator}scope=${encodeURIComponent(OAUTH_SCOPE)}`
+      const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
+      const clientId = loopbackClientId(window.location)
       return BrowserOAuthClient.load({
         clientId,
         handleResolver: HANDLE_RESOLVER,
