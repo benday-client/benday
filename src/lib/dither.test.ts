@@ -4,6 +4,9 @@ import {
   bayerThreshold,
   buildBayerPatternDataUri,
   buildBayerPatternSvg,
+  buildHalftonePatternDataUri,
+  buildHalftonePatternSvg,
+  halftoneThreshold,
 } from './dither'
 
 describe('BAYER_MATRIX', () => {
@@ -84,5 +87,50 @@ describe('buildBayerPatternDataUri', () => {
 
     expect(uri.startsWith(prefix)).toBe(true)
     expect(atob(uri.slice(prefix.length))).toBe(svg)
+  })
+})
+
+describe('halftoneThreshold', () => {
+  it('grows the dot from the centre outward', () => {
+    expect(halftoneThreshold(4, 4)).toBeGreaterThan(halftoneThreshold(5, 5))
+    expect(halftoneThreshold(5, 5)).toBeGreaterThan(halftoneThreshold(7, 8))
+  })
+
+  it('keeps sixty-four levels inside the open unit interval and wraps', () => {
+    const levels = Array.from({ length: 16 * 16 }, (_, index) =>
+      halftoneThreshold(index % 16, Math.floor(index / 16)),
+    )
+
+    expect(new Set(levels).size).toBe(64)
+    for (const level of levels) {
+      expect(level).toBeGreaterThan(0)
+      expect(level).toBeLessThan(1)
+    }
+    expect(halftoneThreshold(16, 16)).toBe(halftoneThreshold(0, 0))
+    expect(halftoneThreshold(-1, 0)).toBe(halftoneThreshold(15, 0))
+  })
+})
+
+describe('buildHalftonePatternSvg', () => {
+  it('renders a deterministic 16x16 tile of one-pixel clustered cells', () => {
+    const svg = buildHalftonePatternSvg()
+
+    expect(svg.startsWith('<svg')).toBe(true)
+    expect(svg).toContain('width="16"')
+    expect(svg).toContain('viewBox="0 0 16 16"')
+    expect(svg).toContain('shape-rendering="crispEdges"')
+    expect(svg).not.toContain('<rect')
+    expect(svg.match(/h1v1h-1z/g) ?? []).toHaveLength(256)
+    expect(buildHalftonePatternSvg()).toBe(svg)
+  })
+})
+
+describe('buildHalftonePatternDataUri', () => {
+  it('encodes the clustered tile as base64', () => {
+    const uri = buildHalftonePatternDataUri()
+    const prefix = 'data:image/svg+xml;base64,'
+
+    expect(uri.startsWith(prefix)).toBe(true)
+    expect(atob(uri.slice(prefix.length))).toBe(buildHalftonePatternSvg())
   })
 })

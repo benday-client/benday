@@ -80,7 +80,7 @@ body::after {
 }
 
 a {
-  color: var(--blue);
+  color: var(--text-link);
   text-decoration: none;
   text-underline-offset: 2px;
 }
@@ -118,7 +118,7 @@ ol {
 }
 
 ::selection {
-  background: var(--blue);
+  background: var(--fill-solid);
   color: var(--selection-ink);
 }
 
@@ -140,22 +140,22 @@ ol {
 }
 
 .mono-label {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .dim {
-  color: var(--ink-dim);
+  color: var(--text-muted);
 }
 
 .faint {
-  color: var(--ink-faint);
+  color: var(--text-muted);
 }
 
 .accent {
-  color: var(--blue);
+  color: var(--text-link);
 }
 
 @media (prefers-reduced-motion: reduce) {

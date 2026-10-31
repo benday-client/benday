@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="en" data-theme="void">
+<html lang="en" data-theme="void" data-contrast="normal">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="benday — a dithered, tensorpunk reader for the bluesky network"
+      content="benday — a dithered, tensorpunk client for the bluesky network"
     />
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#07090c" />
     <link rel="icon" type="image/svg+xml" href="/benday.svg" />
-    <title>benday // bluesky reader</title>
+    <title>benday // bluesky client</title>
     <script>
       try {
         const colors = {
@@ -25,7 +25,7 @@
           'github-dark': '#0d1117',
           'github-light': '#ffffff',
           cyberpunk: '#05030d',
-          cottagecore: '#f3ead8',
+          cottagecore: '#f2ebd8',
           'truth-to-materials': '#858585',
           bluesky: '#fbfdff',
           'pumpkin-ember': '#160b06',
@@ -33,28 +33,81 @@
           'candy-crypt': '#1a0a1e',
           'dead-leaves': '#120f08',
         }
+        const lightThemes = new Set([
+          'bone',
+          'catppuccin-latte',
+          'github-light',
+          'cottagecore',
+          'truth-to-materials',
+          'bluesky',
+        ])
         const octoberOnly = new Set([
           'pumpkin-ember',
           'toxic-midnight',
           'candy-crypt',
           'dead-leaves',
         ])
+        // same rule the store merges with: the legacy name is cyberpunk
+        const normalize = (value) => {
+          if (value === 'duotone') return 'cyberpunk'
+          return typeof value === 'string' && Object.hasOwn(colors, value) ? value : null
+        }
         const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
-        let theme = stored?.state?.theme
-        if (theme === 'duotone') {
-          theme = 'cyberpunk'
-          stored.state.theme = theme
-          localStorage.setItem('benday:settings', JSON.stringify(stored))
+        const state =
+          typeof stored === 'object' && stored !== null && typeof stored.state === 'object'
+            ? stored.state
+            : null
+        const highContrast = state?.highContrast === true
+        // a fresh store.merge: the explicit pair wins, then the legacy theme for
+        // its own scheme, then bone/void; the appearance follows the same order
+        const legacyTheme = normalize(state?.theme)
+        const lightTheme =
+          normalize(state?.lightTheme) ??
+          (legacyTheme !== null && lightThemes.has(legacyTheme) ? legacyTheme : 'bone')
+        const darkTheme =
+          normalize(state?.darkTheme) ??
+          (legacyTheme !== null && !lightThemes.has(legacyTheme) ? legacyTheme : 'void')
+        const appearance =
+          state?.appearance === 'light' ||
+          state?.appearance === 'dark' ||
+          state?.appearance === 'system'
+            ? state.appearance
+            : legacyTheme !== null
+              ? lightThemes.has(legacyTheme)
+                ? 'light'
+                : 'dark'
+              : 'dark'
+        const prefersLight =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-color-scheme: light)').matches
+        let theme =
+          appearance === 'light'
+            ? lightTheme
+            : appearance === 'dark'
+              ? darkTheme
+              : prefersLight
+                ? lightTheme
+                : darkTheme
+        const outOfSeason = octoberOnly.has(theme) && new Date().getMonth() !== 9
+        if (outOfSeason) theme = 'void'
+        // paint first: dataset and chrome meta never depend on a successful
+        // storage write-back, so a quota failure cannot leave the wrong theme
+        document.documentElement.dataset.contrast = highContrast ? 'high' : 'normal'
+        document.documentElement.dataset.theme = theme
+        const meta = document.querySelector('meta[name="theme-color"]')
+        if (meta !== null) {
+          meta.setAttribute(
+            'content',
+            highContrast ? (lightThemes.has(theme) ? '#ffffff' : '#000000') : colors[theme],
+          )
         }
-        if (octoberOnly.has(theme) && new Date().getMonth() !== 9) {
-          theme = 'void'
-          stored.state.theme = theme
-          localStorage.setItem('benday:settings', JSON.stringify(stored))
-        }
-        if (typeof theme === 'string' && Object.hasOwn(colors, theme)) {
-          document.documentElement.dataset.theme = theme
-          const meta = document.querySelector('meta[name="theme-color"]')
-          if (meta !== null) meta.setAttribute('content', colors[theme])
+        // Only normalizations are written back. The stored pair stays exactly as
+        // the reader chose it, so October restores the seasonal theme.
+        if (state !== null && (state.theme === 'duotone' || outOfSeason)) {
+          state.theme = theme
+          try {
+            localStorage.setItem('benday:settings', JSON.stringify(stored))
+          } catch {}
         }
       } catch {}
     </script>

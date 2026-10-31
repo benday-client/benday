@@ -1,9 +1,15 @@
 import type { ReactElement } from 'react'
-import { BAYER_TILE_SIZE, buildBayerPatternDataUri } from '../lib/dither'
+import {
+  BAYER_TILE_SIZE,
+  buildBayerPatternDataUri,
+  buildHalftonePatternDataUri,
+  HALFTONE_TILE_SIZE,
+} from '../lib/dither'
 import { type ImageEffect, THEME_EFFECTS, THEMES } from '../lib/themes'
 import type { Theme } from '../lib/types'
 
-const PATTERN_URI = buildBayerPatternDataUri()
+const BAYER_PATTERN_URI = buildBayerPatternDataUri()
+const HALFTONE_PATTERN_URI = buildHalftonePatternDataUri()
 
 const GRAYSCALE =
   '0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0.2126 0.7152 0.0722 0 0 0 0 0 1 0'
@@ -36,7 +42,12 @@ const DITHER_SPECS: Record<Theme, DitherSpec | null> = {
   'github-dark': { from: [0.051, 0.067, 0.09], to: [0.345, 0.651, 1] },
   'github-light': { from: [0.122, 0.137, 0.157], to: [0.035, 0.412, 0.855] },
   cyberpunk: { from: [0.043, 0.027, 0.094], to: [0.133, 0.827, 0.933] },
-  cottagecore: { from: [0.149, 0.125, 0.102], to: [0.66, 0.71, 0.54] },
+  cottagecore: {
+    from: [0.184, 0.208, 0.145],
+    to: [0.937, 0.894, 0.804],
+    seed: 13,
+    frequency: 0.07,
+  },
   'truth-to-materials': { from: [0.08, 0.08, 0.08], to: [0.9, 0.9, 0.88] },
   bluesky: null,
   'pumpkin-ember': {
@@ -74,7 +85,21 @@ function DitherFilter({
   frequency = 0.9,
 }: DitherFilterProps): ReactElement {
   const thresholdSource =
-    effect === 'grunge' ? 'grungy' : effect === 'industrial' ? 'industrial' : 'gray'
+    effect === 'grunge'
+      ? 'grungy'
+      : effect === 'industrial'
+        ? 'industrial'
+        : effect === 'halftone'
+          ? 'tooth'
+          : 'gray'
+
+  // the halftone theme swaps the dispersed Bayer tile for a clustered dot and
+  // opens the compare to the whole range: the old 0.85/-0.425 pair crushed both
+  // ends of the image into ink or paper
+  const screen =
+    effect === 'halftone'
+      ? { uri: HALFTONE_PATTERN_URI, size: HALFTONE_TILE_SIZE, k3: '1', k4: '-0.5' }
+      : { uri: BAYER_PATTERN_URI, size: BAYER_TILE_SIZE, k3: '0.85', k4: '-0.425' }
 
   return (
     <filter id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
@@ -108,12 +133,36 @@ function DitherFilter({
           <feFuncB type="linear" slope="1.8" intercept="-0.35" />
         </feComponentTransfer>
       ) : null}
+      {effect === 'halftone' ? (
+        <>
+          {/* low-frequency tooth, not per-pixel static: uneven ink coverage on
+              laid paper is broad blotches, so the screen keeps its dot shapes */}
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency={frequency}
+            numOctaves="1"
+            seed={seed}
+            result="tooth-noise"
+          />
+          <feColorMatrix in="tooth-noise" type="saturate" values="0" result="tooth-gray" />
+          <feComposite
+            in="gray"
+            in2="tooth-gray"
+            operator="arithmetic"
+            k1="0"
+            k2="1"
+            k3="0.08"
+            k4="-0.04"
+            result="tooth"
+          />
+        </>
+      ) : null}
       <feImage
-        href={PATTERN_URI}
+        href={screen.uri}
         x="0"
         y="0"
-        width={BAYER_TILE_SIZE}
-        height={BAYER_TILE_SIZE}
+        width={screen.size}
+        height={screen.size}
         preserveAspectRatio="none"
         result="pattern"
       />
@@ -124,8 +173,8 @@ function DitherFilter({
         operator="arithmetic"
         k1="0"
         k2="1"
-        k3="0.85"
-        k4="-0.425"
+        k3={screen.k3}
+        k4={screen.k4}
         result="mixed"
       />
       <feComponentTransfer in="mixed" result="binary">

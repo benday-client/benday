@@ -3,6 +3,7 @@
 
   --font-mono:
     "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --step--2: 0.625rem;
   --step--1: 0.6875rem;
@@ -59,16 +60,70 @@
   --theme-radius: 0px;
   --theme-clip: none;
 
-  --topbar-height: 46px;
+  /* theme signature plumbing: one head hatch, one head rule, one edge style
+     per family. the base frame head ships this hatch; a theme family restates
+     only the tokens whose mark it changes, so a card reads as itself without a
+     second component. everything here mixes palette tokens, never raw colours,
+     so high contrast can strip the decoration without losing the palette. */
+  --head-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--line) 55%, transparent) 5px 6px
+  );
+  --head-rule: 1px solid var(--line);
+  --head-glow: none;
+  --card-edge-style: solid;
+  --body-inset: none;
+  --card-shadow: 0 0 0 0 transparent;
+  --frame-rule: 1px solid var(--line);
+
+  --topbar-height: 42px;
   --card-width: 100%;
   --card-min-height: 320px;
-  --deck-gap: var(--space-4);
+  --deck-gap: var(--space-3);
   --page-gutter: var(--space-4);
   --radius: 0;
 
   --z-base: 1;
   --z-topbar: 20;
   --z-dialog: 100;
+}
+
+/* void owns the root defaults, but a nested void scope (the system preview)
+   still needs its own block so it never borrows the parent theme's palette */
+[data-theme="void"] {
+  color-scheme: dark;
+
+  --void: #07090c;
+  --ink: #e7e4da;
+  --ink-dim: #a9a8a1;
+  --ink-faint: #6e706d;
+  --paper: #0d1015;
+  --panel: #11151b;
+  --panel-raised: #161b23;
+  --line: #293039;
+  --line-strong: #46505c;
+  --blue: #7f9cff;
+  --blue-hot: #4f6dff;
+  --blue-deep: #22336f;
+  --rust: #c05a3a;
+  --acid: #b8d37a;
+  --shadow: #000000;
+  --noise-opacity: 0.055;
+  --scan-opacity: 0.2;
+  --selection-ink: #07090c;
+
+  /* void: a tighter, stronger head hatch so the base theme reads as instrument
+     glass instead of paper */
+  --head-image: repeating-linear-gradient(
+    90deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--line-strong) 60%, transparent) 3px 4px
+  );
+  --head-rule: 1px solid var(--line-strong);
+
+  /* void: a crisp instrument hairline inside the top edge, no lift */
+  --card-shadow: inset 0 2px 0 0 var(--line-strong);
 }
 
 [data-theme="bone"] {
@@ -93,6 +148,9 @@
   --noise-opacity: 0.04;
   --scan-opacity: 0.08;
   --selection-ink: #f6efdf;
+
+  /* bone: cards sit on a warm paper shadow, a printed sheet lifting off the desk */
+  --card-shadow: 2px 3px 0 0 color-mix(in srgb, var(--shadow) 25%, transparent);
 }
 
 [data-theme="oxide"] {
@@ -117,6 +175,15 @@
   --noise-opacity: 0.05;
   --scan-opacity: 0.16;
   --selection-ink: #0b0705;
+
+  /* oxide: the head trades the hatch for a rust double rule, a painted iron band */
+  --head-image: none;
+  --head-rule: 3px double var(--rust);
+
+  /* oxide: the rust double rule is repeated at the frame's top edge, so the
+     card reads as a banded iron plate even without a frame head */
+  --card-shadow:
+    inset 0 2px 0 0 var(--rust), inset 0 4px 0 0 color-mix(in srgb, var(--rust) 35%, transparent);
 }
 
 [data-theme="phosphor"] {
@@ -141,23 +208,39 @@
   --noise-opacity: 0.045;
   --scan-opacity: 0.15;
   --selection-ink: #040906;
+
+  /* phosphor: the head hatch turns horizontal and the label carries a faint
+     phosphor glow, like a crt holding its last line */
+  --head-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 2px,
+    color-mix(in srgb, var(--blue) 32%, transparent) 2px 3px
+  );
+  --head-glow: 0 0 6px color-mix(in srgb, var(--blue) 55%, transparent);
+
+  /* phosphor: the crt bloom leaks past the card edge as a faint halo */
+  --card-shadow: 0 0 14px -8px color-mix(in srgb, var(--blue) 70%, transparent);
 }
 
 [data-theme="catppuccin-mocha"] {
   color-scheme: dark;
 
+  /* catppuccin mocha, upstream palette: base is the pane and card surface,
+     mantle/crust are the recessed chrome, surface0-2 the raised trim, and
+     text/subtext0/overlay1 the three text steps. links/functions are blue,
+     the active border is lavender and the default accent pair is mauve/pink. */
   --void: #1e1e2e;
   --ink: #cdd6f4;
   --ink-dim: #a6adc8;
-  --ink-faint: #6c7086;
-  --paper: #181825;
+  --ink-faint: #7f849c;
+  --paper: #1e1e2e;
   --panel: #181825;
   --panel-raised: #313244;
-  --line: #313244;
+  --line: #45475a;
   --line-strong: #585b70;
   --blue: #89b4fa;
-  --blue-hot: #74c7ec;
-  --blue-deep: #2c3f66;
+  --blue-hot: #b4befe;
+  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
   --rust: #f38ba8;
   --acid: #a6e3a1;
   --accent-2: #cba6f7;
@@ -169,51 +252,78 @@
   --noise-opacity: 0.05;
   --scan-opacity: 0.18;
   --selection-ink: #1e1e2e;
+
+  /* catppuccin: soft corners and a pastel head wash instead of the hatch */
+  --theme-radius: 4px;
+  --head-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-2) 20%, transparent),
+    color-mix(in srgb, var(--accent-3) 12%, transparent)
+  );
+  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
 }
 
 [data-theme="catppuccin-latte"] {
   color-scheme: light;
 
+  /* catppuccin latte, upstream light palette. the same roles as mocha, read
+     from the light end: text/subtext for type, blue for links, mauve for the
+     accent pair, red for errors and green for success. */
   --void: #eff1f5;
-  --ink: #24273a;
-  --ink-dim: #3b3f56;
-  --ink-faint: #52566d;
-  --paper: #e6e9ef;
-  --panel: #e1e5ed;
-  --panel-raised: #d7dce6;
-  --line: #b3b7c6;
-  --line-strong: #73788b;
-  --blue: #0b4fbe;
-  --blue-hot: #003a99;
-  --blue-deep: #c7d7f7;
-  --rust: #b00b2a;
-  --acid: #266b12;
-  --accent-2: #5b1bb0;
-  --accent-3: #266b12;
-  --accent-4: #6b23c9;
-  --accent-5: #176b5b;
+  --ink: #4c4f69;
+  --ink-dim: #5c5f77;
+  --ink-faint: #6c6f85;
+  --paper: #eff1f5;
+  --panel: #e6e9ef;
+  --panel-raised: #ccd0da;
+  --line: #bcc0cc;
+  --line-strong: #acb0be;
+  --blue: #1e66f5;
+  --blue-hot: #8839ef;
+  --blue-deep: color-mix(in srgb, var(--blue) 18%, var(--void));
+  --rust: #d20f39;
+  --acid: #40a02b;
+  --accent-2: #8839ef;
+  --accent-3: #ea76cb;
+  --accent-4: #df8e1d;
+  --accent-5: #179299;
   --shadow: #8c8fa1;
 
   --noise-opacity: 0.04;
   --scan-opacity: 0.08;
   --selection-ink: #eff1f5;
+
+  /* catppuccin: soft corners and a pastel head wash instead of the hatch */
+  --theme-radius: 4px;
+  --head-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-2) 14%, transparent),
+    color-mix(in srgb, var(--accent-3) 10%, transparent)
+  );
+  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--line));
 }
 
 [data-theme="dracula"] {
   color-scheme: dark;
 
+  /* dracula classic, upstream palette and UI variants: background is both the
+     page and the editor pane, BGDark is the sidebar/status chrome, BGLight the
+     floating interaction surface and BGDarker the shadow. purple is the primary
+     accent, pink the secondary; comment is the muted text/line-number tone.
+     dracula publishes one foreground, so ink-dim is that foreground mixed 82%
+     toward the background (verified against the two canonical endpoints). */
   --void: #282a36;
   --ink: #f8f8f2;
-  --ink-dim: #bfc3d9;
+  --ink-dim: #d3d3d0;
   --ink-faint: #6272a4;
-  --paper: #21222c;
+  --paper: #282a36;
   --panel: #21222c;
   --panel-raised: #343746;
   --line: #44475a;
   --line-strong: #6272a4;
   --blue: #bd93f9;
   --blue-hot: #ff79c6;
-  --blue-deep: #443a63;
+  --blue-deep: color-mix(in srgb, var(--blue) 22%, var(--void));
   --rust: #ff5555;
   --acid: #50fa7b;
   --accent-2: #ff79c6;
@@ -253,6 +363,9 @@
   --noise-opacity: 0.05;
   --scan-opacity: 0.16;
   --selection-ink: #282c34;
+
+  /* atom: the card body is inset inside a cool grey hairline, like a muted pane */
+  --body-inset: inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 45%, transparent);
 }
 
 [data-theme="github-dark"] {
@@ -281,6 +394,13 @@
   --noise-opacity: 0.045;
   --scan-opacity: 0.15;
   --selection-ink: #0d1117;
+
+  /* github: a flat head with no hatch or rule. the list-group geometry carries
+     the family instead: a solid top edge and softly rounded corners */
+  --head-image: none;
+  --head-rule: none;
+  --frame-rule: 2px solid var(--line);
+  --theme-radius: 6px;
 }
 
 [data-theme="github-light"] {
@@ -309,95 +429,132 @@
   --noise-opacity: 0.035;
   --scan-opacity: 0.06;
   --selection-ink: #ffffff;
+
+  /* github: a flat head with no hatch or rule. the list-group geometry carries
+     the family instead: a solid top edge and softly rounded corners */
+  --head-image: none;
+  --head-rule: none;
+  --frame-rule: 2px solid var(--line);
+  --theme-radius: 6px;
 }
 
 [data-theme="cyberpunk"] {
   color-scheme: dark;
 
-  --void: #05030d;
-  --ink: #e6e0ff;
-  --ink-dim: #a49bcf;
-  --ink-faint: #6a5c9e;
-  --paper: #080512;
-  --panel: #0b0718;
-  --panel-raised: #120b26;
-  --line: #241a3d;
-  --line-strong: #46306e;
-  --blue: #a78bfa;
-  --blue-hot: #22d3ee;
-  --blue-deep: #2a1b57;
-  --rust: #f0568c;
-  --acid: #5eead4;
-  --accent-2: #22d3ee;
-  --accent-3: #f0568c;
-  --accent-4: #facc15;
-  --accent-5: #a3e635;
+  --void: #000000;
+  --ink: #f2f2f2;
+  --ink-dim: #b4b4b4;
+  --ink-faint: #8a8a8a;
+  --paper: #000000;
+  --panel: #050505;
+  --panel-raised: #0c0c0c;
+  --line: #b31f47;
+  --line-strong: #ff4d7d;
+  /* night city runs magenta for action, cyan for system, red for danger */
+  --blue: #ff2a6d;
+  --blue-hot: #00f0ff;
+  --blue-deep: #b31f47;
+  --rust: #ff003c;
+  --acid: #00f0ff;
+  --accent-2: #ff2a6d;
+  --accent-3: #00f0ff;
+  --accent-4: #ff2a6d;
+  --accent-5: #ff003c;
   --shadow: #000000;
-  --neon: #22d3ee;
-  --neon-alt: #f0568c;
+  --neon: #ff2a6d;
+  --neon-alt: #00f0ff;
 
-  --noise-opacity: 0.06;
-  --scan-opacity: 0.2;
-  --selection-ink: #05030d;
+  --noise-opacity: 0.05;
+  --scan-opacity: 0.22;
+  --selection-ink: #000000;
+
+  /* cyberpunk keeps its crt scan head; the tokens let a preview half and the
+     root share the declaration */
+  --head-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 2px,
+    color-mix(in srgb, var(--ink) 7%, transparent) 2px 3px
+  );
+  --head-rule: 1px solid color-mix(in srgb, var(--blue) 45%, var(--line));
 
   --surface-texture:
     repeating-linear-gradient(
       0deg,
-      transparent 0 3px,
-      color-mix(in srgb, var(--line) 24%, transparent) 3px 4px
+      transparent 0 2px,
+      color-mix(in srgb, var(--ink) 6%, transparent) 2px 3px
     ),
     repeating-linear-gradient(
-      90deg,
+      0deg,
       transparent 0 23px,
-      color-mix(in srgb, var(--blue-hot) 9%, transparent) 23px 24px
+      color-mix(in srgb, var(--blue) 6%, transparent) 23px 24px
     );
   --theme-radius: 0px;
+  /* the one cut: it removes the top-left and bottom-right corners, and every
+     boxed surface consumes it through this token rather than a local polygon
+     (frames, card backs, dialogs, the empty state, both preview surfaces, the
+     deck's pending and load-error boxes and the inline composer dock). the
+     hud's diagonals sit on the two corners this cuts and its brackets fold the
+     two it keeps, so the marks and the shape can never drift apart. */
   --theme-clip: polygon(
-    8px 0,
-    calc(100% - 8px) 0,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    8px 100%,
-    0 calc(100% - 8px),
-    0 8px
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
   );
 }
 
+/* cottagecore: a pressed-flower herbarium plate. linen page, pressed sheet
+   card, kraft recess; olive ink, herb-green links, rose/honey/walnut accents.
+   the ink ramp is measured against paper and panel: body 10.86/9.81, dim
+   6.98/6.31, faint 5.01/4.53, links 5.91/5.34, focused-card border 3.70/3.34. */
 [data-theme="cottagecore"] {
   color-scheme: light;
 
-  --void: #f3ead8;
-  --ink: #3f3a2e;
-  --ink-dim: #5f5745;
-  --ink-faint: #6b5e4b;
-  --paper: #ede2ca;
-  --panel: #e6d9bf;
-  --panel-raised: #dccdae;
-  --line: #c9b99b;
-  --line-strong: #9c8a6b;
-  --blue: #5c6d43;
-  --blue-hot: #475634;
-  --blue-deep: #c7d0b2;
-  --rust: #a35d4f;
-  --acid: #7f8f4f;
-  --accent-2: #9b4567;
-  --accent-3: #5c6d43;
-  --accent-4: #b5853f;
-  --accent-5: #8a6f4a;
-  --shadow: #8c7c61;
+  --void: #f2ebd8;
+  --paper: #ebe1cb;
+  --panel: #e3d6bb;
+  --panel-raised: #f4ebd7;
+  --ink: #2f2b21;
+  --ink-dim: #4f4837;
+  --ink-faint: #665d48;
+  --line: #ccbc9e;
+  --line-strong: #8b7754;
+  --shadow: #6f6249;
+  --blue: #3f5a3a;
+  --blue-hot: #2d4529;
+  --blue-deep: #5f7a49;
+  --rust: #94402c;
+  --acid: #56651f;
+  --accent-2: #963a53;
+  --accent-3: #50643a;
+  --accent-4: #7b5314;
+  --accent-5: #6e5535;
 
-  --noise-opacity: 0.035;
-  --scan-opacity: 0.06;
-  --selection-ink: #f3ead8;
+  --noise-opacity: 0.06;
+  --scan-opacity: 0.02;
+  --selection-ink: #f4ebd7;
 
+  /* laid paper: chain lines on one axis only, wider pitch and more alpha than
+     the shared CRT scanline so it reads as pulp, not as a screen */
   --surface-texture: repeating-linear-gradient(
     0deg,
-    transparent 0 4px,
-    color-mix(in srgb, var(--line) 16%, transparent) 4px 5px
+    transparent 0 6px,
+    color-mix(in srgb, var(--line) 26%, transparent) 6px 7px
   );
   --theme-radius: 4px;
   --theme-clip: none;
+
+  /* a pressed plate with one stitched label: solid plate edge, a single stitch
+     under the head (where a sampler marks its alphabet) and an engraved hairline
+     inside the body. no hatch: a pasted label is not instrument glass. */
+  --card-edge-style: solid;
+  --frame-rule: 1px solid var(--line);
+  --head-image: none;
+  --head-rule: 1px dashed var(--line-strong);
+  --body-inset: inset 0 0 0 1px color-mix(in srgb, var(--line) 55%, transparent);
+  --card-shadow: 2px 3px 0 0 color-mix(in srgb, var(--shadow) 25%, transparent);
 }
 
 [data-theme="truth-to-materials"] {
@@ -427,9 +584,24 @@
   --scan-opacity: 0;
   --selection-ink: #d9d9d6;
 
-  --surface-texture: none;
+  --surface-texture:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 1px,
+      color-mix(in srgb, var(--ink) 16%, transparent) 1px 2px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 1px,
+      color-mix(in srgb, var(--ink) 11%, transparent) 1px 2px
+    );
   --theme-radius: 0px;
   --theme-clip: none;
+
+  /* truth to materials: the paper is grainier than any other theme and the
+     head is a heavy solid rule, not a hatch */
+  --head-image: none;
+  --head-rule: 2px solid var(--line-strong);
 }
 
 [data-theme="bluesky"] {
@@ -462,6 +634,10 @@
   --surface-texture: none;
   --theme-radius: 3px;
   --theme-clip: none;
+
+  /* bluesky: no hatch at all, only a lighter hairline under the head */
+  --head-image: none;
+  --head-rule: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
 }
 
 [data-theme="pumpkin-ember"] {
@@ -498,6 +674,13 @@
   );
   --theme-radius: 2px;
   --theme-clip: none;
+
+  /* pumpkin ember: the head carries the same rust diagonal as the paper */
+  --head-image: repeating-linear-gradient(
+    115deg,
+    transparent 0 7px,
+    color-mix(in srgb, var(--rust) 16%, transparent) 7px 8px
+  );
 }
 
 [data-theme="toxic-midnight"] {
@@ -540,6 +723,19 @@
     );
   --theme-radius: 0px;
   --theme-clip: none;
+
+  /* toxic midnight: a woven head to match the crossed paper weave */
+  --head-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent 0 5px,
+      color-mix(in srgb, var(--acid) 10%, transparent) 5px 6px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 11px,
+      color-mix(in srgb, var(--blue) 12%, transparent) 11px 12px
+    );
 }
 
 [data-theme="candy-crypt"] {
@@ -576,6 +772,13 @@
   );
   --theme-radius: 5px;
   --theme-clip: none;
+
+  /* candy crypt: a pastel diagonal head that matches the sugar paper */
+  --head-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--accent-2) 14%, transparent) 6px 7px
+  );
 }
 
 [data-theme="dead-leaves"] {
@@ -618,4 +821,45 @@
     );
   --theme-radius: 2px;
   --theme-clip: none;
+
+  /* dead leaves: a rust wash draining across the head */
+  --head-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--rust) 12%, transparent),
+    transparent 60%
+  );
+}
+
+/* readable roles: one layer above the raw palettes so every theme keeps its own
+   swatches while information-bearing text and solid controls stay legible.
+   rebinding on each theme scope matters: a root alias would otherwise resolve
+   against the wrong palette inside a split preview half. */
+:root,
+:where([data-theme], .b-theme-preview__half) {
+  --text-muted: var(--ink-dim);
+  --text-link: var(--blue);
+  --fill-solid: var(--blue);
+  --fill-solid-hover: var(--blue-hot);
+  --on-accent: var(--void);
+}
+
+[data-theme="catppuccin-latte"],
+[data-theme="truth-to-materials"] {
+  --text-muted: color-mix(in srgb, var(--ink) 60%, var(--ink-dim) 40%);
+}
+
+[data-theme="catppuccin-latte"],
+[data-theme="bluesky"],
+[data-theme="github-light"] {
+  --text-link: var(--ink);
+}
+
+[data-theme="catppuccin-latte"] {
+  --fill-solid: color-mix(in srgb, var(--ink) 10%, var(--blue) 90%);
+  --fill-solid-hover: color-mix(in srgb, var(--ink) 10%, var(--blue-hot) 90%);
+}
+
+[data-theme="bluesky"] {
+  --fill-solid: color-mix(in srgb, var(--ink) 20%, var(--blue) 80%);
+  --fill-solid-hover: color-mix(in srgb, var(--ink) 20%, var(--blue-hot) 80%);
 }

@@ -11,77 +11,91 @@
   width: 100%;
   height: 100%;
   background: var(--panel);
-  filter: url(#benday-dither-void);
-  image-rendering: pixelated;
+  filter: var(--dither-filter, url(#benday-dither-void));
+  image-rendering: var(--dither-rendering, pixelated);
   object-fit: cover;
 }
 
-[data-theme="bone"] .dither-image {
-  filter: url(#benday-dither-bone);
+/* every theme scope declares both properties again, so a nested void or bone
+   scope never inherits its parent's filter or bluesky's rendering */
+[data-theme] {
+  --dither-filter: url(#benday-dither-void);
+  --dither-rendering: pixelated;
 }
 
-[data-theme="oxide"] .dither-image {
-  filter: url(#benday-dither-oxide);
+[data-theme="bone"] {
+  --dither-filter: url(#benday-dither-bone);
 }
 
-[data-theme="phosphor"] .dither-image {
-  filter: url(#benday-dither-phosphor);
+[data-theme="oxide"] {
+  --dither-filter: url(#benday-dither-oxide);
 }
 
-[data-theme="catppuccin-mocha"] .dither-image {
-  filter: url(#benday-dither-catppuccin-mocha);
+[data-theme="phosphor"] {
+  --dither-filter: url(#benday-dither-phosphor);
 }
 
-[data-theme="catppuccin-latte"] .dither-image {
-  filter: url(#benday-dither-catppuccin-latte);
+[data-theme="catppuccin-mocha"] {
+  --dither-filter: url(#benday-dither-catppuccin-mocha);
 }
 
-[data-theme="dracula"] .dither-image {
-  filter: url(#benday-dither-dracula);
+[data-theme="catppuccin-latte"] {
+  --dither-filter: url(#benday-dither-catppuccin-latte);
 }
 
-[data-theme="atom"] .dither-image {
-  filter: url(#benday-dither-atom);
+[data-theme="dracula"] {
+  --dither-filter: url(#benday-dither-dracula);
 }
 
-[data-theme="github-dark"] .dither-image {
-  filter: url(#benday-dither-github-dark);
+[data-theme="atom"] {
+  --dither-filter: url(#benday-dither-atom);
 }
 
-[data-theme="github-light"] .dither-image {
-  filter: url(#benday-dither-github-light);
+[data-theme="github-dark"] {
+  --dither-filter: url(#benday-dither-github-dark);
 }
 
-[data-theme="cyberpunk"] .dither-image {
-  filter: url(#benday-dither-cyberpunk);
+[data-theme="github-light"] {
+  --dither-filter: url(#benday-dither-github-light);
 }
 
-[data-theme="cottagecore"] .dither-image {
-  filter: url(#benday-dither-cottagecore);
+[data-theme="cyberpunk"] {
+  --dither-filter: url(#benday-dither-cyberpunk);
 }
 
-[data-theme="pumpkin-ember"] .dither-image {
-  filter: url(#benday-dither-pumpkin-ember);
+[data-theme="cottagecore"] {
+  --dither-filter: url(#benday-dither-cottagecore);
+  /* a print has no source pixels, only dots: do not pre-upscale the source
+     into blocks before the clustered screen resamples it */
+  --dither-rendering: auto;
 }
 
-[data-theme="toxic-midnight"] .dither-image {
-  filter: url(#benday-dither-toxic-midnight);
+[data-theme="pumpkin-ember"] {
+  --dither-filter: url(#benday-dither-pumpkin-ember);
 }
 
-[data-theme="candy-crypt"] .dither-image {
-  filter: url(#benday-dither-candy-crypt);
+[data-theme="toxic-midnight"] {
+  --dither-filter: url(#benday-dither-toxic-midnight);
 }
 
-[data-theme="dead-leaves"] .dither-image {
-  filter: url(#benday-dither-dead-leaves);
+[data-theme="candy-crypt"] {
+  --dither-filter: url(#benday-dither-candy-crypt);
+}
+
+[data-theme="dead-leaves"] {
+  --dither-filter: url(#benday-dither-dead-leaves);
 }
 
 /* honest images: no ordered dither, no grunge, no pixel grid */
-[data-theme="truth-to-materials"] .dither-image {
-  filter: url(#benday-dither-truth-to-materials);
+[data-theme="truth-to-materials"] {
+  --dither-filter: url(#benday-dither-truth-to-materials);
 }
 
-[data-theme="bluesky"] .dither-image,
+[data-theme="bluesky"] {
+  --dither-filter: none;
+  --dither-rendering: auto;
+}
+
 .dither-image[data-effect="none"] {
   filter: none;
   image-rendering: auto;
@@ -97,12 +111,11 @@
     transparent 0 50%
   );
   background-size: 4px 4px;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   filter: none;
   font-size: var(--step-2);
   letter-spacing: 0.08em;
   place-items: center;
-  text-transform: uppercase;
 }
 
 [data-theme] .dither-image--fallback {

@@ -4,9 +4,43 @@ interface CursorPalette {
   paper: string
 }
 
-function colorOf(styles: CSSStyleDeclaration, name: string, fallback: string): string {
+const FALLBACK: CursorPalette = {
+  ink: '#e7e4da',
+  accent: '#7f9cff',
+  paper: '#0d1015',
+}
+
+const PROBE_STYLE =
+  'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;pointer-events:none'
+
+/**
+ * A token value may be a literal color or a function that only a real element
+ * can resolve (`light-dark()`, `var()` chains). Cursor assets are SVG strings,
+ * so anything unresolved would be embedded verbatim and render as nothing:
+ * resolve those through one throwaway child that inherits the root
+ * color-scheme, and fall back when the result is not a color.
+ */
+function resolveColor(styles: CSSStyleDeclaration, name: string, fallback: string): string {
   const value = styles.getPropertyValue(name).trim()
-  return value.length > 0 ? value : fallback
+  if (value.length === 0) return fallback
+  if (!value.includes('light-dark(') && !value.includes('var(')) return value
+
+  const holder = document.createElement('span')
+  holder.setAttribute('aria-hidden', 'true')
+  holder.setAttribute('style', `${PROBE_STYLE};color:rgb(1,2,3)`)
+  const probe = document.createElement('span')
+  probe.setAttribute('style', `color:var(${name})`)
+  holder.appendChild(probe)
+  document.body.appendChild(holder)
+  try {
+    const resolved = getComputedStyle(probe).color
+    // An unresolved token computes as `unset`, which inherits the holder's
+    // sentinel instead of producing a color of its own.
+    if (resolved === '' || resolved === 'rgb(1, 2, 3)') return fallback
+    return resolved
+  } finally {
+    holder.remove()
+  }
 }
 
 function cursorUrl(svg: string): string {
@@ -28,9 +62,9 @@ function ibeam(palette: CursorPalette): string {
 export function installCursors(): void {
   const styles = getComputedStyle(document.documentElement)
   const palette: CursorPalette = {
-    ink: colorOf(styles, '--ink', '#e7e4da'),
-    accent: colorOf(styles, '--blue', '#7f9cff'),
-    paper: colorOf(styles, '--paper', '#0d1015'),
+    ink: resolveColor(styles, '--ink', FALLBACK.ink),
+    accent: resolveColor(styles, '--blue', FALLBACK.accent),
+    paper: resolveColor(styles, '--paper', FALLBACK.paper),
   }
 
   const root = document.documentElement

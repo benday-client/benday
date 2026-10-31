@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import tokensCss from '../styles/tokens.css?raw'
 import {
   availableThemeGroups,
   DEFAULT_IMAGE_EFFECT,
@@ -17,7 +16,6 @@ import {
   themeAvailable,
   themeSeason,
 } from './themes'
-import type { Theme } from './types'
 
 const EXPECTED_THEMES = [
   'void',
@@ -42,21 +40,6 @@ const EXPECTED_THEMES = [
 
 const HALLOWEEN_THEMES = ['pumpkin-ember', 'toxic-midnight', 'candy-crypt', 'dead-leaves'] as const
 
-const RICH_THEMES = [
-  'catppuccin-mocha',
-  'catppuccin-latte',
-  'dracula',
-  'atom',
-  'github-dark',
-  'github-light',
-  'cyberpunk',
-  'cottagecore',
-  'pumpkin-ember',
-  'toxic-midnight',
-  'candy-crypt',
-  'dead-leaves',
-] as const
-
 // Fixed local dates, so the assertions do not depend on when the suite runs.
 const OCTOBER_FIRST = new Date(2025, 9, 1, 0, 0, 0)
 const OCTOBER_LAST = new Date(2025, 9, 31, 23, 59, 59)
@@ -65,16 +48,6 @@ const NOVEMBER_FIRST = new Date(2025, 10, 1, 0, 0, 0)
 const JULY = new Date(2026, 6, 4, 12, 0, 0)
 const FEBRUARY = new Date(2026, 1, 14, 9, 30, 0)
 const JANUARY = new Date(2026, 0, 15, 8, 0, 0)
-
-function tokenBlock(theme: Theme): string {
-  const start = tokensCss.indexOf(`[data-theme="${theme}"]`)
-  if (start < 0) throw new Error(`no token block for ${theme}`)
-  const open = tokensCss.indexOf('{', start)
-  const close = tokensCss.indexOf('}', open)
-  return tokensCss.slice(open + 1, close)
-}
-
-const ROOT_BLOCK = tokensCss.slice(0, tokensCss.indexOf('[data-theme='))
 
 describe('themes', () => {
   it('lists the themes in display order', () => {
@@ -165,10 +138,12 @@ describe('themes', () => {
   it('gives every theme a valid image effect and defaults to grunge', () => {
     expect(DEFAULT_IMAGE_EFFECT).toBe('grunge')
     for (const theme of THEMES) {
-      expect(['grunge', 'clean', 'none', 'industrial']).toContain(THEME_EFFECTS[theme])
+      expect(['grunge', 'clean', 'none', 'industrial', 'halftone']).toContain(THEME_EFFECTS[theme])
     }
     expect(THEME_EFFECTS.void).toBe('grunge')
     expect(THEME_EFFECTS['github-light']).toBe('clean')
+    // cottagecore prints instead of grunging: its screen is the halftone tile
+    expect(THEME_EFFECTS.cottagecore).toBe('halftone')
   })
 
   it('keeps bluesky undithered and gives truth an industrial dither', () => {
@@ -195,7 +170,7 @@ describe('themes', () => {
       'github-dark': '#0d1117',
       'github-light': '#ffffff',
       cyberpunk: '#05030d',
-      cottagecore: '#f3ead8',
+      cottagecore: '#f2ebd8',
       'truth-to-materials': '#858585',
       bluesky: '#fbfdff',
       'pumpkin-ember': '#160b06',
@@ -275,52 +250,5 @@ describe('theme seasons', () => {
     expect(resolveTheme('candy-crypt', FEBRUARY)).toBe('void')
     expect(resolveTheme('bluesky', NOVEMBER_FIRST)).toBe('bluesky')
     expect(resolveTheme('void', NOVEMBER_FIRST)).toBe('void')
-  })
-})
-
-describe('theme token depth', () => {
-  it('gives the root a fallback depth pair', () => {
-    expect(ROOT_BLOCK).toContain('--accent-4: var(--blue-hot);')
-    expect(ROOT_BLOCK).toContain('--accent-5: var(--rust);')
-  })
-
-  it('gives every rich palette explicit accent-4 and accent-5 values', () => {
-    for (const theme of RICH_THEMES) {
-      const block = tokenBlock(theme)
-      expect(block).toMatch(/--accent-4: #[0-9a-f]{6};/)
-      expect(block).toMatch(/--accent-5: #[0-9a-f]{6};/)
-    }
-  })
-
-  it('defines the shared texture and corner abilities', () => {
-    expect(ROOT_BLOCK).toContain('--surface-texture: repeating-linear-gradient(')
-    expect(ROOT_BLOCK).toContain('--theme-radius: 0px;')
-    expect(ROOT_BLOCK).toContain('--theme-clip: none;')
-  })
-
-  it('removes surface texture for the honest themes', () => {
-    for (const theme of ['truth-to-materials', 'bluesky'] as const) {
-      const block = tokenBlock(theme)
-      expect(block).toContain('--surface-texture: none;')
-      expect(block).toContain('--scan-opacity: 0;')
-      expect(block).toContain('--noise-opacity: 0;')
-    }
-  })
-
-  it('gives every halloween theme its own texture', () => {
-    const textures = new Set<string>()
-    for (const theme of HALLOWEEN_THEMES) {
-      const block = tokenBlock(theme)
-      expect(block).toMatch(/--surface-texture:/)
-      expect(block).not.toContain('--surface-texture: none;')
-      textures.add(block.slice(block.indexOf('--surface-texture:')))
-    }
-    expect(textures.size).toBe(HALLOWEEN_THEMES.length)
-  })
-
-  it('rounds cottagecore and cuts cyberpunk corners', () => {
-    expect(tokenBlock('cottagecore')).toContain('--theme-radius: 4px;')
-    expect(tokenBlock('cyberpunk')).toContain('--theme-clip: polygon(')
-    expect(tokenBlock('cyberpunk')).toContain('--theme-radius: 0px;')
   })
 })

@@ -1,6 +1,6 @@
 import type { Theme } from './types'
 
-export type ImageEffect = 'grunge' | 'clean' | 'none' | 'industrial'
+export type ImageEffect = 'grunge' | 'clean' | 'none' | 'industrial' | 'halftone'
 export type ThemeScheme = 'light' | 'dark'
 export type ThemeSeason = 'october'
 
@@ -18,7 +18,7 @@ export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
   'github-dark': 'clean',
   'github-light': 'clean',
   cyberpunk: 'grunge',
-  cottagecore: 'grunge',
+  cottagecore: 'halftone',
   'truth-to-materials': 'industrial',
   bluesky: 'none',
   'pumpkin-ember': 'grunge',
@@ -144,13 +144,22 @@ export const THEME_COLORS: Record<Theme, string> = {
   'github-dark': '#0d1117',
   'github-light': '#ffffff',
   cyberpunk: '#05030d',
-  cottagecore: '#f3ead8',
+  cottagecore: '#f2ebd8',
   'truth-to-materials': '#858585',
   bluesky: '#fbfdff',
   'pumpkin-ember': '#160b06',
   'toxic-midnight': '#05100b',
   'candy-crypt': '#1a0a1e',
   'dead-leaves': '#120f08',
+}
+
+/**
+ * The browser chrome colour for a theme. High contrast keeps one system pair so
+ * the browser toolbar never sits on a low-contrast palette surface.
+ */
+export function themeColor(theme: Theme, highContrast = false): string {
+  if (!highContrast) return THEME_COLORS[theme]
+  return THEME_SCHEMES[theme] === 'light' ? '#ffffff' : '#000000'
 }
 
 const THEME_LOOKUP: Record<Theme, true> = {
