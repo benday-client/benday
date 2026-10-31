@@ -521,9 +521,10 @@ there are five key layers, and they must not fight:
    deck is the active surface and the target is not interactive. `enter`
    activates on every deck; `↓` also opens on a wide deck and `→` on a narrow
    one. `ThreadView` owns thread tree movement: `←` leaves through the shared
-   app-history back step, `↓` moves to the first child, and `↑` moves to the
-   parent reply; at the focus post `↑` opens the parent thread when there is a
-   parent and does nothing at the root. `j`/`k` keep flat reading order. page
+   app-history back step, `↓` walks the replies in pre-order (a child first,
+   then the next visible reply), and `↑` moves to the parent reply; at the focus
+   post `↑` opens the parent thread when there is a parent and does nothing at
+   the root. `j`/`k` keep flat reading order. page
    up/down and shift-arrows scroll the focused post body; shift-arrows stay owned
    at a boundary, plain page keys release.
 4. view-local handlers add the rest: `PostCard` handles `f`, `b`, `r`, `q`, `y`,

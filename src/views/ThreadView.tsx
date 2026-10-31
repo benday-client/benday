@@ -76,28 +76,6 @@ export default function ThreadView() {
     }
     return null
   }
-  const firstChildOf = (
-    parentUri: string,
-    parentDepth: number,
-    fromIndex: number,
-  ): number | null => {
-    for (let index = fromIndex; index < replies.length; index += 1) {
-      const entry = replies[index]
-      if (entry !== undefined && entry.post.replyParent?.uri === parentUri) return index
-    }
-    // the same fallback: depth one below the parent in pre-order
-    for (let index = fromIndex; index < replies.length; index += 1) {
-      const entry = replies[index]
-      if (
-        entry !== undefined &&
-        entry.post.replyParent === null &&
-        entry.depth === parentDepth + 1
-      ) {
-        return index
-      }
-    }
-    return null
-  }
   const focusedReplyPost = focusedReply === null ? null : (replies[focusedReply]?.post ?? null)
   useViewerSync(entries.map((entry) => entry.post))
   const info = thread.error !== null ? errorInfo(thread.error) : null
@@ -177,9 +155,9 @@ export default function ThreadView() {
       if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey) return
       if (event.isComposing) return
-      // left is the thread's back key. down descends to the first child,
-      // up climbs to the parent thread at the opened post, j enters the
-      // replies in reading order and k does nothing at the top of the tree.
+      // left is the thread's back key. down enters the replies and walks them
+      // in pre-order, up climbs to the parent thread at the opened post, and k
+      // does nothing at the top of the tree.
       const key = event.key
       const isLeave = key === 'ArrowLeft'
       const isTreeKey =
@@ -218,16 +196,7 @@ export default function ThreadView() {
         return
       }
 
-      if (key === 'ArrowDown') {
-        if (focusPost === null) return
-        const childIndex = firstChildOf(focusPost.uri, 0, 0)
-        if (childIndex === null) return
-        event.preventDefault()
-        replyRefs.current[childIndex]?.focus()
-        return
-      }
-
-      if (key === 'j') {
+      if (key === 'ArrowDown' || key === 'j') {
         const first = replyRefs.current[0]
         if (first === null || first === undefined) return
         event.preventDefault()
@@ -335,12 +304,10 @@ export default function ThreadView() {
       return
     }
     if (event.key === 'ArrowDown') {
-      const entry = replies[index]
-      if (entry === undefined) return
-      const childIndex = firstChildOf(entry.post.uri, entry.depth, index + 1)
-      if (childIndex === null) return
+      const next = replyRefs.current[index + 1]
+      if (next === null || next === undefined) return
       event.preventDefault()
-      replyRefs.current[childIndex]?.focus()
+      next.focus()
       return
     }
     if (event.key === 'ArrowUp') {

@@ -310,7 +310,7 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     scope: 'thread',
     keys: ['↓'],
     chords: [{ key: 'ArrowDown', shift: false }],
-    label: 'move to the first child reply',
+    label: 'move down to the next visible reply, child first',
   },
   {
     id: 'thread-previous',

@@ -434,7 +434,7 @@ describe('ThreadView reply tree', () => {
     expect(document.activeElement).toBe(replies[0])
   })
 
-  it('moves down from a reply to its child instead of the next sibling', () => {
+  it('moves down from a reply to its child before the next sibling', () => {
     const { replies } = renderTree()
 
     fireEvent.keyDown(document.body, { key: 'ArrowDown' })
@@ -445,7 +445,7 @@ describe('ThreadView reply tree', () => {
     expect(document.activeElement).toBe(replies[1])
   })
 
-  it('stays put with down on a leaf reply', () => {
+  it('moves down from a leaf to the next visible reply', () => {
     const { replies } = renderTree()
 
     act(() => {
@@ -453,7 +453,18 @@ describe('ThreadView reply tree', () => {
     })
     fireEvent.keyDown(replies[1], { key: 'ArrowDown' })
 
-    expect(document.activeElement).toBe(replies[1])
+    expect(document.activeElement).toBe(replies[2])
+  })
+
+  it('stays put with down on the last reply', () => {
+    const { replies } = renderTree()
+
+    act(() => {
+      replies[2].focus()
+    })
+    fireEvent.keyDown(replies[2], { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(replies[2])
   })
 
   it('moves up from a child to its parent reply', () => {

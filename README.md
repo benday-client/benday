@@ -337,10 +337,11 @@ facets with UTF-8 byte offsets. mentions, hashtags and bare urls are still detec
 atproto rich-text layer. the counter counts the stripped text.
 
 in a thread `←` leaves the thread through the shared app-history back step and
-falls back to the feed. `↓` moves to the first child reply and `↑` moves to the
-parent reply. at the opened post `↑` opens the parent post's thread when there
-is a parent and does nothing at the root. `j` and `k` stay in flat reading
-order. escape leaves the thread from anywhere.
+falls back to the feed. `↓` walks the replies in pre-order: a child first when
+there is one, then the next visible reply. `↑` moves to the parent reply. at the
+opened post `↑` opens the parent post's thread when there is a parent and does
+nothing at the root. `j` and `k` stay in flat reading order. escape leaves the
+thread from anywhere.
 
 in a thread, `r` or `q` on the focused main card opens a docked composer instead
 of the dialog: a quote dock sits above the post and a reply dock below it, and
