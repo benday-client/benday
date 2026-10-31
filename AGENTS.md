@@ -18,14 +18,18 @@ src/
                         application, global hotkeys
   lib/                  framework-free logic and zustand stores
   hooks/                react/query glue around lib
-  components/           presentation and interaction
-  components/ui/        dumb TUI primitives (Button, Dialog, Frame, Kbd, ...)
+  components/           presentation and interaction; Avatar owns the dithered
+                        initial fallback
+  components/ui/        dumb TUI primitives (Button, CardBack, Dialog, Frame,
+                        ModeCard, ...) plus the shared FrameHead/FrameBody
   views/                route views: FeedView, SearchView, ProfileView,
                         NotificationsView, ThreadView
   styles/               tokens first, then base, layout, components, cards,
                         dialogs, account, views, notifications, compose, dither,
                         theme-effects last
-  test/                 fixtures and the vitest setup file
+  test/                 fixtures, the jsdom setup, the browser setup and the
+                        stage helper
+vitest.browser.config.ts  the native chromium project (vitest browser mode)
 public/                 favicon
 ```
 
@@ -34,6 +38,12 @@ routes: `/` and `/feed` render `FeedView`, `/search` renders `SearchView`,
 `/notifications` renders `NotificationsView`, and anything else is the not-found
 view. `TAB_ROUTES` in `App.tsx` is `['/feed', '/notifications']`; search is a route and `s` shortcut, not a tab; a profile route
 is appended only while it is open.
+
+`FeedView`, `SearchView` and `ProfileView` share one deck switcher: on wide
+screens the content deck's leading peek card opens a second deck — the feeds
+list, or the shared `ModeCard` modes — and choosing an entry
+deals the content deck back. below 900px a narrow-only strip of `b-pinned-feed`
+chip buttons switches modes and feeds instead.
 
 ownership by concern:
 
@@ -56,14 +66,33 @@ ownership by concern:
   facet rendering. do not duplicate byte-offset math in a component.
 - `src/components/CommandPalette.tsx` owns palette commands (navigation, themes,
   appviews, settings, help and account actions); `src/lib/command.ts` only parses
-  `@handle`, `at://`, `#tag` and plain-text jumps.
+  `@handle`, `at://`, `#tag` and plain-text jumps. the results area is a reserved
+  box (`min(46vh, 21rem)`) so the centred dialog cannot resize while the
+  debounced suggestions arrive or between result shapes, and selection scrolling
+  adjusts only the list's own `scrollTop` — never `scrollIntoView`, never the
+  dialog or the document. pointer hover may only take selection over on real
+  movement (compare the event coordinates), because scrolling the list under a
+  parked cursor fires mouseenter on a different row and pulls the keyboard
+  selection back.
 - `src/lib/themes.ts` owns theme names, labels, schemes, seasons, groups, image
   effects and meta colours. `src/styles/tokens.css` owns per-theme values and
   `src/styles/theme-effects.css` owns shaped-corner and texture consequences.
 - `src/lib/settingsTransfer.ts` owns the export/import file format and
   validation; `src/lib/store.ts` owns the persisted settings store.
-- `Deck` owns focus, scroll position memory and deck-local keys. Views describe
-  their cards; `Deck` moves between them.
+- `Deck` owns focus, scroll position memory and deck-local keys. the saved
+  position carries the deck's axis and the focused card's key, so a list that
+  grows or shrinks around it restores the same card (the index is only the
+  fallback for a card that left); restoring it on the other axis re-centres
+  through `scrollToIndex` instead of reusing foreign offsets. Views describe
+  their cards; `Deck` moves between them. there is no `footer` prop: a card back
+  that needs controls is an article, and a mode back is one native button. an
+  empty deck keeps the half-neighbour spacers and centres its empty slot like a
+  first card, so the leading peek stays half visible. the peek is never a snap
+  target (`scroll-snap-align: none` on `.b-deck__peek`) and the half-neighbour
+  spacers key on real cards (`:not(.b-deck__peek)`), so a deck showing only the
+  peek and skeletons stays left-aligned instead of centring the switcher while
+  the first page loads. a deck that re-centres from its scroll origin (login
+  swaps, a stored offset reset) does it before paint; user moves stay animated.
 - `src/test/fixtures.ts` and `src/test/setup.ts` support tests; shared view
   shapes belong in the fixtures file.
 
@@ -97,8 +126,9 @@ pnpm preview    # static preview on 0.0.0.0:4173, strict port
 pnpm typecheck  # strict tsc pass
 pnpm lint       # biome check .
 pnpm format     # biome check --write .
-pnpm test       # vitest run, 200 offline tests
-pnpm check      # lint, tests, then build
+pnpm test         # vitest run, offline jsdom tests
+pnpm test:browser # vitest browser mode in real chromium
+pnpm check        # lint, both suites, then build
 ```
 
 open the dev server at `http://127.0.0.1:5173/` or `http://[::1]:5173/` for the
@@ -133,10 +163,13 @@ and must not require a pds, appview or network.
 - reads go to the selected appview with the configured labeler dids through the
   `accept-labelers` header. search terms and labeler dids are therefore visible
   to that appview. writes and viewer-state reads go through the account's pds.
-  feed feedback and viewer-state reads use the canonical appview proxy, as does
-  pinned generator metadata, so a custom appview does not receive the private
-  pinned-feed uri list.
+  feed feedback goes through the pds to the feed generator's service did
+  (`atproto-proxy: <did>#bsky_fg`; discover uses `did:web:discover.bsky.app`).
+  viewer-state reads use the canonical appview proxy, as does pinned generator
+  metadata, so a custom appview does not receive the private pinned-feed uri
+  list.
 - `benday-settings.json` contains only `version`, `exportedAt`, `theme`,
+  `appearance`, `lightTheme`, `darkTheme`, `imageEffects`, `highContrast`,
   `appView` and `labelers`. it must never contain tokens, passwords, indexedDB
   state, drafts, jump history, profile relationships or any other auth material.
   unknown keys in an imported file are ignored; keep it that way.
@@ -172,12 +205,14 @@ query keys and policy:
 
 ```text
 ['feed', host, 'discover', viewerDid | 'anonymous']
-['feed', host, 'author', actor]
-['feed', host, 'search', query]
+['feed', host, 'author', actor, viewerDid | 'anonymous']
+['feed', host, 'search', query, viewerDid | 'anonymous']
 ['feed', host, 'feed', uri, viewerDid | 'anonymous']
-['profile', host, actor]
+['search-actors', host, query]
+['search-feeds', host, query]
+['profile', host, actor, viewerDid | 'anonymous']
 ['thread', host, uri]
-['pinned-feeds', host, did]
+['pinned-feeds', did]
 ['notifications', 'list', did | 'anonymous']
 ['top-comments', host, uri]
 ['feed-preview', host, source, viewerDid]
@@ -196,13 +231,22 @@ one retry and no window-focus refetch.
 do not add implicit feed refreshes. switching tabs, restoring a cached deck,
 changing a labeler and finishing a write all leave feed cards alone. the
 explicit reloads are the refresh control on the feed mode card and the mobile
-strip, `R R` in the feed view, the refresh card at the end of a profile deck, and
+strip, `R` in the feed view, the refresh card at the end of a profile deck, and
 submitting the same search again. notifications are the one view that refetches
 on mount and reconnect by design.
 
-`ProfileCard` patches every `['profile']` query for the same did through
-`setQueriesData`, so a relationship change applies regardless of which host
-cached the profile.
+account-scoped reads are bound to the owner their key names:
+`requireViewerAgent(viewerDid)` (in `src/lib/auth.ts`) throws
+`account changed before the request could be sent` when the active account
+moved, instead of borrowing it. profile fetches merge the selected appview's
+public fields with the account's canonical-proxy viewer state, and only when
+both agree on the did.
+
+`ProfileCard` patches only `['profile']` entries whose key carries the same
+captured viewer and whose data has the same did, through `setQueriesData`, so a
+relationship change crosses hosts for one account and never crosses into
+another viewer. an action that settles after the account or profile changed
+patches nothing and shows no error.
 
 ## profile model, actions and modes
 
@@ -219,16 +263,27 @@ actions; it never fetches a second profile shape.
   inline.
 - `mutedOnlyReposts` is applied twice: the profile deck filters reposted entries
   out client-side, and the relationship tag says `reposts hidden`.
+- `mutedOnlyQuoteposts` is an independent scope: `quoteposts hidden` shows on its
+  own, hiding reposts preserves it (`showReposts(did, true)` mutes with
+  `onlyQuoteposts`), and the toggle is disabled while only quotes are hidden.
+- a failed action restores only the keys present in that action's optimistic
+  patch; actions with no optimistic patch (follow, unfollow, block) never touch
+  the cache, so a newer fetch is never rolled back.
 - external profile links are rendered only for `http:` and `https:` urls, open
   in a new tab and fall back to the hostname when the title is empty.
-- modes are `posts`, `replies` and `media` (`ProfileModeCard.tsx`). they are
-  client-side filters over the loaded author pages: standalone non-reply
-  entries, replies authored by this account, and entries with image or video
-  embeds. counts and empty states describe what has been fetched, not the whole
-  account.
-- on wide screens the mode deck is a real `Deck` reached by pressing left from
-  the first post; mobile uses the pinned-style mode strip. escape closes the mode
-  deck. the refresh card reloads the author feed.
+- modes are `profile`, `posts`, `replies` and `media`
+  (`src/lib/profileModes.ts`). the three content modes are client-side filters
+  over the loaded author pages: standalone non-reply entries, replies authored
+  by this account, and entries with image or video embeds. empty states describe
+  what has been fetched, not the whole account.
+- the profile switcher uses that shared deck with `ModeCard`s
+  (`src/components/ui/ModeCard.tsx`) and a `CardBackButton` peek; `profile`
+  shows only the identity card and the content modes show their post cards. the
+  deck key carries the appview host, actor, mode and viewer, so switching starts
+  at the first card without leaking another viewer's deck. every content mode
+  ends in a `{ kind: 'refresh' }` item rendered by `RefreshCard`, which reloads
+  the author feed through `retry()` and never opens a thread; a blank first page
+  shows only its loading card.
 
 ## notifications
 
@@ -238,9 +293,15 @@ text, read state and index time. `notificationReasonGroup` and
 `notificationReasonLabel` map follow, like, like-via-repost, repost,
 repost-via-repost, reply, mention and quote, label a few newer reasons, and fall
 back to a generic label. `notificationSubjectHref` links a follow to the actor
-profile and only post at-uris to `/thread?uri=…`.
+profile and only post at-uris to `/thread?uri=…`. the target depends on the
+reason: a reply, mention or quote opens the notification's own `uri` (the new
+post), while a like or repost opens `subject` (the reader's post). the wire
+`subject` of a reply is the parent, so using it there sends the reader to the
+wrong post. rows render as frame cards (head with the reason, body with actor and
+preview, footer with the open affordance) so the list reads like the decks.
 
-opening the view marks the list seen once per did using the newest indexed time.
+opening the view marks the list seen once per did using the newest indexed time
+of the unfiltered wire page, so a hidden newest row still advances the cursor.
 `markNotificationsSeen` is best effort and must never block or fail the list.
 there is no paging and no realtime subscription; the refresh button and the
 query's mount/reconnect refetch are the reload paths.
@@ -267,8 +328,32 @@ card when the appview supplied a parent.
 
 draft keys are `${owner}:post` or `${owner}:${mode}:${targetUri}` with
 `owner = accountDid ?? 'signed-out'`; at most 20 drafts are retained, oldest
-evicted first. a successful send clears the draft; closing the composer writes
-it.
+evicted first. each write returns a fresh 32-hex `revision`, and a successful
+send only removes the record when both revision and text still match what that
+composition wrote. every open composition owns its own key, text, revision and
+timer, so switching request, closing or unmounting flushes the text it holds and
+a dismissed send cannot clear a draft that was reopened after it.
+
+## dialogs and form ownership
+
+- a dialog dismisses from a real backdrop press only: the click handler requires a
+  `pointerdown` whose target was the dialog element, so a text selection that
+  starts inside and ends on the backdrop cannot close it.
+- `LoginDialog` owns a monotonic opening token captured at submit and bumped on
+  every open and close. a completion may only close or clear fields while it
+  still owns the same opening, and the error line is gated on an attempt started
+  in the current opening, for the password and portal paths alike.
+- `AppViewDialog` and `SettingsDialog` reseed the host input from
+  `appView.kind === 'custom' ? appView.host : ''`, keyed by `[open, appViewHost]`.
+  a cross-tab theme rehydrate keeps an unsubmitted host; a genuinely different
+  custom host replaces it.
+- labeler input is validated with `sanitizeLabeler` (sdk `isDid`) before the add
+  button, Enter and the error line agree on anything; at the 20-labeler limit the
+  control disables and says so instead of silently dropping the entry.
+- `useActorSuggestions.insertSuggestion` is the single replacement rule for both
+  the composer and the search field: it preserves the suffix byte-for-byte,
+  reuses an existing leading whitespace run (never splitting CRLF) and only adds
+  a space at the end of the text.
 
 ## themes and seasonal availability
 
@@ -291,8 +376,65 @@ the october set in a pre-hydration script; update both together.
 - `resolveTheme(theme, date)` returns `void` when a persisted seasonal selection
   is unavailable. `availableThemeGroups(date)` hides the other seasonal themes
   outside october, and the settings dialog says when they return.
-- `App.tsx` applies the resolved theme to `documentElement.dataset.theme`, updates
-  the `theme-color` meta tag and persists the fallback back into the store.
+- `App.tsx` writes contrast and the resolved theme to `documentElement` in one
+  effect (contrast first), updates the `theme-color` meta tag, installs cursors
+  and persists the fallback back into the store. `index.html` derives the same
+  theme from the pair before react boots: explicit pair, then the legacy theme for
+  its scheme, then `bone`/`void`, then the seasonal fallback.
+- `syncSystemTheme` resolves the saved pair against today's date and only sets
+  the store when the theme actually changes. a self-rescheduling timer at the
+  next local midnight + 1s and a visible-tab check keep an open tab honest when a
+  seasonal theme expires or returns.
+- `installCursors` resolves a function-valued token (`light-dark()`, `var()`)
+  through one temporary hidden child so the cursor svg only ever contains real
+  colors; literal tokens keep their fast path.
+- motion beyond the theme tokens: route swaps crossfade by wrapping navigation
+  in `Router aroundNav` + `document.startViewTransition` with a `flushSync`
+  commit, skipped entirely when the api is missing or reduced motion is
+  preferred; a superseded transition is skipped so two quick navigations settle
+  on the newest route. the media viewer stage fades and lifts in, and deck items
+  fade in when they replace skeletons. every one of them lives inside
+  `prefers-reduced-motion: no-preference`.
+- per-family motion lives in `theme-effects.css` as tokens: `--motion-lift`,
+  `--motion-tilt`, `--motion-dur`, `--motion-ease` and `--deal-dur`. one dialog
+  transition and one deal animation read them, so a family changes motion by
+  changing numbers rather than adding keyframes. `truth to materials` declares
+  `--motion-dur: 0ms` and its dialogs close at once. cyberpunk keeps its own
+  boot block, which sits later in the file and wins. reduced motion still turns
+  everything off.
+- the focused card wears an inset double hairline (an
+  `outline-offset: -3px` outline plus an inset box-shadow), which survives
+  clipped and rounded themes and the high contrast palette. cyberpunk adds its
+  drop-shadow glow instead of replacing the rule.
+- the per-family signature layer is token-driven: `--head-image`, `--head-rule`
+  and `--head-glow` paint a card's head band, `--card-edge-style` sets the frame's
+  border style, `--frame-rule` the frame's top border, and `--body-inset` /
+  `--card-shadow` carry an inset or a lift. a family expresses its trait by
+  setting tokens, not by adding keyframes or components.
+- `PostCard` renders no `.b-frame__head`: its index and time live in the body's
+  author band. the signature selectors must therefore bind
+  `.b-post-card__author` (rule + hatch) and `.b-post-card__name`/`__index` (glow)
+  as well as `.b-frame__head`, or a theme's mark never reaches the reading
+  surface. verify a signature on a real `PostCard`, not only on a `Frame`.
+- high contrast resets the signature tokens (`--head-image`, `--head-glow`,
+  `--body-inset`, `--card-shadow`, dashed edges, `--frame-rule`) so a decorated
+  theme still reads as a drawn boundary. split-preview halves keep their own
+  `data-theme`, so any ancestor-keyed signature needs
+  `:not(.b-theme-preview__half *)` plus an own-half arm.
+- the top bar keeps the tab names (`feeds`, `notifications`, `@handle`). the
+  active link keeps its `//` marker. do not collapse the labels to glyphs: the
+  names are the navigation.
+- an empty state renders one dithered `◆` through the theme filter. letterforms
+  and half-filled boxes dissolve at that size, so keep the glyph solid.
+- seasonal themes draw one static corner mark from `.b-frame__body::after`, one
+  glyph per theme, inside the frame's own overflow.
+- thread replies indent per depth and grow a 1px rail in the gutter. the media
+  viewer pages with chevrons and a live counter. text and chrome stay mono;
+  `--font-display` is only for names and titles.
+- the split theme preview is a layout box only: `.b-theme-preview--split` drops
+  clip, radius and texture, and each half (and its hud pseudo-elements) is styled
+  from its own `data-theme`. seasonal tag flourishes and cyberpunk tracking are
+  scoped with `:not(.b-theme-preview__half *)` plus an own-half arm.
 - image effects default to `grunge`; the four benday themes use `grunge`,
   `catppuccin mocha`, `catppuccin latte`, `atom one dark`, `github dark` and
   `github light` use `clean`; `truth to materials` uses `industrial` and
@@ -300,15 +442,24 @@ the october set in a pre-hydration script; update both together.
   toggle by forcing `none`.
 - `tokens.css` defines `--surface-texture`, `--theme-radius` and `--theme-clip`
   per theme. texture is per-theme: the root provides the scanline, cyberpunk
-  adds a grid, the seasonal themes substitute their own weaves, and
-  `truth to materials` and `bluesky` set none. cyberpunk uses an octagonal clip.
+  layers two horizontal scanline passes, the seasonal themes substitute their
+  own weaves, and
+  `truth to materials` and `bluesky` set none. cyberpunk cuts its top left and
+  bottom right corners and draws corner brackets on the other two.
   `candy crypt` rounds 5px, `cottagecore` 4px, `bluesky` 3px, `pumpkin ember`
   and `dead leaves` 2px; the rest are square. `theme-effects.css` hides the
   square frame ticks on shaped themes and keeps clip paths off focusable
   controls.
+- high contrast is an opt-in pass over the chosen theme, never a theme itself:
+  `data-contrast="high"` on the root (and on each preview half) re-declares the
+  surface, ink, line and accent tokens with `light-dark()` in
+  `theme-effects.css`, drops texture and glow, and leaves geometry and the
+  image-effects choice alone. the normal palettes are untouched, and the
+  preference is persisted, exported and rehydrated like the others.
 - when adding a theme, update `Theme` in `src/lib/types.ts`, every record in
   `src/lib/themes.ts`, the `index.html` colour table (and seasonal set if
-  needed), a `[data-theme="…"]` block in `tokens.css`, and the theme tests.
+  needed), a `[data-theme="…"]` block in `tokens.css`, a `--dither-filter` line
+  in `dither.css`, and the theme tests.
 
 ## settings transfer
 
@@ -316,8 +467,9 @@ the october set in a pre-hydration script; update both together.
 `{ version, exportedAt, theme, appearance, lightTheme, darkTheme, imageEffects, appView, labelers }`.
 export is built from exactly those portable preferences, so extra properties
 cannot leak. import validates the version, theme, appview and labeler array
-before touching the store. `importSettings` applies the appearance fields, theme
-and labelers in one `set`, so malformed input leaves settings untouched.
+before touching the store. `importSettings` derives the active theme from the
+appearance pair and applies appearance, themes, image effects, high contrast,
+appview and labelers in one `set`, so malformed input leaves settings untouched.
 
 normalization rules to preserve:
 
@@ -325,8 +477,10 @@ normalization rules to preserve:
   and resolved at render time rather than rewritten in the file.
 - an appview is rebuilt from its host, so a file cannot relabel one host as a
   different preset; an unknown https host becomes a custom target.
-- labeler dids are trimmed, must start with `did:`, are deduplicated in order
-  and capped at 20; junk entries are dropped.
+- labeler ids are trimmed and must pass the sdk's `isDid`; they are deduplicated
+  in order and capped at 20, and junk entries are dropped. the same check guards
+  `addLabeler`, import, persisted rehydration, `applyConfiguredLabelers` and the
+  dialog's add control, so an invalid did can never reach `accept-labelers`.
 - unknown top-level keys, including credential-shaped ones, are ignored on both
   build and parse.
 - errors stay inline in the settings dialog; the file input is cleared after a
@@ -334,55 +488,111 @@ normalization rules to preserve:
 
 ## keyboard model
 
-there are four key layers, and they must not fight:
+there are five key layers, and they must not fight:
 
+0. single-key shortcuts obey the `keyboardShortcuts` preference (default on).
+   `characterShortcutAllowed(enabled, event)` from `src/lib/keymap.ts` is the
+   one guard: it allows every ctrl/meta/alt chord and non-character keys and
+   rejects bare keys in the `characterShortcuts` registry set when the
+   preference is off. it is called first in `useHotkeys`, `Deck`, both
+   `PostCard` handlers and the three `ThreadView` handlers, so a new bare
+   letter binding must go through it too.
 1. `useHotkeys` (`src/hooks/useHotkeys.ts`) is installed by `AppShell` only when
    no dialog, compose dialog or inline composer is open. it ignores editable
-   targets, repeats, handled events, and modifier combinations unless the
-   binding asks for `ctrl`/`cmd`. bindings: `/` and `ctrl`/`cmd` + `k` palette,
-   `s` search, `c` compose, `a` appviews, `?` help, `,` settings, escape back.
-   settings and help each own a `/`-focused search field.
-2. tab switching is a separate capture listener in `App.tsx` for
-   `ctrl`/`cmd` + left/right. tabs are `/feed` and `/notifications`; a
-   `/profile/…` route is appended as a temporary tab while it is open. search is
-   a route reached by `s`, not a tab.
-3. `Deck` listens on window and owns card movement. `1`-`9` are 1-based and act
-   only when the deck scroller contains the active element and the target is not
-   interactive. `g`/`G` and home/end jump. enter/space and the axis open key
-   activate. wide decks move horizontally with arrows or `h`/`l`; narrow decks
-   move vertically with arrows or `j`/`k`. page up/down and shift-arrows scroll
-   the focused post body and only prevent default when the body actually moves.
-4. view-local handlers add the rest: `PostCard` handles `0`, `f`, `b`, `r`,
-   `q`, `+`, `-` and `d d` only while focused and unmodalled; `FeedView` owns
-   `R R`; `ThreadView` owns reply focus and navigation. every layer ignores
-   dialogs, open composers, editable targets, `event.defaultPrevented` and
-   repeats.
+   targets, repeats, handled events, IME composition and modifier combinations
+   unless the binding asks for `ctrl`/`cmd`. keys come from the one registry in
+   `src/lib/keymap.ts`: `ctrl`/`cmd` + `k` palette (a toggle), `/` search with `s`
+   as an alias, `c` compose, `a` appviews, `,` settings. `?` is not a hotkey: the
+   hold-to-reveal overlay in `src/components/KeyHints.tsx` owns it (tap opens
+   help). settings and help each own a `/`-focused search field. escape is not
+   one of these; it has its own listener in `AppShell` (see 5).
+2. tab switching is a separate capture listener in `App.tsx` for the platform
+   primary modifier + left/right (meta on macOS, ctrl elsewhere), and it refuses
+   editable targets so caret word-jumps keep working. tabs are `/feed` and
+   `/notifications`; a `/profile/…` route is appended as a temporary tab while it
+   is open. search is a route reached by `/` or `s`, not a tab.
+3. `Deck` listens on window and owns card movement. `↑`/`↓` are previous/next on
+   every deck, on either axis, and `j`/`k` are aliases for the same. `←` is the
+   wide-deck back key and leaves at index 0 like `↑`; `→` is the wide-deck
+   forward alias, and on a narrow deck `→` opens the focused card. `h`/`l` are
+   wide-deck previous/next aliases that clamp at the ends and never exit. `↑`
+   at index 0 leaves the deck (or `←` on a wide deck; once per press, and on an
+   empty deck). `home`/`end` are canonical first/last with `g`/`G` as aliases.
+   `1`-`9` are 1-based and act whenever the deck is the active surface and the
+   target is not interactive. `enter` activates on every deck; on a narrow deck
+   `→` also opens, and no other arrow opens a card. `↑` at the thread's focus
+   post (and `k`) opens the parent post's thread when there is a parent and
+   otherwise leaves through the shared app-history back step, which `ThreadView`
+   runs once per press. page up/down and shift-arrows scroll the focused post
+   body; shift-arrows stay owned at a boundary, plain page keys release.
+4. view-local handlers add the rest: `PostCard` handles `f`, `b`, `r`, `q`, `y`,
+   `m`, `v`, `x`, `o` (with `0` as an alias), `+`, `-` and the `d` delete arm
+   (confirm with `enter` or `d`, 4s disarm, `esc` cancels) only while focused and
+   unmodalled; `FeedView` owns a single `R`; `ThreadView` owns reply focus with
+   arrows and `j`/`k`, `home`/`end` and `p` for the parent post. every layer
+   ignores dialogs, open composers, editable targets, IME composition,
+   `event.defaultPrevented` and repeats. the hold-`?` overlay only reads
+   `data-keyhint` attributes, never passes a key through, and hides on any other
+   keydown.
+5. escape has one precedence stack, top to bottom: an IME composition claims
+   nothing; an open native dialog closes; the composer's suggestion list closes
+   only itself; the inline dock closes and keeps its draft; a mode switcher
+   closes and keeps the route; the search field clears its query and then blurs
+   to the results; and `AppShell` steps back — from a thread, from a profile, or
+   from search/notifications to the tab it was opened from. a feed deck has
+   nowhere above it, so escape never leaves it. the feed, search and profile
+   mode switchers register their Escape handler on window in the capture phase,
+   guarded by `event.defaultPrevented`, `uiOwnsKeyboard()` and an open
+   `dialog[open]`, so the switcher closes before `AppShell`'s bubble-phase
+   listener runs. that listener is registered directly against
+   `bindingFor('back')` rather than through `useHotkeys`, because it must also
+   close a dialog while the key layer above it is disabled.
 
 `0` only acts when the focused post has a quoted post. `d d` only appears for
-the signed-in account's own post records and arms on the first press. `R R`
-arms on the first press and resets the feed on the second. `useInputMode` writes
-`data-input="keyboard" | "pointer"` on the document element for CSS.
+the signed-in account's own post records and arms on the first press. a single
+`R` resets the feed and does nothing while that refresh is still running.
+`useInputMode` writes `data-input="keyboard" | "pointer"` on the document
+element for CSS.
 
 ## tests and verification
 
 the suite is vitest with jsdom, testing library, `css: true` and
-`restoreMocks: true`. setup lives in `src/test/setup.ts`, shared shapes in
-`src/test/fixtures.ts`. tests are co-located as `*.test.ts` / `*.test.tsx`.
-there are 200 tests across 19 files; keep that number in `README.md` accurate
-when tests change.
+`restoreMocks: true`. setup lives in `src/test/setup.ts` (hygiene in
+`src/test/hygiene.ts`), shared shapes in `src/test/fixtures.ts`. tests are
+co-located as `*.test.ts` / `*.test.tsx`. there are 513 jsdom tests across 54
+files; keep that number and the browser count in `README.md` accurate when tests
+change. setup clears localStorage, installs a rejecting fetch stub and fails a
+test that leaves an unexpected request on it, and `src/test/queryClient.ts`
+hands out tracked clients (no retries, zero gc time). tests that exercise
+transport replace the stub with deterministic routes
+(`src/test/transport.ts`), which also records outbound request headers.
+
+native-browser specs are `*.browser.test.ts(x)` and run only through
+`vitest.browser.config.ts` (`pnpm test:browser`): vitest browser mode with
+`@vitest/browser-playwright`, real chromium, the production stylesheet order and
+`src/test/browserSetup.ts` (root attributes, stores, selection and key listeners
+reset between cases). they exist for behavior jsdom cannot judge: real layout,
+trusted keys, native selection and decoded cursor assets. `src/test/stage.tsx`
+gives them the definite-height app shell. `@vitest/browser-playwright@5.0.5`,
+`playwright@1.64.1` and the chromium download are the only browser
+prerequisites; a missing browser is a failure, never a skip. `pnpm check` runs
+lint, jsdom, browser and build in that order.
 
 what the suite covers, and what it does not:
 
-- covered offline: facets and byte offsets, post/embed/profile mapping, markdown
-  limits, thread flattening, appviews and capabilities, time, dither generation,
-  themes and seasons, pinned-feed preferences and selection, mention detection,
-  command parsing, palette precedence, action auth gates and optimistic counts,
-  focused-card shortcuts including quoted-post opening, the reply composer and
-  drafts, the feed cache guard, the viewer-state proxy, feed feedback and
-  settings import/export.
-- not covered by unit tests: notifications rendering and mapping, the profile
-  action buttons, the inline composer dock, real pds writes, the portal redirect,
-  live appview switching and browser layout. those are checked manually against
+- covered offline: facets and byte offsets, anchor composition, post/embed/profile
+  mapping, label filtering, markdown limits and wire facet canonicalization,
+  thread flattening, appviews and capabilities, time, dither generation, themes
+  and seasons, pinned-feed preferences and selection, mention and tag suggestion
+  freshness, command parsing, palette precedence, auth transitions and did:web
+  discovery, action auth gates and per-side action freshness, focused-card
+  shortcuts including quoted-post opening, the reply composer and its draft
+  revisions, the inline dock's draft flush, the feed cache guard, per-account
+  read privacy, notification mapping, the viewer-state proxy, feed feedback and
+  settings import/export including high contrast.
+- not covered by unit tests: the profile action buttons' full optimistic cycle,
+  real pds writes, the portal redirect, live appview switching and browser
+  layout. those are checked manually against
   live hosts. do not claim a live check you did not perform.
 
 when behavior changes, update the counts and the covered list in `README.md`'s
@@ -429,14 +639,18 @@ file rather than creating a parallel suite.
 - a thread is flattened to depth 3 and capped at 80 entries: root-first
   ancestors, then the focus post, then replies in pre-order.
 - notifications are a single 50-item page. there is no paging, push or polling.
-- profile mode counts and decks only describe fetched author pages; the modes
-  filter one author feed query and never fetch a separate mode feed.
+- profile mode decks only describe fetched author pages; the modes filter one
+  author feed query and never fetch a separate mode feed.
 - images are dithered by an inline SVG filter (`DitherImage`, `dither.ts`,
   `styles/dither.css`), never canvas, because the bluesky CDN does not expose
   pixel data cross-origin.
 - video starts as a dithered poster button; activating it mounts the custom
-  themed player. hls.js is used when MSE is available and native HLS is the
-  fallback; `m` opens a media viewer for images or video. quoted posts show
+  themed player. `hls.js` is imported dynamically only after that activation, so
+  it stays in its own chunk; native HLS is used when the browser has it, and a
+  player in its loading phase disables the overlay and seek control rather than
+  reporting a failure. a failed load offers one explicit retry; unsupported
+  playback says so and offers none. `m` opens a media viewer for images or
+  video. quoted posts show
   author text and an open link, not the quoted media.
 - search is capability-gated per appview. public and blacksky disable it; a
   custom host attempts it. the `/search` route and the `s` shortcut remain even

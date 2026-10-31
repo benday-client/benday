@@ -1,13 +1,14 @@
 # benday
 
-a dithered tensorpunk reader for the bluesky network
+a dithered tensorpunk client for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
 square-edged index card with an ordered-dither portrait or image. on a wide
 screen the focused card sits in the centre with half-neighbour peeks on either
 side; narrow screens use a two-up vertical card list. appviews are switchable. the interface
-is a small TUI: monospace, one-pixel borders, lowercase labels, keyboard-first,
-square corners by default.
+is a small TUI: monospace body and chrome, one-pixel borders, lowercase labels,
+keyboard-first, square corners by default. names and card titles set in a second
+proportional face so they read apart from the monospace text.
 
 reading is public and needs no account. signing in adds likes, reposts, quotes,
 replies, a composer, own-post deletion, notifications, follow/mute/block
@@ -15,7 +16,7 @@ controls and the account's pinned feeds. the client talks to the pds that owns
 the account and uses the selected appview for public reads.
 
 no account data is stored on a server owned by this project. ui settings live in
-localStorage under `benday:settings` (appearance mode, per-section themes, image effects, the selected appview and labelers).
+localStorage under `benday:settings` (appearance mode, per-section themes, image effects, the high-contrast option, the selected appview and labelers).
 settings can be exported to and imported from `benday-settings.json`; that file
 holds only portable preferences and never sessions or credentials.
 composer drafts live under `benday:drafts` scoped by account did.
@@ -66,44 +67,53 @@ the password fallback works everywhere else, including `localhost`.
 
 ## keys and gestures
 
-| key                       | action                                                          |
-| ------------------------- | --------------------------------------------------------------- |
-| `left` `right` or `h` `l` | scan cards on a wide screen                                     |
-| `←` at the first post     | open the feeds deck                                             |
-| `←` at the first feed     | return to the posts deck                                        |
-| `up` `down` or `j` `k`    | scan cards on a narrow screen                                   |
-| `ctrl`/`cmd` + `←` `→`    | switch feeds / notifications tabs, plus a temporary profile tab |
-| `g` / `G`                 | first / last card                                               |
-| `enter` / `space`         | open the focused card's replies                                 |
-| `↓` wide · `→` narrow     | open the full post with an animation                            |
-| `↑` `↓` in replies        | focus reply rows                                                |
-| `↑` or `k` in a thread    | close the full post                                             |
-| `pgup` / `pgdn`           | scroll the focused post                                         |
-| `shift` + `↑` `↓`         | scroll the focused post                                         |
-| `esc`                     | close a dialog or back out of replies/profile                   |
-| `enter` on a reply        | open that reply's thread                                        |
-| `m`                       | open the focused post's media                                   |
-| `0`                       | open the focused post's quoted post                             |
-| `y`                       | copy a bsky.app link to the focused post                        |
-| `R` `R`                   | refresh the feed after a confirmation press                     |
-| `1`-`9`                   | focus a card by position in a deck                              |
-| `1`-`9` in a thread       | focus a reply by position                                       |
-| `f`                       | like the focused card                                           |
-| `+`                       | more like the focused feed card                                 |
-| `-`                       | less like the focused feed card                                 |
-| `b`                       | repost the focused card                                         |
-| `r`                       | reply to the focused card                                       |
-| `q`                       | quote the focused card                                          |
-| `d` `d`                   | delete your focused post                                        |
-| `/` or `ctrl`/`cmd` + `k` | open the command palette                                        |
-| `s`                       | go to search and focus the query field                          |
-| `c`                       | compose a post                                                  |
-| `ctrl`/`cmd` + `enter`    | send from the composer                                          |
-| `a`                       | switch appview                                                  |
-| `,`                       | settings                                                        |
-| `?`                       | keyboard help                                                   |
+| key                     | action                                                          |
+| ----------------------- | --------------------------------------------------------------- |
+| `↑` `↓`                 | previous / next card, on any deck and either axis               |
+| `j` `k`                 | previous / next card, on any deck                               |
+| `←` `→`                 | previous / next card on a wide deck; `→` opens on a narrow deck |
+| `h` `l`                 | previous / next card on a wide deck                             |
+| `↑` (or `←`) first card | leave the deck                                                  |
+| `↑` (or `←`) first post | exit the posts deck for the feeds deck                          |
+| `↑` (or `←`) first feed | exit the feeds deck back to the posts deck                      |
+| `home` / `end`          | first / last card, or first / last reply                        |
+| `g` / `G`               | first / last card, the vim aliases                              |
+| `1`-`9`                 | focus the nth card in the active deck, or the nth reply         |
+| `enter`                 | open the focused card or reply                                  |
+| `pgup` / `pgdn`         | scroll the focused post                                         |
+| `shift` + `↑` `↓`       | scroll the focused post; always owned by the deck               |
+| `esc`                   | the escape stack below                                          |
+| `m`                     | open the focused post's media                                   |
+| `v`                     | play or pause the focused video                                 |
+| `x`                     | reveal labelled media before `m` or `v`                         |
+| `o` (or `0`)            | open the focused post's quoted post                             |
+| `y`                     | copy a bsky.app link to the focused post                        |
+| `R`                     | refresh the feed once; ignored while a refresh runs             |
+| `f` / `b`               | like / repost the focused card                                  |
+| `r` / `q`               | reply / quote the focused card                                  |
+| `+` / `-`               | more / less like the focused feed card                          |
+| `d` then `enter` or `d` | delete your focused post; `esc` cancels, 4s disarm              |
+| `ctrl`/`cmd` + `k`      | command palette, the same chord closes it                       |
+| `/` (or `s`)            | go to search and focus the query field                          |
+| `c`                     | compose a post                                                  |
+| `a`                     | switch appview                                                  |
+| `,`                     | settings                                                        |
+| `?`                     | tap for keyboard help, hold for key badges                      |
+| `ctrl`/`cmd` + `←` `→`  | switch feeds / notifications tabs, plus a temporary profile tab |
 
-the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote,
+escape stops at the first layer it can close: an open dialog, then the composer's
+suggestion list, then the inline composer, then a mode switcher, then a search
+field with text (clear it, then blur), then back out of a thread or profile or
+return to the previous tab. a feed deck has nowhere above it, so escape never
+leaves it.
+
+the top bar keeps the tab names: `feeds`, `notifications` and `@handle` for the
+open profile. the active one carries a `//` marker. every action on the right
+prints its word — `jump`, `search`, `appview`, `help`, `settings` — and the
+chords stay off the bar until you hold `?`; on a phone the row wraps instead of
+dropping the words. the compose entry only appears once you are signed in. holding `?` paints key badges
+over the top bar actions and the focused card's actions, and releasing it
+removes them; a tap still opens the keyboard help. the card footer has `re` replies, `like`, `rt` repost, `r` reply, `q` quote,
 `copy link` and `m` media. clicking a top comment row or a quoted post opens its
 thread; their author and open links still navigate independently. signed-out
 cards keep `copy link` and hide the account actions. on your own posts a
@@ -126,15 +136,27 @@ eighteen themes share the same dither pipeline: `void`, `bone`, `oxide`,
 `phosphor`, `catppuccin mocha`, `catppuccin latte`, `dracula`, `atom one dark`,
 `github dark`, `github light`, `cyberpunk 2077`, `cottagecore`,
 `truth to materials` and `bluesky`, plus the october-only `pumpkin ember`,
-`toxic midnight`, `candy crypt` and `dead leaves`. themes are chosen in settings,
+`toxic midnight`, `candy crypt` and `dead leaves`. the four october palettes are
+marked halloween in the picker and come back each october. themes are chosen in settings,
 grouped under dark and light. the seasonal four appear only in october; a
 persisted halloween selection falls back to `void` outside the month. a live
 preview above the groups shows the current card image type tags controls input
-and keycap with the theme's own surface texture and corners. most themes carry
+and keycap with the theme's own surface texture and corners; while system
+appearance is active it splits in two, and each half carries only its own
+theme's corners, texture and hud. each theme also signs the reading card itself: a hatch and a rule on the author
+band, a top rule or a lift on the frame, a corner bracket or an inset, the
+cottagecore stitch, and the october sets add their own weave on top of their
+corner glyph. `dracula` and both `catppuccin` palettes follow their upstream
+implementations (purple and pink for dracula, blue and mauve for catppuccin).
+`cottagecore` is a pressed-flower herbarium plate with linen surfaces, olive
+ink, a stitched label head and images screened as one-ink halftone on cream.
+cyberpunk cuts every boxed surface with the same octagon and keeps its brackets
+on the corners it does not cut. most themes carry
 a surface texture; `truth to materials` and `bluesky` drop it, while
 `toxic midnight` and `candy crypt` use crossing diagonals and `dead leaves`
-shifts the frame head. cyberpunk opts into cyan and magenta neon shadows and an
-octagonal card clip; `candy crypt` rounds by 5px, `cottagecore` 4px, `bluesky`
+shifts the frame head. cyberpunk opts into magenta and cyan neon shadows, cuts the
+top left and bottom right corners at 45 degrees, brackets the other two and
+boots its windows with a scan print and a flicker; `candy crypt` rounds by 5px, `cottagecore` 4px, `bluesky`
 3px and `pumpkin ember` and `dead leaves` 2px. the other themes keep square
 corners and leave the neon tokens transparent.
 single images scale to fit the viewport while keeping their natural ratio. media is dithered
@@ -150,6 +172,14 @@ image effects off entirely for the current theme.
 
 ## labelers
 
+the settings window can switch off single-key shortcuts (`keyboard shortcuts`,
+on by default): letters like `f`, `j` and `x` stop firing while arrows, enter,
+escape, page keys and every modifier chord keep working. the palette chord and
+`/` stay reachable either way.
+
+a window opens with focus on its first field, or on the window itself when it
+has none, never on the close cross.
+
 the settings window (`,` or the gear in the top bar) stores labeler DIDs in
 `benday:settings`. configured labelers are sent on reads through the
 `accept-labelers` header so the appview can attach their labels. labeler
@@ -163,6 +193,14 @@ on a focused card in a feed or discover deck `+` asks for more posts like it and
 request carries the feed URI plus any `feedContext` and `reqId` the generator
 supplied. cards from author and search decks do not send feedback.
 
+interactions belong to the feed generator service, not the appview: the client
+posts `app.bsky.feed.sendInteractions` to the account's pds with
+`atproto-proxy: <generator service did>#bsky_fg` and the pds forwards it. the
+service did comes from the generator record's `did` (`getFeedGenerator` view),
+so discover targets `did:web:discover.bsky.app`. a generator that explicitly
+sets `acceptsInteractions: false`, or whose metadata never resolved a service
+did, gets no feedback.
+
 feed and discover decks do not refetch themselves. restoring a cached deck, moving
 between tabs, letting a labeler change, or invalidating after a write leaves the
 cards alone. the refresh action on the mode-switching card, the refresh card at
@@ -174,11 +212,19 @@ paging to scroll.
 
 the notifications tab (`/notifications`, or `ctrl`/`cmd` + `←` `→`) is for the
 signed-in account and stays out of the top bar while signed out. it lists
-follows, likes, reposts, replies, mentions and quotes, newest first, 50 at a
-time, with the unread marker the appview supplies. each row links to the actor
-and to the subject thread, or to the profile for a follow. up/down focus rows
+follows, likes, reposts, replies, mentions and quotes as cards, newest first,
+50 at a time, with the reason in the frame head and the unread marker the
+appview supplies. each card shows who acted and when, then the post it points
+at — author, age, a three-line excerpt and its reply, like and repost counts —
+with a reply's own text above that context. one posts call per page fills the
+subject block; if it fails the notification still renders. a reply, mention or
+quote opens the new post itself, a like or repost opens the post it landed on,
+and a follow opens the profile. up/down
+focus rows
 and scrolls them into view; enter opens the focused row. opening the tab marks
-the list seen in the background; a failed seen update never disturbs the list.
+the list seen in the background using the newest row the pds returned, even
+when moderation hid that row from the list; a failed seen update never disturbs
+the list.
 the refresh button reloads it, and the query also refetches when it is stale on
 mount and after reconnecting. notifications are not pushed in realtime.
 
@@ -189,7 +235,8 @@ adds a temporary tab while you are there. the identity card shows banner,
 avatar, name, handle, pronouns, a bot tag, bio, joined date, counts and labels,
 plus any profile links whose scheme is `http` or `https`; a link without a title
 falls back to its hostname. relationship tags mark `follows you`, `muted`,
-`reposts hidden`, `blocked` and `blocked by`.
+`reposts hidden`, `quoteposts hidden` (independent scopes), `blocked` and
+`blocked by`.
 
 actions are follow/unfollow, mute/unmute, hide/show reposts, block/unblock and
 per-account notifications for new posts and new replies. they need a signed-in
@@ -199,20 +246,39 @@ this client. the notification control is a themed listbox with all activity,
 new posts only, replies only and off. every relationship action, including the
 notification control, is hidden on your own profile.
 
-the profile deck has three modes: `posts` (standalone posts), `replies` (replies
-this account wrote) and `media` (posts carrying images or video). on wide
-screens `←` from the first post opens the mode deck; mobile uses a compact mode
-strip. entering the mode deck and returning to posts play the same deal
-animation as the feeds deck. the author feed is fetched once and the modes
-filter those loaded pages, so their counts describe what has been fetched. the
-refresh card at the end of the deck reloads it.
+the profile deck has four modes: `profile` (the identity card), `posts`
+(standalone posts), `replies` (replies this account wrote) and `media` (posts
+carrying images or video). on wide screens the content deck's leading peek card
+opens the mode deck and choosing a mode deals the content deck back; below
+900px a chip strip switches modes instead. entering the mode deck and returning
+to a mode play the same deal animation as the feeds deck. the author feed is
+fetched once and the modes filter those loaded pages, so their counts describe
+what has been fetched. the refresh card at the end of the deck reloads it.
+
+## search
+
+search is a route (`/search`) reached with `s`; the field offers the same
+`@handle` and `#hashtag` suggestions as the composer. it has three modes:
+`posts` (text or author match), `users` (accounts by handle or name) and
+`feeds` (feed generators, searched through
+`app.bsky.unspecced.getPopularFeedGenerators`). a user result opens the profile
+and a feed result opens that feed in the feeds view. on wide screens the content
+deck's leading peek card opens a search-modes deck and choosing a mode deals
+the results back; below 900px a chip strip switches modes instead. submitting
+the same query again is the explicit reload. search needs the appview's search
+capability, so the public cache and blacksky say so instead of sending the
+request.
 
 ## settings
 
 settings is the central window for themes appviews labelers account and transfer. open it
 with `,` or the gear button. type `/` to focus settings search; keyboard help has its own. appearance selects light dark or system, keeps a
-theme choice for each light and dark section, toggles image effects, and shows a
-live preview that splits into light and dark halves while system is active. the
+theme choice for each light and dark section, toggles image effects and an
+opt-in high-contrast surface, and shows a live preview that splits into light
+and dark halves while system is active. high contrast is a separate pass over
+the current theme rather than another theme: the normal palettes stay exactly
+as they are, boundaries and text go to at least 7:1, texture and glow are
+switched off, and the choice travels with a settings export. the
 search filters whole sections. the header cross closes the window. settings
 written in one tab rehydrate in every other open tab, so theme, appview and
 labeler changes follow without a reload.
@@ -221,9 +287,9 @@ labeler changes follow without a reload.
 
 the transfer section exports `benday-settings.json` and imports one such file.
 export builds the file in memory and downloads it; import replaces the
-appearance mode, per-section themes, image-effects choice, theme, appview and
-labeler list in a single update, so malformed input leaves the current settings
-untouched. errors are reported inline in the dialog.
+appearance mode, per-section themes, image-effects and high-contrast choices,
+theme, appview and labeler list in a single update, so malformed input leaves
+the current settings untouched. errors are reported inline in the dialog.
 
 the file is versioned and intentionally narrow:
 
@@ -236,6 +302,7 @@ the file is versioned and intentionally narrow:
   "lightTheme": "bone",
   "darkTheme": "void",
   "imageEffects": true,
+  "highContrast": false,
   "appView": {
     "id": "blacksky",
     "label": "blacksky",
@@ -269,8 +336,15 @@ send clears it. markers are removed before publishing and converted to atproto
 facets with UTF-8 byte offsets. mentions, hashtags and bare urls are still detected by the
 atproto rich-text layer. the counter counts the stripped text.
 
+in a thread `↑` or `k` walks up the replies; at the focus post it opens the
+parent post's thread when the thread has a parent and otherwise closes the
+thread at the root. `↓` or `j` enters the replies, and escape leaves the thread
+from anywhere.
+
 in a thread, `r` or `q` on the focused main card opens a docked composer instead
-of the dialog: a quote dock sits above the post and a reply dock below it. it
+of the dialog: a quote dock sits above the post and a reply dock below it, and
+both wear the dialog's own head and footer chrome so the two placements read as
+one box. it
 shares the markdown, suggestions, drafts, 300-grapheme counter and
 `ctrl`/`cmd` + `enter` send with the dialog; `esc` closes it. the target line
 names the author and shows a short excerpt. a thread whose post answers someone
@@ -282,11 +356,11 @@ suggestions from the selected appview. the search field offers the same
 suggestions. the feeds tab is home: logged-out readers see the discover feed
 only; signed-in accounts default to their first pinned feed and fall back to
 discover when there is none. on wide screens the first post hides the feeds
-deck behind its left edge; press left to enter it. the exposed half shows the
-back of the first post card with the feed title post index date and appview.
-each feed is a card and left from the first feed returns to posts. feed mode
-shows the matching posts back on its left edge. mobile keeps the compact pinned
-strip.
+deck behind its left edge; press left or up to enter it. the exposed half shows
+the back of the first post card with the feed title post index date and appview.
+each feed is a card and left or up from the first feed returns to posts. feed
+mode shows the matching posts back on its left edge. mobile keeps the compact
+pinned strip.
 the `+ add` dialog opens any feed generator. the profile view splits identity
 and posts horizontally on wide screens. single images keep their natural
 aspect ratio so text stays readable.
@@ -302,7 +376,7 @@ aspect ratio so text stays readable.
 - TanStack Query 5 for request state and appview-scoped cache keys
 - Zustand 5 for persisted settings, auth, per-post action state and dialogs
 - Wouter 3 for routes
-- IBM Plex Mono via `@fontsource`
+- IBM Plex Mono for text and chrome and IBM Plex Sans for names and titles, both via `@fontsource`
 - Biome for format and lint, Vitest and Testing Library for tests
 
 the dither is an inline SVG filter over the original image: an 8x8 Bayer tile
@@ -334,9 +408,10 @@ pnpm dev        # vite dev server
 pnpm build      # tsc --noEmit plus vite build
 pnpm preview    # static preview on 0.0.0.0:4173
 pnpm typecheck  # strict tsc pass
-pnpm lint       # biome check
-pnpm test       # vitest run
-pnpm check      # lint, tests, then build
+pnpm lint         # biome check
+pnpm test         # vitest run (jsdom)
+pnpm test:browser # vitest browser mode in real chromium
+pnpm check        # lint, both suites, then build
 ```
 
 ## layout
@@ -374,18 +449,41 @@ route semantics without adding chrome.
 
 ## verification
 
-- 209 offline unit tests cover byte-offset facets, post/embed/profile model
-  mapping, markdown-to-facet conversion, thread flattening and reply context,
-  appviews and capabilities, relative time, 8x8 dither generation, all themes
-  and seasonal availability, pinned-feed preferences and selection, mention
-  detection, command parsing, palette precedence, card action auth gates,
-  focused-card shortcuts including quoted-post opening, optimistic counts, the
-  reply composer, drafts, the feed cache guard, the viewer-state proxy and feed
-  feedback, theme schemes, and settings file import/export
+- 513 offline unit tests across 54 files cover byte-offset facets and anchor
+  composition, post/embed/profile model mapping, hidden-author moderation
+  pruning (nested quotes, reply contexts, whole reply subtrees, and the entry cap
+  counted after pruning), viewer-scoped author and search page chains,
+  markdown-to-facet conversion and wire facet canonicalization, thread
+  flattening and reply context, appviews and capabilities, relative time, 8x8
+  dither generation, all themes and seasonal availability, pinned-feed
+  preferences and selection, mention and tag suggestion freshness and token
+  replacement, command parsing, palette precedence, auth transitions and
+  did:web discovery, card action auth gates, post action freshness and write
+  confirmation, partial viewer-state batches, focused-card shortcuts including
+  quoted-post opening, the reply composer and its draft revisions, the feed cache
+  guard, per-account read privacy, notification mapping and seen cursors, the
+  viewer-state proxy and feed feedback, theme schemes, and settings file
+  import/export including high contrast
+- 29 native-browser tests across 7 files drive real chromium with trusted keys
+  and real layout: deck focus and scroll memory across axes, shifted-arrow
+  consumption with native text selection at both boundaries, the thread's outer
+  versus card scrolling, mode-card and card-back geometry at desktop and mobile
+  widths, the split theme preview, media fallbacks keeping their declared space,
+  and the high-contrast cursor palette
 - the built bundle is exercised in a browser at desktop and mobile widths; the
   wide deck is checked as a centred card with half-neighbour peeks, the narrow
   deck as a two-up vertical list, and the thread view as one full card with replies inside
   it
+- route changes crossfade through the browser's view transitions api when it is
+  present and reduced motion is off; the media viewer stage fades in and deck
+  cards fade in when they replace their skeletons. the palette reserves its
+  results box, so the window stays put while the debounced suggestions arrive
+  and while arrowing through them, and a parked pointer cannot steal the
+  selection from the keyboard
+- motion is per family: the paper themes rise, the quiet dark themes fade, the
+  four october themes settle with a slight tilt and a slower deal, `truth to
+  materials` stays still, and cyberpunk keeps its boot and flicker. reduced motion
+  turns all of it off
 - the dithered themes are checked in the browser, and the undithered bluesky theme and industrial truth theme are checked separately
 - the portal button is checked through a live pds authorization redirect; the
   consent page is completed manually, not by the headless harness
@@ -416,12 +514,24 @@ route semantics without adding chrome.
 - profile modes describe the author pages fetched so far, not the whole account
 - quoted posts show author text and an open link, not the full quoted media; blocked
   or missing quoted posts show a small unavailable placeholder
-- video posts show a collapsed poster first; `m` opens a media viewer, and playing mounts a themed hls.js player with native HLS fallback and no caption tracks
+- the focused card wears two hairlines, one on the edge and one three pixels
+  in, so square and clipped themes read the same; hovering a card warms its
+  border and nudges its index
+- an empty or failed surface carries one dithered `◆` and, where a next step
+  exists, one action. a thread indents with a rail per depth. the media viewer
+  pages with chevrons and a counter
+- video posts show a collapsed poster first; `m` opens a media viewer, and playing mounts a themed hls.js player with native HLS fallback and no caption tracks. a post carrying content labels must be revealed before `m` or `v` acts on its media
 - settings search filters whole sections rather than listing individual result buttons
 - labeler services are not rendered beyond label tags on cards and profiles
-- a thread is flattened to depth 3 and capped at 80 replies
+- a thread is flattened to depth 3 and capped at 80 replies, after muted and
+  blocked authors and their reply subtrees are removed; the post you opened is
+  always kept
+- a deck remembers the focused card by its key, so a refresh that inserts or
+  drops cards around it keeps the same one under the keys
 - wide screens centre the focused card with half-neighbour peeks; narrow
-  screens use a two-up vertical list
+  screens use a two-up vertical list. the leading peek is a sliver, never a
+  snap target, and a deck reset by a swap (sign-in) re-centres its first card
+  before paint instead of resting on the switcher
 - custom appviews and self-hosted pds instances must allow browser cors
 - password session tokens live in localStorage; portal tokens live in
   indexedDB. sign out clears both
