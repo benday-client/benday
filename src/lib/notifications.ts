@@ -1,6 +1,7 @@
 import type { AppBskyNotificationListNotifications } from '@atproto/api'
-import { getAuthAgent } from './auth'
-import type { AuthorModel } from './types'
+import { requireViewerAgent } from './auth'
+import { hidesAuthor, mapAuthor, mapPostView } from './model'
+import type { AuthorModel, PostModel } from './types'
 
 export const NOTIFICATION_LIMIT = 50
 
@@ -22,19 +23,16 @@ export interface NotificationModel {
   subject: string | null
   /** text preview of the subject post when the payload carries one */
   subjectText: string | null
+  /** the post the notification points at, hydrated a page at a time */
+  subjectPost: PostModel | null
   isRead: boolean
   indexedAt: string
 }
 
-function mapAuthor(
-  author: AppBskyNotificationListNotifications.Notification['author'],
-): AuthorModel {
-  return {
-    did: author.did,
-    handle: author.handle,
-    displayName: author.displayName ?? '',
-    avatar: author.avatar ?? null,
-  }
+export interface NotificationPage {
+  notifications: NotificationModel[]
+  /** newest indexedAt on the wire page, even when every row was filtered */
+  newestIndexedAt: string | null
 }
 
 function readSubjectText(record: Record<string, unknown>): string | null {
@@ -65,6 +63,7 @@ export function mapNotification(
     author,
     subject: notification.reasonSubject ?? readSubjectRef(notification.record),
     subjectText: readSubjectText(notification.record),
+    subjectPost: null,
     isRead: notification.isRead,
     indexedAt: notification.indexedAt,
   }
@@ -126,31 +125,90 @@ export function notificationReasonLabel(reason: string): string {
 
 const POST_URI = /^at:\/\/[^/]+\/app\.bsky\.feed\.post\/[^/]+$/
 
-export function notificationSubjectHref(notification: NotificationModel): string | null {
-  if (notificationReasonGroup(notification.reason) === 'follow') {
-    return `/profile/${encodeURIComponent(notification.author.handle)}`
-  }
-  const uri = notification.subject ?? notification.uri
+/** The thread route for a post uri, or null when the uri is not a post. */
+export function postThreadHref(uri: string): string | null {
   if (!POST_URI.test(uri)) return null
   return `/thread?uri=${encodeURIComponent(uri)}`
 }
 
-export async function fetchNotifications(): Promise<NotificationModel[]> {
-  const agent = getAuthAgent()
-  if (agent === null) throw new Error('notifications need a signed-in account')
+export function notificationSubjectHref(notification: NotificationModel): string | null {
+  const group = notificationReasonGroup(notification.reason)
+  if (group === 'follow') {
+    return `/profile/${encodeURIComponent(notification.author.handle)}`
+  }
+  // a reply, mention or quote notification's own uri is the new post the
+  // reader wants to open; its subject is the parent post. engagement
+  // notifications invert that: the subject is the reader's own post.
+  const opensOwnRecord = group === 'reply' || group === 'mention' || group === 'quote'
+  return postThreadHref(
+    opensOwnRecord ? notification.uri : (notification.subject ?? notification.uri),
+  )
+}
 
+const SUBJECT_CHUNK = 25
+
+/**
+ * One posts call per page gives every notification its subject post: the liked
+ * or reposted post, or the parent a reply answers. Context is optional, so a
+ * failed read leaves the notifications visible with no subject post.
+ */
+async function loadSubjectPosts(
+  agent: ReturnType<typeof requireViewerAgent>,
+  notifications: readonly NotificationModel[],
+): Promise<Map<string, PostModel>> {
+  const uris = [
+    ...new Set(
+      notifications
+        .map((notification) => notification.subject)
+        .filter((uri): uri is string => uri !== null),
+    ),
+  ]
+  const posts = new Map<string, PostModel>()
+  if (uris.length === 0) return posts
+  const reader = agent.withProxy('bsky_appview', 'did:web:api.bsky.app')
+  for (let index = 0; index < uris.length; index += SUBJECT_CHUNK) {
+    const chunk = uris.slice(index, index + SUBJECT_CHUNK)
+    try {
+      const response = await reader.app.bsky.feed.getPosts({ uris: chunk })
+      for (const view of response.data.posts) posts.set(view.uri, mapPostView(view))
+    } catch {
+      // a hidden subject post is a missing context line, not a failed inbox
+    }
+  }
+  return posts
+}
+
+export async function fetchNotifications(viewerDid: string): Promise<NotificationPage> {
+  const agent = requireViewerAgent(viewerDid)
   const response = await agent.listNotifications({ limit: NOTIFICATION_LIMIT })
-  return response.data.notifications.map(mapNotification)
+  // the card list hides muted and blocked authors, but the seen cursor must
+  // advance past the newest wire row or a hidden newest notification is
+  // re-delivered forever
+  let newestIndexedAt: string | null = null
+  for (const notification of response.data.notifications) {
+    if (newestIndexedAt === null || notification.indexedAt > newestIndexedAt) {
+      newestIndexedAt = notification.indexedAt
+    }
+  }
+  const visible = response.data.notifications
+    .map(mapNotification)
+    .filter((notification) => !hidesAuthor(notification.author))
+  const posts = await loadSubjectPosts(agent, visible)
+  const notifications = visible.map((notification) => ({
+    ...notification,
+    subjectPost: notification.subject === null ? null : (posts.get(notification.subject) ?? null),
+  }))
+  return { notifications, newestIndexedAt }
 }
 
 /**
  * Best effort: a failed seen update must never disturb the notification list.
  * Returns true only when the server accepted the update.
  */
-export async function markNotificationsSeen(seenAt?: string): Promise<boolean> {
-  const agent = getAuthAgent()
-  if (agent === null) return false
+export async function markNotificationsSeen(viewerDid: string, seenAt: string): Promise<boolean> {
   try {
+    // a mismatched account returns false before any request leaves the tab
+    const agent = requireViewerAgent(viewerDid)
     await agent.updateSeenNotifications(seenAt)
     return true
   } catch {

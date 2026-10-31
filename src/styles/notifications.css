@@ -15,11 +15,11 @@
 }
 
 .b-notif__bar .mono-label {
-  color: var(--ink-faint);
+  color: var(--text-muted);
 }
 
 .b-notif__count {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.04em;
   text-transform: lowercase;
@@ -34,57 +34,91 @@
   opacity: 0.55;
 }
 
-.b-notif__scroll {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
+/* The shared deck owns the scrolling; this body only hands it the remaining
+   height under the bar, exactly like the other route-level decks. */
+.b-notif__stage {
   min-width: 0;
-  min-height: 0;
   overflow-y: auto;
-  scrollbar-color: var(--line-strong) transparent;
-  scrollbar-width: thin;
 }
 
-.b-notif__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+/* the list keeps the same reading column as the warning above it */
+.b-notif__stage > .b-deck {
   width: min(100%, 980px);
-  margin: 0 auto;
-  padding: var(--space-4) var(--page-gutter) var(--space-6);
-  list-style: none;
+  margin-inline: auto;
+}
+
+@media (min-width: 1200px) {
+  .b-notif__stage > .b-deck {
+    width: min(100%, 1040px);
+  }
 }
 
 .b-notif {
-  display: flex;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
+  width: 100%;
+  height: auto;
   border-left-width: 2px;
-  background-color: var(--paper);
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
-  );
   line-height: 1.5;
-  scroll-margin-block: var(--space-2);
   transition: border-color 120ms linear;
+}
+
+/* the deck's own slot is a row flex container on the wide axis */
+.b-deck[data-axis="x"] .b-notif {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .b-notif:hover {
   border-color: var(--line-strong);
 }
 
-.b-notif[data-focused="true"],
-.b-notif:focus-visible {
-  outline: 1px solid var(--blue);
-  outline-offset: 2px;
+.b-notif[data-clickable="true"] {
+  cursor: pointer;
 }
 
 .b-notif[data-unread="true"] {
   border-left-color: var(--blue);
   background-color: color-mix(in srgb, var(--blue) 4%, var(--paper));
+}
+
+.b-notif__head {
+  gap: var(--space-2);
+}
+
+.b-notif__head-right {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.b-notif__unread {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  background: var(--blue);
+  box-shadow: 0 0 6px -1px var(--blue);
+}
+
+/* notifications are a triage list: a row is as tall as it reads, and the
+   deck smooth-scrolls the list instead of dealing full-height cards */
+.b-notif__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.b-notif__quote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.b-notif__author {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .b-notif__avatar {
@@ -108,33 +142,14 @@
   border: 0;
 }
 
-.b-notif__body {
+.b-notif__identity {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--space-1);
   min-width: 0;
-}
-
-.b-notif__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
-}
-
-.b-notif__unread {
-  flex: 0 0 auto;
-  align-self: center;
-  width: 6px;
-  height: 6px;
-  background: var(--blue);
-  box-shadow: 0 0 6px -1px var(--blue);
 }
 
 .b-notif__name {
-  max-width: 32ch;
+  max-width: 100%;
   overflow: hidden;
   color: var(--ink);
   font-weight: 600;
@@ -144,41 +159,36 @@
 }
 
 .b-notif__name:hover {
-  color: var(--blue);
+  color: var(--text-link);
   text-decoration: none;
 }
 
 .b-notif__handle {
-  max-width: 28ch;
+  max-width: 100%;
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .b-notif__time {
-  margin-left: auto;
-}
-
-.b-notif__reason {
-  color: var(--ink-dim);
-  font-size: var(--step-0);
-  letter-spacing: 0.02em;
-  text-transform: lowercase;
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .b-notif__subject {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  margin-top: var(--space-1);
   padding: var(--space-1) var(--space-2);
   border-left: 1px solid var(--line-strong);
   background: var(--panel);
-  color: var(--ink-dim);
-  font-size: var(--step--1);
-  line-height: 1.5;
+  color: var(--text-muted);
+  font-size: var(--step-0);
+  line-height: 1.55;
   overflow: hidden;
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -190,24 +200,97 @@
   text-decoration: none;
 }
 
+/* the post a notification points at, with its author, age, excerpt and counts */
+.b-notif__context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-left: 2px solid var(--line-strong);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  text-decoration: none;
+}
+
+.b-notif__context:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.b-notif__context-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.b-notif__context-author {
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b-notif__context-time {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--step--2);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.b-notif__context-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-width: 100ch;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.b-notif__context-text--empty {
+  color: var(--text-muted);
+}
+
+.b-notif__context-stats {
+  color: var(--text-muted);
+  font-size: var(--step--2);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 .b-notif__foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .b-notif__open {
-  color: var(--accent-2);
+  margin-left: auto;
+  color: var(--ink);
   font-size: var(--step--2);
   letter-spacing: 0.06em;
-  text-decoration: none;
+  text-decoration-color: var(--blue);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
   text-transform: lowercase;
   white-space: nowrap;
 }
 
 .b-notif__open:hover {
-  color: var(--blue-hot);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
+  color: var(--ink);
+  text-decoration-color: var(--blue);
+  text-decoration-thickness: 2px;
 }
 
 .b-notif__state {
@@ -225,17 +308,13 @@
 }
 
 .b-notif__warning {
+  flex: 0 0 auto;
   width: min(100%, 980px);
   margin: var(--space-4) auto 0;
   padding: 0 var(--page-gutter);
 }
 
 @media (min-width: 1200px) {
-  .b-notif__list {
-    width: min(100%, 1040px);
-    padding-top: var(--space-5);
-  }
-
   .b-notif__warning {
     width: min(100%, 1040px);
   }
@@ -246,13 +325,7 @@
     padding: var(--space-1) var(--space-2);
   }
 
-  .b-notif__list {
-    gap: var(--space-1);
-    padding: var(--space-2) var(--space-2) var(--space-5);
-  }
-
-  .b-notif {
-    gap: var(--space-2);
+  .b-notif__body {
     padding: var(--space-2);
   }
 
@@ -262,13 +335,8 @@
     height: 30px;
   }
 
-  .b-notif__name,
-  .b-notif__handle {
-    max-width: 100%;
-  }
-
-  .b-notif__time {
-    margin-left: 0;
+  .b-notif__foot {
+    padding: 0 var(--space-2) var(--space-2);
   }
 
   .b-notif__state {
