@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuthStore } from '../lib/auth'
+import { focusOwningDeck } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import {
   block,
@@ -16,7 +17,14 @@ import {
 } from '../lib/profileActions'
 import { formatAbsoluteTime } from '../lib/time'
 import type { ProfileActivitySubscription, ProfileModel, ProfileViewerState } from '../lib/types'
+
+interface ProfileIdentity {
+  viewerDid: string
+  profileDid: string
+}
+
 import { useUiStore } from '../lib/ui'
+import { Avatar } from './Avatar'
 import { DitherImage } from './DitherImage'
 import { Frame, Tag } from './ui'
 
@@ -76,6 +84,30 @@ function notifyChoice(subscription: ProfileActivitySubscription | null): string 
   return 'off'
 }
 
+/**
+ * A failed action may only take back the fields it guessed about: anything a
+ * newer fetch wrote to the same viewer stays, and an action without an
+ * optimistic patch never touches the cache at all.
+ */
+function rollbackViewer(
+  optimistic: Partial<ProfileViewerState> | null,
+  previous: ProfileViewerState,
+): Partial<ProfileViewerState> | null {
+  if (optimistic === null) return null
+  const patch: Partial<ProfileViewerState> = {}
+  if ('following' in optimistic) patch.following = previous.following
+  if ('followedBy' in optimistic) patch.followedBy = previous.followedBy
+  if ('muted' in optimistic) patch.muted = previous.muted
+  if ('mutedOnlyReposts' in optimistic) patch.mutedOnlyReposts = previous.mutedOnlyReposts
+  if ('mutedOnlyQuoteposts' in optimistic) patch.mutedOnlyQuoteposts = previous.mutedOnlyQuoteposts
+  if ('blocking' in optimistic) patch.blocking = previous.blocking
+  if ('blockedBy' in optimistic) patch.blockedBy = previous.blockedBy
+  if ('activitySubscription' in optimistic) {
+    patch.activitySubscription = previous.activitySubscription
+  }
+  return patch
+}
+
 interface NotifyPickerProps {
   value: string
   disabled: boolean
@@ -107,8 +139,11 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
   const selected = NOTIFY_CHOICES[selectedIndex] ?? NOTIFY_CHOICES[0]
 
   const close = (restoreFocus = false) => {
+    const active = document.activeElement
+    const focusInMenu = active instanceof Node && menuRef.current?.contains(active) === true
     setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
+    // only reclaim focus the menu actually held; a newly focused control keeps it
+    if (restoreFocus && focusInMenu) triggerRef.current?.focus()
   }
 
   const openPicker = () => {
@@ -144,8 +179,15 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
       if (menuRef.current?.contains(event.target) === true) return
       setOpen(false)
     }
-    const closeOnViewportChange = () => {
+    const closeOnViewportChange = (event: Event) => {
+      // scrolling the portalled menu itself must not dismiss it
+      if (event.target instanceof Node && menuRef.current?.contains(event.target) === true) return
+      const active = document.activeElement
+      const focusInMenu = active instanceof Node && menuRef.current?.contains(active) === true
       setOpen(false)
+      // the menu owned focus: give it back to its opener instead of dropping
+      // the reader onto the document
+      if (focusInMenu) triggerRef.current?.focus()
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -160,8 +202,13 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
   }, [open, active])
 
   const choose = (key: string) => {
+    const active = document.activeElement
+    const focusInMenu = active instanceof Node && menuRef.current?.contains(active) === true
+    // the action about to run disables this picker; move focus to the trigger
+    // first so the card can hand it to its deck instead of losing it
+    if (focusInMenu) triggerRef.current?.focus()
     onSelect(key)
-    close(true)
+    setOpen(false)
   }
 
   const handleOptionKeyDown = (
@@ -292,16 +339,29 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
 export function ProfileCard({ profile }: ProfileCardProps) {
   const queryClient = useQueryClient()
   const openDialog = useUiStore((state) => state.openDialog)
+  const actionsRef = useRef<HTMLFieldSetElement>(null)
   const [pending, setPending] = useState<ProfileAction | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const handle = profile.handle.length > 0 ? profile.handle : 'unknown'
   const displayName = profile.displayName.length > 0 ? profile.displayName : handle
-  const initial = (displayName.length > 0 ? displayName : '?').slice(0, 1).toUpperCase()
   const viewer = profile.viewer
   const signedInDid = useAuthStore((state) => state.account?.did ?? null)
   const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const isSelf = signedInDid !== null && signedInDid === profile.did
+  const viewerIdentity = signedInDid ?? 'anonymous'
+  // the identity a late action belongs to; a new account or profile owns the
+  // UI from the next render on
+  const identityRef = useRef<ProfileIdentity>({
+    viewerDid: viewerIdentity,
+    profileDid: profile.did,
+  })
+  identityRef.current = { viewerDid: viewerIdentity, profileDid: profile.did }
+
+  useEffect(() => {
+    setPending(null)
+    setError(null)
+  }, [viewerIdentity, profile.did])
 
   const counts = [
     { label: 'followers', value: profile.followersCount },
@@ -319,15 +379,25 @@ export function ProfileCard({ profile }: ProfileCardProps) {
 
   const relationships = [
     viewer.followedBy !== null ? 'follows you' : null,
-    viewer.muted ? 'muted' : viewer.mutedOnlyReposts ? 'reposts hidden' : null,
+    viewer.muted ? 'muted' : null,
+    viewer.mutedOnlyReposts ? 'reposts hidden' : null,
+    viewer.mutedOnlyQuoteposts ? 'quoteposts hidden' : null,
     viewer.blocking !== null ? 'blocked' : viewer.blockedBy ? 'blocked by' : null,
   ].filter((note): note is string => note !== null)
 
-  const applyViewer = (patch: Partial<ProfileViewerState>) => {
-    queryClient.setQueriesData<ProfileModel>({ queryKey: ['profile'] }, (current) => {
-      if (current === undefined || current.did !== profile.did) return current
-      return { ...current, viewer: { ...current.viewer, ...patch } }
-    })
+  const applyViewer = (patch: Partial<ProfileViewerState>, identity: ProfileIdentity) => {
+    // cross-host patches for the same account stay; another viewer or another
+    // profile's cache entry never receives this state
+    queryClient.setQueriesData<ProfileModel>(
+      {
+        predicate: (query) =>
+          query.queryKey[0] === 'profile' && query.queryKey[3] === identity.viewerDid,
+      },
+      (current) => {
+        if (current === undefined || current.did !== identity.profileDid) return current
+        return { ...current, viewer: { ...current.viewer, ...patch } }
+      },
+    )
   }
 
   const runAction = (
@@ -341,21 +411,31 @@ export function ProfileCard({ profile }: ProfileCardProps) {
     }
     if (pending !== null) return
 
+    const captured = identityRef.current
     const previous = profile.viewer
+    // every action disables the toolbar while it runs; move the keyboard to
+    // the owning deck before the focused control becomes unreachable
+    focusOwningDeck(actionsRef.current)
     setPending(action)
     setError(null)
-    if (optimistic !== null) applyViewer(optimistic)
+    if (optimistic !== null) applyViewer(optimistic, captured)
+
+    const owns = () =>
+      identityRef.current.viewerDid === captured.viewerDid &&
+      identityRef.current.profileDid === captured.profileDid
 
     void task()
       .then((patch) => {
-        if (patch !== null) applyViewer(patch)
+        if (patch !== null && owns()) applyViewer(patch, captured)
       })
       .catch((reason: unknown) => {
-        applyViewer(previous)
+        if (!owns()) return
+        const rollback = rollbackViewer(optimistic, previous)
+        if (rollback !== null) applyViewer(rollback, captured)
         setError(errorInfo(reason).detail)
       })
       .finally(() => {
-        setPending(null)
+        if (owns()) setPending(null)
       })
   }
 
@@ -375,7 +455,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
 
         <div className="b-profile__identity">
           <span className="b-profile__avatar">
-            <DitherImage src={profile.avatar} alt={`avatar of @${handle}`} fallback={initial} />
+            <Avatar src={profile.avatar} alt={`avatar of @${handle}`} name={displayName} />
           </span>
           <span className="b-profile__names">
             <span className="b-profile__name-row">
@@ -451,15 +531,18 @@ export function ProfileCard({ profile }: ProfileCardProps) {
         ) : null}
 
         {isSelf ? null : (
-          <fieldset className="b-profile__actions">
+          <fieldset
+            className="b-profile__actions"
+            ref={actionsRef}
+            aria-busy={toggling ? 'true' : undefined}
+          >
             <legend className="visually-hidden">profile actions</legend>
             <button
               type="button"
               className="b-post-card__action"
               data-kind="follow"
-              aria-pressed={viewer.following !== null}
+              data-active={viewer.following !== null ? 'true' : 'false'}
               disabled={toggling}
-              title={error ?? undefined}
               onClick={() => {
                 if (viewer.following !== null) {
                   const followUri = viewer.following
@@ -496,7 +579,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
               type="button"
               className="b-post-card__action"
               data-kind="mute"
-              aria-pressed={viewer.muted}
+              data-active={viewer.muted ? 'true' : 'false'}
               disabled={toggling}
               onClick={() => {
                 if (viewer.muted) {
@@ -529,21 +612,38 @@ export function ProfileCard({ profile }: ProfileCardProps) {
                     : 'mute'}
             </button>
 
+            {/* a repost-only mute must never replace a full mute with a weaker scope,
+                and a quote-only hide leaves the repost toggle disabled */}
             <button
               type="button"
               className="b-post-card__action"
               data-kind="hide-reposts"
-              aria-pressed={viewer.mutedOnlyReposts}
-              disabled={toggling}
+              data-active={viewer.mutedOnlyReposts ? 'true' : 'false'}
+              disabled={
+                toggling || viewer.muted || (viewer.mutedOnlyQuoteposts && !viewer.mutedOnlyReposts)
+              }
+              title={
+                viewer.muted
+                  ? 'unmute first'
+                  : viewer.mutedOnlyQuoteposts
+                    ? 'quoteposts hidden'
+                    : undefined
+              }
               onClick={() => {
                 if (viewer.mutedOnlyReposts) {
+                  const keepQuoteposts = viewer.mutedOnlyQuoteposts
+                  const scope = {
+                    muted: false,
+                    mutedOnlyReposts: false,
+                    mutedOnlyQuoteposts: keepQuoteposts,
+                  }
                   runAction(
                     'show-reposts',
                     async () => {
-                      await showReposts(profile.did)
-                      return { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false }
+                      await showReposts(profile.did, keepQuoteposts)
+                      return scope
                     },
-                    { muted: false, mutedOnlyReposts: false, mutedOnlyQuoteposts: false },
+                    scope,
                   )
                   return
                 }
@@ -570,7 +670,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
               type="button"
               className="b-post-card__action b-post-card__action--danger"
               data-kind="block"
-              aria-pressed={viewer.blocking !== null}
+              data-active={viewer.blocking !== null ? 'true' : 'false'}
               disabled={toggling}
               onClick={() => {
                 if (viewer.blocking !== null) {

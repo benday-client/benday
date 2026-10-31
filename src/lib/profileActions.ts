@@ -42,8 +42,14 @@ export async function hideReposts(did: string): Promise<void> {
   await requireAgent().mute(did, { onlyReposts: true })
 }
 
-export async function showReposts(did: string): Promise<void> {
-  await requireAgent().unmute(did)
+export async function showReposts(did: string, keepQuoteposts: boolean): Promise<void> {
+  const agent = requireAgent()
+  if (keepQuoteposts) {
+    // undo only the repost scope; a quote-only mute must survive it
+    await agent.mute(did, { onlyQuoteposts: true })
+    return
+  }
+  await agent.unmute(did)
 }
 
 export async function block(did: string): Promise<ProfileWriteResult> {
