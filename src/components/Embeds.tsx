@@ -17,6 +17,12 @@ import { VideoPlayer } from './VideoPlayer'
 
 export interface EmbedsProps {
   embed: EmbedModel
+  /** hides media from pointer, focus and assistive tech until it is revealed */
+  concealed?: boolean
+}
+
+function concealment(concealed: boolean): { inert?: boolean; 'aria-hidden'?: true } {
+  return concealed ? { inert: true, 'aria-hidden': true } : {}
 }
 
 function safeExternalUrl(uri: string): string | null {
@@ -31,24 +37,55 @@ function safeExternalUrl(uri: string): string | null {
   return uri
 }
 
-function ImageGrid({ images }: { images: readonly ImageModel[] }) {
+const BLOCK_PAGE_MARKERS = [
+  'user-agent',
+  'user agent',
+  'captcha',
+  'access denied',
+  'forbidden',
+  'just a moment',
+  'attention required',
+  'are you a robot',
+  'request blocked',
+  'too many requests',
+]
+
+function looksLikeBlockPage(text: string): boolean {
+  const lower = text.toLowerCase()
+  return BLOCK_PAGE_MARKERS.some((marker) => lower.includes(marker))
+}
+
+function externalAddress(uri: string, domain: string): string {
+  try {
+    const parsed = new URL(uri)
+    const path = decodeURIComponent(parsed.pathname).replace(/\/+$/, '')
+    return `${parsed.host}${path}`
+  } catch {
+    return domain
+  }
+}
+
+function ImageGrid({ images, concealed }: { images: readonly ImageModel[]; concealed: boolean }) {
   if (images.length === 0) return null
   const single = images.length === 1
 
   return (
-    <figure className="b-embed b-embed--images">
+    <figure className="b-embed b-embed--images" {...concealment(concealed)}>
       <div className="b-embed__grid" data-count={String(images.length)}>
-        {images.map((image) => {
-          const alt = image.alt.length > 0 ? image.alt : 'image'
+        {images.map((image, index) => {
+          const alt = image.alt.length > 0 ? image.alt : `image ${index + 1} of ${images.length}`
           const href = safeExternalUrl(image.fullsize)
           const titleProps = image.alt.length > 0 ? { title: image.alt } : {}
           const content = (
             <>
               <span className="b-embed__image-frame">
                 <DitherImage
-                  src={image.fullsize.length > 0 ? image.fullsize : image.thumb || null}
+                  // the grid shows the cheap thumbnail and falls back to the
+                  // full size only when the appview omitted one
+                  src={image.thumb.length > 0 ? image.thumb : image.fullsize || null}
                   alt={alt}
                   loading="lazy"
+                  {...(single ? { width: image.width, height: image.height } : {})}
                 />
               </span>
               {single && image.alt.length > 0 ? (
@@ -84,13 +121,18 @@ function ImageGrid({ images }: { images: readonly ImageModel[] }) {
   )
 }
 
-function ExternalCard({ embed }: { embed: ExternalEmbed }) {
+function ExternalCard({ embed, concealed }: { embed: ExternalEmbed; concealed: boolean }) {
   const href = safeExternalUrl(embed.uri)
-  const title = embed.title.length > 0 ? embed.title : embed.uri
+  // crawler block pages arrive as ordinary titles, so show the address instead;
+  // a legit title that merely mentions a captcha needs the description to agree
+  const blocked =
+    embed.title.length === 0 ||
+    (looksLikeBlockPage(embed.title) && looksLikeBlockPage(embed.description))
+  const title = blocked ? externalAddress(embed.uri, embed.domain) : embed.title
   const content = (
     <>
       {embed.thumb !== null && embed.thumb.length > 0 ? (
-        <span className="b-embed__thumb">
+        <span className="b-embed__thumb" {...concealment(concealed)}>
           <DitherImage src={embed.thumb} alt={title} />
         </span>
       ) : null}
@@ -99,7 +141,7 @@ function ExternalCard({ embed }: { embed: ExternalEmbed }) {
         <span className="b-embed__external-domain">
           {embed.domain.length > 0 ? embed.domain : 'external'}
         </span>
-        {embed.description.length > 0 ? (
+        {!blocked && embed.description.length > 0 ? (
           <span className="b-embed__external-description">{embed.description}</span>
         ) : null}
       </span>
@@ -162,9 +204,9 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
   )
 }
 
-function VideoCard({ embed }: { embed: VideoEmbed }) {
+function VideoCard({ embed, concealed }: { embed: VideoEmbed; concealed: boolean }) {
   return (
-    <figure className="b-embed b-embed--video">
+    <figure className="b-embed b-embed--video" {...concealment(concealed)}>
       <VideoPlayer video={embed} />
     </figure>
   )
@@ -197,40 +239,40 @@ function UnknownCard({ embed }: { embed: UnknownEmbed }) {
   )
 }
 
-function Media({ embed }: { embed: MediaEmbed }) {
+function Media({ embed, concealed }: { embed: MediaEmbed; concealed: boolean }) {
   switch (embed.type) {
     case 'images':
-      return <ImageGrid images={embed.images} />
+      return <ImageGrid images={embed.images} concealed={concealed} />
     case 'external':
-      return <ExternalCard embed={embed} />
+      return <ExternalCard embed={embed} concealed={concealed} />
     case 'video':
-      return <VideoCard embed={embed} />
+      return <VideoCard embed={embed} concealed={concealed} />
     case 'unknown':
       return <UnknownCard embed={embed} />
   }
 }
 
-function RecordCard({ embed }: { embed: RecordWithMediaEmbed }) {
+function RecordCard({ embed, concealed }: { embed: RecordWithMediaEmbed; concealed: boolean }) {
   return (
     <div className="b-embed b-embed--record">
       <QuoteCard post={embed.quote} />
-      <Media embed={embed.media} />
+      <Media embed={embed.media} concealed={concealed} />
     </div>
   )
 }
 
-export function Embeds({ embed }: EmbedsProps) {
+export function Embeds({ embed, concealed = false }: EmbedsProps) {
   switch (embed.type) {
     case 'quote':
       return <QuoteCard post={embed.post} />
     case 'unavailable':
       return <UnavailableCard embed={embed} />
     case 'recordWithMedia':
-      return <RecordCard embed={embed} />
+      return <RecordCard embed={embed} concealed={concealed} />
     case 'images':
     case 'external':
     case 'video':
     case 'unknown':
-      return <Media embed={embed} />
+      return <Media embed={embed} concealed={concealed} />
   }
 }

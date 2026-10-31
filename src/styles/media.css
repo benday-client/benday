@@ -1,6 +1,7 @@
 /* media viewer and video player */
 
 .b-video-player {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -26,15 +27,34 @@
   object-fit: cover;
 }
 
-.b-video-player__poster-mark {
+/* one opaque play plate marks both the poster and the paused video */
+.b-video-player__plate {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--blue-deep);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: var(--step-2);
+  line-height: 1;
+  place-items: center;
+}
+
+/* the poster stacks its image, so the plate centers over it */
+.b-video-player__poster .b-video-player__plate {
   position: absolute;
   inset: 0;
-  display: grid;
-  color: var(--ink);
-  font-size: var(--step-1);
-  letter-spacing: 0.08em;
-  place-items: center;
-  text-shadow: 0 0 8px var(--void);
+  margin: auto;
+}
+
+.b-video-player__alt {
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .b-video-player--poster .b-video-player__alt {
@@ -59,21 +79,13 @@
   color: var(--ink);
   cursor: pointer;
   font: inherit;
-  font-size: var(--step-4);
   place-items: center;
 }
 
-.b-video-player__play span {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  border: 1px solid var(--blue-deep);
-  background: var(--panel);
-  place-items: center;
-}
-
-.b-video-player {
+.b-video-player__stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .b-video-player__controls {
@@ -87,12 +99,17 @@
 }
 
 .b-video-player__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   appearance: none;
+  min-width: 24px;
+  min-height: 24px;
   padding: 2px var(--space-2);
   border: 1px solid var(--line-strong);
   border-radius: var(--theme-radius);
   background: var(--panel-raised);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   font-size: var(--step--1);
@@ -101,48 +118,50 @@
 
 .b-video-player__button:hover {
   border-color: var(--blue);
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-video-player__seek {
   flex: 1 1 120px;
   min-width: 80px;
+  min-height: 24px;
   accent-color: var(--blue);
 }
 
 .b-video-player__time {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.b-video-player__alt {
-  margin: 0;
-  padding: var(--space-1) var(--space-2) var(--space-2);
-  color: var(--ink-faint);
-  font-size: var(--step--1);
-  line-height: 1.4;
-}
-
 .b-video-player__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
   padding: var(--space-2);
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
 }
 
 .b-video-player--unavailable {
-  position: relative;
   min-height: 120px;
 }
 
+/* an unavailable video keeps the poster's bounded frame instead of the raw
+   payload height */
 .b-video-player--unavailable .dither-image {
+  display: block;
+  width: 100%;
   min-height: 120px;
+  max-height: min(42dvh, 320px);
+  object-fit: cover;
 }
 
 .b-media-viewer {
-  max-width: min(900px, calc(100vw - 32px));
+  max-width: min(900px, calc(100vw - var(--dialog-gutter, 32px)));
 }
 
 .b-media-viewer__stage {
@@ -152,9 +171,36 @@
   place-items: center;
 }
 
+/* the stage lifts and fades in with the dialog around it: the starting style
+   supplies the frame the transition leaves from, so the media settles instead
+   of appearing at full weight. Only opacity and a paint-only transform are
+   animated, so the viewer's measured box never changes. */
+@media (prefers-reduced-motion: no-preference) {
+  .b-media-viewer[open] .b-media-viewer__stage {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--motion-dur, 160ms) var(--motion-ease, ease),
+      transform var(--motion-dur, 160ms) var(--motion-ease, ease);
+  }
+
+  @starting-style {
+    .b-media-viewer[open] .b-media-viewer__stage {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+}
+
 .b-media-viewer__image {
   width: 100%;
   max-height: min(72dvh, 680px);
+  /* the dither wrapper sets cover for thumbnails; the viewer shows the whole
+     frame instead of cropping it */
+  object-fit: contain;
+}
+
+.b-media-viewer__stage .b-media-viewer__image {
   object-fit: contain;
 }
 
@@ -164,9 +210,11 @@
 
 .b-media-viewer__alt {
   margin: var(--space-2) 0 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .b-media-viewer__controls {
@@ -178,7 +226,7 @@
 }
 
 .b-media-viewer__count {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   font-variant-numeric: tabular-nums;
 }
