@@ -1,30 +1,164 @@
-import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import { useLocation, useSearchParams } from 'wouter'
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'wouter'
+import { Avatar } from '../components/Avatar'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
-import { Button, EmptyState, ErrorNotice, Frame, TextInput } from '../components/ui'
-import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
-import { usePostFeed } from '../hooks/useBskyQueries'
+import {
+  Button,
+  CardBackButton,
+  cardBackIndex,
+  EmptyState,
+  ErrorNotice,
+  Frame,
+  ModeCard,
+  TextInput,
+} from '../components/ui'
+import { insertSuggestion, suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
+import { useActorSearch, useFeedSearch, usePostFeed } from '../hooks/useBskyQueries'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
+import { useAuthStore } from '../lib/auth'
+import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
+import { resultCountLabel, SEARCH_MODES, type SearchMode, searchModeName } from '../lib/searchModes'
 import { useSettings } from '../lib/store'
-import { useUiStore } from '../lib/ui'
+import type { PostModel, SearchActorModel, SearchFeedModel } from '../lib/types'
+import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
+
+function actorHref(handle: string): string {
+  return `/profile/${encodeURIComponent(handle)}`
+}
+
+function feedHref(uri: string): string {
+  return `/feed?uri=${encodeURIComponent(uri)}`
+}
+
+function ActorCard({ actor }: { actor: SearchActorModel }) {
+  const displayName = actor.displayName.length > 0 ? actor.displayName : actor.handle
+
+  return (
+    <article className="b-frame b-search-card">
+      <header className="b-frame__head">
+        <span className="b-frame__label mono-label">user</span>
+      </header>
+      <div className="b-frame__body b-search-card__body">
+        <div className="b-search-card__identity">
+          <span className="b-search-card__avatar">
+            <Avatar src={actor.avatar} alt={`avatar of @${actor.handle}`} name={displayName} />
+          </span>
+          <span className="b-search-card__names">
+            <Link href={actorHref(actor.handle)} className="b-search-card__name">
+              {displayName}
+            </Link>
+            <span className="b-search-card__handle">@{actor.handle}</span>
+          </span>
+        </div>
+        {actor.description.length > 0 ? (
+          <p className="b-search-card__description">{actor.description}</p>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+function FeedResultCard({ feed }: { feed: SearchFeedModel }) {
+  return (
+    <article className="b-frame b-search-card">
+      <header className="b-frame__head">
+        <span className="b-frame__label mono-label">feed</span>
+        <span className="b-frame__meta">{feed.likeCount} likes</span>
+      </header>
+      <div className="b-frame__body b-search-card__body">
+        <div className="b-search-card__names">
+          <Link href={feedHref(feed.uri)} className="b-search-card__name">
+            {feed.displayName}
+          </Link>
+          <span className="b-search-card__handle">@{feed.creatorHandle}</span>
+        </div>
+        {feed.description.length > 0 ? (
+          <p className="b-search-card__description">{feed.description}</p>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+interface RetainedFailure {
+  requestKey: string
+  error: Error
+}
+
+/**
+ * Keeps the failure a reader is looking at while its own retry is running.
+ * TanStack clears `error` as soon as a fetch starts when nothing is cached, so
+ * the mounted ErrorNotice would otherwise unmount and drop focus. Failures
+ * with cached rows stay in query state and need no capture.
+ */
+function useRetainedError(
+  requestKey: string,
+  hasData: boolean,
+  error: Error | null,
+  isFetching: boolean,
+): { error: Error | null; retrying: boolean; retry: (run: () => void) => void } {
+  const captureRef = useRef<RetainedFailure | null>(null)
+  const captured = captureRef.current
+
+  useEffect(() => {
+    if (captured === null) return
+    // the remembered failure is stale once the request identity changes or a
+    // load succeeds; a repeated failure refreshes it on the next retry press
+    if (captured.requestKey !== requestKey || (hasData && error === null)) {
+      captureRef.current = null
+    }
+  }, [captured, requestKey, hasData, error])
+
+  const retained =
+    error ??
+    (!hasData && isFetching && captured !== null && captured.requestKey === requestKey
+      ? captured.error
+      : null)
+
+  return {
+    error: retained,
+    retrying: isFetching,
+    retry: (run) => {
+      if (isFetching) return
+      captureRef.current = !hasData && error !== null ? { requestKey, error } : null
+      run()
+    },
+  }
+}
 
 export default function SearchView() {
   const [, navigate] = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const openPost = useUiStore((state) => state.openPost)
   const query = (searchParams.get('q') ?? '').trim()
+  const [mode, setMode] = useState<SearchMode>('posts')
+  const [modeDeck, setModeDeck] = useState(false)
+  const [dealMode, setDealMode] = useState<'modes' | 'results' | null>(null)
+  const dealTimerRef = useRef<number | null>(null)
+  const wide = useMediaQuery('(min-width: 900px)')
   const [draft, setDraft] = useState(query)
   const [cursor, setCursor] = useState(0)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
+  const viewRef = useRef<HTMLElement>(null)
   const listboxId = useId()
+  // an accepted suggestion keeps its untrimmed draft while the URL carries the
+  // trimmed query; only a query we did not write replaces the draft
+  const expectedQueryRef = useRef<string | null>(null)
+  const focusDisposerRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
+    if (expectedQueryRef.current === query) {
+      expectedQueryRef.current = null
+      return
+    }
+    expectedQueryRef.current = null
     setDraft(query)
   }, [query])
 
@@ -33,6 +167,7 @@ export default function SearchView() {
   }, [])
 
   const appView = useSettings((state) => state.appView)
+  const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const supported = capabilitiesFor(appView).search
   const token = suggestOpen ? suggestionAt(draft, cursor) : null
   const actorSuggestions = useActorSuggestions(
@@ -81,10 +216,159 @@ export default function SearchView() {
   const activeSuggestion =
     suggestions.length > 0 ? Math.min(selectedSuggestion, suggestions.length - 1) : 0
 
-  const feed = usePostFeed({ kind: 'search', query: supported ? query : '' })
+  // only the active mode fetches; the others keep whatever they already cached
+  const feed = usePostFeed({ kind: 'search', query: supported ? query : '' }, mode === 'posts')
+  const users = useActorSearch(query, supported && mode === 'users')
+  const feeds = useFeedSearch(query, supported && mode === 'feeds')
   const posts = feed.data ?? []
+  const userResults = users.data ?? []
+  const feedResults = feeds.data ?? []
   useViewerSync(posts)
-  const info = feed.error !== null ? errorInfo(feed.error) : null
+
+  const deckStateKey = JSON.stringify(['search-results', appView.host, mode, query])
+  // posts carry viewer-filtered interaction state; users and feeds do not
+  const postsStateKey = JSON.stringify([
+    'search-posts',
+    appView.host,
+    query,
+    viewerDid ?? 'anonymous',
+  ])
+  const emptyQuery = query.length === 0
+  // a mode that never fetched has no result count yet
+  const modeCounts: Record<SearchMode, number | null> = {
+    posts: feed.data === null ? null : posts.length,
+    users: users.data === null ? null : userResults.length,
+    feeds: feeds.data === null ? null : feedResults.length,
+  }
+  const modeIndex = Math.max(
+    0,
+    SEARCH_MODES.findIndex((option) => option.mode === mode),
+  )
+
+  const activeData: readonly unknown[] | null =
+    mode === 'posts' ? feed.data : mode === 'users' ? users.data : feeds.data
+  const activeError = mode === 'posts' ? feed.error : mode === 'users' ? users.error : feeds.error
+  const activeFetching =
+    mode === 'posts' ? feed.isFetching : mode === 'users' ? users.isFetching : feeds.isFetching
+  const activeRetry = mode === 'posts' ? feed.retry : mode === 'users' ? users.retry : feeds.retry
+  const failure = useRetainedError(
+    // the viewer belongs to the identity only for posts, whose rows carry
+    // viewer-filtered state; users and feeds resolve independently
+    JSON.stringify(['search-failure', appView.host, mode, query, viewerDid ?? 'anonymous']),
+    activeData !== null,
+    activeError,
+    activeFetching,
+  )
+  const activeInfo = failure.error !== null ? errorInfo(failure.error) : null
+  // cached rows stay on screen, so the failure sits beside them rather than
+  // replacing the deck; a retry keeps its own announcement and focus
+  const inlineWarningInfo =
+    activeInfo !== null && activeData !== null && activeData.length > 0 && !(wide && modeDeck)
+      ? activeInfo
+      : null
+  const inlineWarning =
+    inlineWarningInfo !== null ? (
+      <ErrorNotice
+        title={inlineWarningInfo.title}
+        message={inlineWarningInfo.detail}
+        retrying={failure.retrying}
+        onRetry={() => {
+          failure.retry(activeRetry)
+        }}
+      />
+    ) : null
+  const statusText =
+    supported && !emptyQuery && activeInfo === null
+      ? activeData === null
+        ? activeFetching
+          ? `searching ${searchModeName(mode)}`
+          : ''
+        : `${resultCountLabel(modeCounts[mode])} in ${searchModeName(mode)}`
+      : ''
+
+  const requestDeckFocus = useCallback(() => {
+    focusDisposerRef.current?.()
+    focusDisposerRef.current = focusDeckAfterSwap(viewRef.current)
+  }, [])
+
+  // a recovery control disappears with the failure it was reporting, so a
+  // reader who was on it lands on the deck it guarded instead of on the body
+  const showingFailure = activeInfo !== null
+  const failureShownRef = useRef(showingFailure)
+  useEffect(() => {
+    const wasShowing = failureShownRef.current
+    failureShownRef.current = showingFailure
+    if (!wasShowing || showingFailure) return
+    const active = document.activeElement
+    if (active !== null && active !== document.body) return
+    requestDeckFocus()
+  }, [showingFailure, requestDeckFocus])
+
+  const playDeal = useCallback((next: 'modes' | 'results') => {
+    setDealMode(next)
+    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+    dealTimerRef.current = window.setTimeout(() => {
+      setDealMode(null)
+      dealTimerRef.current = null
+    }, 900)
+  }, [])
+
+  const switchModeDeck = useCallback(
+    (next: boolean) => {
+      setModeDeck(next)
+      playDeal(next ? 'modes' : 'results')
+    },
+    [playDeal],
+  )
+
+  const chooseMode = (next: SearchMode) => {
+    setMode(next)
+    setModeDeck(false)
+    playDeal('results')
+    // the modes deck unmounts with the choice, so the results deck takes over
+    requestDeckFocus()
+  }
+
+  // a clicked card and a deck activation open the same thread; the post is
+  // handed to the route so it can render before the thread request settles
+  const openThread = (post: PostModel) => {
+    openPost(post)
+    navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+      focusDisposerRef.current?.()
+      focusDisposerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!wide || !supported) setModeDeck(false)
+  }, [wide, supported])
+
+  useEffect(() => {
+    if (!modeDeck) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== 'Escape') return
+      if (uiOwnsKeyboard()) return
+      // an open native modal keeps Escape for itself
+      if (document.querySelector('dialog[open]') !== null) return
+      event.preventDefault()
+      switchModeDeck(false)
+      // a keyboard exit from the mode cards lands on the results deck
+      requestDeckFocus()
+    }
+
+    // capture phase so the switcher closes before the app's bubble-phase
+    // Escape handling can leave search
+    window.addEventListener('keydown', handleEscape, true)
+    return () => {
+      window.removeEventListener('keydown', handleEscape, true)
+    }
+  }, [modeDeck, switchModeDeck, requestDeckFocus])
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -92,11 +376,25 @@ export default function SearchView() {
     setSelectedSuggestion(0)
     const next = draft.trim()
     if (next.length > 0 && next === query) {
-      feed.retry()
+      if (!supported) return
+      if (mode === 'posts') {
+        feed.retry()
+      } else if (mode === 'users') {
+        users.retry()
+      } else {
+        feeds.retry()
+      }
     } else if (next.length > 0) {
       setSearchParams({ q: next }, { replace: true })
     } else {
       setSearchParams({}, { replace: true })
+    }
+    // a scan always lands on results, never on the mode cards; submitting is a
+    // query edit, so any pending swap focus is cancelled instead of taken
+    if (modeDeck) {
+      focusDisposerRef.current?.()
+      focusDisposerRef.current = null
+      switchModeDeck(false)
     }
   }
 
@@ -104,27 +402,62 @@ export default function SearchView() {
     const active = suggestionAt(draft, cursor)
     if (active === null) return
 
-    const inserted = `${active.kind === 'tag' ? '#' : '@'}${value} `
-    const next = `${draft.slice(0, active.start)}${inserted}${draft.slice(active.end)}`
-    const position = active.start + inserted.length
-    setDraft(next)
-    setCursor(position)
+    const next = insertSuggestion(draft, active, value)
+    setDraft(next.text)
+    setCursor(next.cursor)
     setSuggestOpen(false)
     setSelectedSuggestion(0)
-    setSearchParams({ q: next.trim() }, { replace: true })
+    expectedQueryRef.current = next.text.trim()
+    setSearchParams({ q: next.text.trim() }, { replace: true })
 
     window.requestAnimationFrame(() => {
       const input = searchRef.current
       if (input === null) return
       input.focus()
-      input.setSelectionRange(position, position)
+      input.setSelectionRange(next.cursor, next.cursor)
     })
   }
 
+  const quietBand = <EmptyState title="quiet band" hint="type a query to scan the network" />
+
+  // one peek serves all three result branches
+  const modePeek = (
+    <CardBackButton
+      label="search"
+      meta={searchModeName(mode)}
+      index={modeCounts[mode] === null ? '[--]' : cardBackIndex(modeCounts[mode])}
+      title={searchModeName(mode)}
+      detail={resultCountLabel(modeCounts[mode])}
+      hint="← modes"
+      ariaLabel={`change search mode, ${searchModeName(mode)}`}
+      onClick={() => {
+        switchModeDeck(true)
+        requestDeckFocus()
+      }}
+    />
+  )
+  const modeBack = (
+    <CardBackButton
+      label="modes"
+      index="↩"
+      title={`back to ${query.length > 0 ? query : 'empty query'}`}
+      detail="results"
+      hint="← results"
+      ariaLabel="back to results"
+      onClick={() => {
+        switchModeDeck(false)
+        requestDeckFocus()
+      }}
+    />
+  )
+
   return (
-    <section className="b-view">
+    <section className="b-view" ref={viewRef}>
       <h1 className="visually-hidden">search</h1>
-      <div className="b-view__tools">
+      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        {statusText}
+      </p>
+      <search className="b-view__tools" aria-label="search">
         <form className="b-view__form" onSubmit={handleSubmit}>
           <TextInput
             label="query"
@@ -157,6 +490,31 @@ export default function SearchView() {
               setSuggestOpen(false)
             }}
             onKeyDown={(event) => {
+              // a switcher or another layer already claimed this key
+              if (event.defaultPrevented) return
+              // an IME owns the key that commits its composition
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
+              if (event.key === 'Escape' && !event.shiftKey && !event.altKey) {
+                if (event.ctrlKey || event.metaKey) return
+                // the field owns Escape while it holds focus: suggestions
+                // first, then the query, then the results deck behind it
+                event.preventDefault()
+                if (showSuggestions) {
+                  setSuggestOpen(false)
+                  return
+                }
+                if (draft.length > 0 || query.length > 0) {
+                  setDraft('')
+                  setCursor(0)
+                  setSelectedSuggestion(0)
+                  if (query.length > 0) setSearchParams({}, { replace: true })
+                  return
+                }
+                event.currentTarget.blur()
+                return
+              }
+
               if (!showSuggestions) return
 
               const count = suggestions.length
@@ -174,11 +532,6 @@ export default function SearchView() {
                 event.preventDefault()
                 const selected = suggestions[activeSuggestion]
                 if (selected !== undefined) applySuggestion(selected.value)
-                return
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                setSuggestOpen(false)
               }
             }}
             autoComplete="off"
@@ -206,6 +559,7 @@ export default function SearchView() {
                   role="option"
                   id={`${listboxId}-option-${index}`}
                   aria-selected={index === activeSuggestion}
+                  tabIndex={-1}
                   className="b-compose__suggestion"
                   onMouseDown={(event) => {
                     event.preventDefault()
@@ -221,39 +575,202 @@ export default function SearchView() {
             )}
           </div>
         ) : null}
-      </div>
+      </search>
+      {supported && !wide ? (
+        <div className="b-view__tools b-view__tools--profile">
+          <fieldset className="b-view__pinned">
+            <legend className="mono-label">search</legend>
+            {SEARCH_MODES.map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                className="b-pinned-feed"
+                data-active={option.mode === mode ? 'true' : 'false'}
+                aria-pressed={option.mode === mode}
+                onClick={() => {
+                  chooseMode(option.mode)
+                }}
+              >
+                {option.name}
+              </button>
+            ))}
+          </fieldset>
+        </div>
+      ) : null}
       <div className="b-view__body">
+        {inlineWarning}
         {!supported ? (
           <Frame label="search unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose search. switch appviews in the top bar.</p>
           </Frame>
-        ) : query.length === 0 ? (
-          <EmptyState title="quiet band" hint="type a query to scan the network" />
-        ) : info !== null && posts.length === 0 ? (
-          <ErrorNotice title={info.title} message={info.detail} onRetry={feed.retry} />
+        ) : wide && modeDeck ? (
+          <div className="b-deck-stage" data-deal={dealMode === 'modes' ? 'true' : undefined}>
+            <Deck
+              key={`search-modes:${appView.host}:${query}:${mode}`}
+              items={SEARCH_MODES}
+              getKey={(option) => option.mode}
+              renderItem={(option) => (
+                <ModeCard
+                  label="search"
+                  name={option.name}
+                  description={option.description}
+                  active={option.mode === mode}
+                  countLabel={
+                    modeCounts[option.mode] === null
+                      ? null
+                      : resultCountLabel(modeCounts[option.mode])
+                  }
+                  activeHint="current"
+                  onSelect={() => {
+                    chooseMode(option.mode)
+                  }}
+                />
+              )}
+              onActivate={(option) => {
+                chooseMode(option.mode)
+              }}
+              onExitStart={() => {
+                switchModeDeck(false)
+                requestDeckFocus()
+              }}
+              leadingPeek={modeBack}
+              leadingPeekInteractive
+              initialIndex={modeIndex}
+              label="search modes"
+            />
+          </div>
+        ) : mode === 'posts' ? (
+          <div className="b-deck-stage" data-deal={dealMode === 'results' ? 'true' : undefined}>
+            <Deck
+              items={posts}
+              getKey={(post) => post.uri}
+              renderItem={(post, index, focused) => (
+                <PostCard
+                  post={post}
+                  index={index}
+                  focused={focused}
+                  onOpen={() => {
+                    openThread(post)
+                  }}
+                />
+              )}
+              onActivate={openThread}
+              pending={feed.isPending && activeInfo === null}
+              hasMore={feed.hasMore}
+              loadingMore={feed.isLoadingMore}
+              onLoadMore={feed.loadMore}
+              loadMoreError={feed.loadMoreError}
+              onRetryLoadMore={feed.retryLoadMore}
+              label="search posts"
+              stateKey={postsStateKey}
+              empty={
+                emptyQuery ? (
+                  quietBand
+                ) : activeInfo !== null ? (
+                  <ErrorNotice
+                    title={activeInfo.title}
+                    message={activeInfo.detail}
+                    retrying={failure.retrying}
+                    onRetry={() => {
+                      failure.retry(activeRetry)
+                    }}
+                  />
+                ) : (
+                  <EmptyState title="no posts found" hint="no posts matched this query" />
+                )
+              }
+              {...(wide
+                ? {
+                    onExitStart: () => {
+                      switchModeDeck(true)
+                      requestDeckFocus()
+                    },
+                    leadingPeek: modePeek,
+                    leadingPeekInteractive: true,
+                  }
+                : {})}
+            />
+          </div>
+        ) : mode === 'users' ? (
+          <div className="b-deck-stage" data-deal={dealMode === 'results' ? 'true' : undefined}>
+            <Deck
+              items={userResults}
+              getKey={(user) => user.did}
+              renderItem={(user) => <ActorCard actor={user} />}
+              onActivate={(user) => {
+                navigate(actorHref(user.handle))
+              }}
+              pending={users.isPending && activeInfo === null}
+              label="search users"
+              stateKey={deckStateKey}
+              empty={
+                emptyQuery ? (
+                  quietBand
+                ) : activeInfo !== null ? (
+                  <ErrorNotice
+                    title={activeInfo.title}
+                    message={activeInfo.detail}
+                    retrying={failure.retrying}
+                    onRetry={() => {
+                      failure.retry(activeRetry)
+                    }}
+                  />
+                ) : (
+                  <EmptyState title="no users found" hint="no accounts matched this query" />
+                )
+              }
+              {...(wide
+                ? {
+                    onExitStart: () => {
+                      switchModeDeck(true)
+                      requestDeckFocus()
+                    },
+                    leadingPeek: modePeek,
+                    leadingPeekInteractive: true,
+                  }
+                : {})}
+            />
+          </div>
         ) : (
-          <Deck
-            items={posts}
-            getKey={(post) => post.uri}
-            renderItem={(post, index, focused) => (
-              <PostCard post={post} index={index} focused={focused} />
-            )}
-            onActivate={(post) => {
-              openPost(post)
-              navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
-            }}
-            pending={feed.isPending}
-            hasMore={feed.hasMore}
-            loadingMore={feed.isLoadingMore}
-            onLoadMore={feed.loadMore}
-            loadMoreError={feed.loadMoreError}
-            onRetryLoadMore={feed.retryLoadMore}
-            label="search results"
-            stateKey={`search:${query}`}
-            empty={
-              <EmptyState title="no matches" hint="the search returned nothing for this query" />
-            }
-          />
+          <div className="b-deck-stage" data-deal={dealMode === 'results' ? 'true' : undefined}>
+            <Deck
+              items={feedResults}
+              getKey={(feedResult) => feedResult.uri}
+              renderItem={(feedResult) => <FeedResultCard feed={feedResult} />}
+              onActivate={(feedResult) => {
+                navigate(feedHref(feedResult.uri))
+              }}
+              pending={feeds.isPending && activeInfo === null}
+              label="search feeds"
+              stateKey={deckStateKey}
+              empty={
+                emptyQuery ? (
+                  quietBand
+                ) : activeInfo !== null ? (
+                  <ErrorNotice
+                    title={activeInfo.title}
+                    message={activeInfo.detail}
+                    retrying={failure.retrying}
+                    onRetry={() => {
+                      failure.retry(activeRetry)
+                    }}
+                  />
+                ) : (
+                  <EmptyState title="no feeds found" hint="no generators matched this query" />
+                )
+              }
+              {...(wide
+                ? {
+                    onExitStart: () => {
+                      switchModeDeck(true)
+                      requestDeckFocus()
+                    },
+                    leadingPeek: modePeek,
+                    leadingPeekInteractive: true,
+                  }
+                : {})}
+            />
+          </div>
         )}
       </div>
     </section>
