@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useAppViewProbe } from '../hooks/useAppViewProbe'
 import {
   APPVIEW_PRESETS,
@@ -43,7 +43,7 @@ function AppViewRow({ preset, active, open, onSelect }: AppViewRowProps) {
         type="button"
         className="b-appview__select"
         data-active={active ? 'true' : 'false'}
-        aria-current={active ? 'true' : undefined}
+        aria-pressed={active}
         onClick={() => {
           onSelect(preset)
         }}
@@ -80,10 +80,14 @@ export function AppViewDialog({ open, onClose }: AppViewDialogProps) {
   const appView = useSettings((state) => state.appView)
   const setAppView = useSettings((state) => state.setAppView)
   const [host, setHost] = useState('')
+  const hostFieldId = useId()
+  const hostErrorId = `${hostFieldId}-error`
+
+  const appViewHost = appView.kind === 'custom' ? appView.host : ''
 
   useEffect(() => {
-    if (open) setHost(appView.kind === 'custom' ? appView.host : '')
-  }, [open, appView])
+    if (open) setHost(appViewHost)
+  }, [open, appViewHost])
 
   const custom = makeCustomAppView(host)
   const invalid = host.trim().length > 0 && custom === null
@@ -100,17 +104,7 @@ export function AppViewDialog({ open, onClose }: AppViewDialogProps) {
   }
 
   return (
-    <Dialog
-      open={open}
-      title="appviews"
-      onClose={onClose}
-      className="b-appview"
-      footer={
-        <Button variant="ghost" onClick={onClose}>
-          close
-        </Button>
-      }
-    >
+    <Dialog open={open} title="appviews" onClose={onClose} className="b-appview" headerClose>
       <ul className="b-appview__list">
         {APPVIEW_PRESETS.map((preset) => (
           <AppViewRow
@@ -126,15 +120,20 @@ export function AppViewDialog({ open, onClose }: AppViewDialogProps) {
       <div className="b-appview__custom">
         <TextInput
           label="custom host"
+          id={hostFieldId}
           placeholder="https://api.example.com"
           hint="https origin · public reads only"
           value={host}
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={invalid ? hostErrorId : undefined}
           onChange={(event) => {
             setHost(event.target.value)
           }}
         />
         {invalid ? (
-          <p className="b-appview__error">invalid host · use an https origin without a path</p>
+          <p className="b-appview__error" id={hostErrorId} role="alert">
+            invalid host · use an https origin without a path
+          </p>
         ) : null}
         <div className="b-appview__custom-actions">
           <Button variant="outline" disabled={custom === null} onClick={useCustom}>

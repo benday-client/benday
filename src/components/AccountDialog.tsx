@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../lib/auth'
 import { Button, Dialog } from './ui'
 
@@ -12,15 +12,29 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
   const status = useAuthStore((state) => state.status)
   const pending = useAuthStore((state) => state.pending)
   const signOut = useAuthStore((state) => state.signOut)
-  // Sign-out awaits a revocation; only close if this dialog is still the open
-  // one when it finishes.
-  const openRef = useRef(open)
-  openRef.current = open
+  // Monotonic id of the currently open instance. Sign-out captures it, so a
+  // completion can only close the opening it was started from.
+  const openingRef = useRef(0)
+  const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
+
+  // resetting before paint keeps a stale completion from touching a reopened
+  // dialog on the frame the reopen commits
+  useLayoutEffect(() => {
+    openingRef.current += 1
+    setSignOutOpening(null)
+  }, [open])
 
   const handleSignOut = async () => {
-    if (pending) return
-    await signOut()
-    if (openRef.current) onClose()
+    if (pending || signOutOpening !== null) return
+    const opening = openingRef.current
+    setSignOutOpening(opening)
+    try {
+      await signOut()
+    } finally {
+      // only the opening that started the request may be dismissed by it; the
+      // token reset on the next open clears the pending control
+      if (openingRef.current === opening) onClose()
+    }
   }
 
   const note = status === 'restoring' ? 'restoring the stored session' : 'session stored locally'
@@ -45,7 +59,11 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
           <span className="b-account__did">{account.did}</span>
           <p className="b-account__note">{note}</p>
           <div className="b-account__actions">
-            <Button variant="outline" disabled={pending} onClick={handleSignOut}>
+            <Button
+              variant="outline"
+              disabled={pending || signOutOpening !== null}
+              onClick={() => void handleSignOut()}
+            >
               sign out
             </Button>
           </div>

@@ -3,7 +3,7 @@
 /* login ------------------------------------------------------------- */
 
 .b-auth {
-  max-width: min(460px, calc(100vw - 32px));
+  max-width: min(460px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-auth__form {
@@ -29,7 +29,7 @@
 
 .b-auth__portal-note {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   line-height: 1.5;
@@ -40,7 +40,7 @@
   align-items: center;
   gap: var(--space-2);
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -61,7 +61,7 @@
 
 .b-auth__advanced > summary {
   padding: var(--space-1) var(--space-2);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.06em;
   list-style: none;
@@ -93,7 +93,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   line-height: 1.5;
@@ -104,7 +104,7 @@
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--rust);
   background: var(--void);
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   overflow-wrap: anywhere;
@@ -112,23 +112,24 @@
 
 .b-auth__link {
   align-self: flex-start;
-  color: var(--blue);
+  color: var(--text-link);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--blue);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
   overflow-wrap: anywhere;
 }
 
 .b-auth__link:hover {
-  color: var(--blue-hot);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: 2px;
 }
 
 /* account ----------------------------------------------------------- */
 
 .b-account {
-  max-width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-account__handle {
@@ -143,7 +144,7 @@
 .b-account__did {
   display: block;
   margin-bottom: var(--space-3);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   letter-spacing: 0.02em;
@@ -152,7 +153,7 @@
 
 .b-account__note {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   line-height: 1.5;
@@ -169,7 +170,7 @@
 /* compose ----------------------------------------------------------- */
 
 .b-compose {
-  max-width: min(620px, calc(100vw - 32px));
+  max-width: min(620px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-compose__target {
@@ -179,9 +180,9 @@
   gap: var(--space-1) var(--space-2);
   margin-bottom: var(--space-3);
   padding: var(--space-1) var(--space-2);
-  border-left: 2px solid var(--blue-deep);
+  border-left: 2px solid var(--blue);
   background: var(--void);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -190,7 +191,7 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -212,7 +213,7 @@
 }
 
 .b-compose__input::placeholder {
-  color: var(--ink-faint);
+  color: var(--text-muted);
 }
 
 .b-compose__input:focus-visible {
@@ -222,6 +223,12 @@
 
 .b-compose__input:disabled {
   opacity: 0.5;
+}
+
+/* a pending submission locks the draft read-only: the text stays full ink and
+   selectable while the recessed surface says it will not take input */
+.b-compose__input:read-only:not(:disabled) {
+  background: var(--panel);
 }
 
 .b-compose__suggestions {
@@ -243,7 +250,7 @@
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -256,18 +263,18 @@
 .b-compose__suggestion:hover,
 .b-compose__suggestion[aria-selected="true"] {
   background: var(--panel-raised);
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-compose__suggestion span + span {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
 }
 
 .b-compose__suggestion-note {
   margin: 0;
   padding: var(--space-1) var(--space-2);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -281,13 +288,13 @@
 
 .b-compose__markdown {
   margin-right: auto;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   letter-spacing: 0.02em;
 }
 
 .b-compose__count {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.06em;
@@ -295,7 +302,7 @@
 }
 
 .b-compose__count[data-over="true"] {
-  color: var(--rust);
+  color: var(--ink);
 }
 
 .b-compose__error {
@@ -303,7 +310,7 @@
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--rust);
   background: var(--void);
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   overflow-wrap: anywhere;
