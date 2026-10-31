@@ -7,22 +7,32 @@ import { PostCard } from '../components/PostCard'
 import { RelativeTime } from '../components/RelativeTime'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { useThread } from '../hooks/useBskyQueries'
+import { isImeComposing } from '../hooks/useHotkeys'
 import { useViewerSync } from '../hooks/useViewerSync'
-import { errorInfo } from '../lib/errors'
-import { scrollPostBody } from '../lib/scroll'
-import type { ThreadEntry } from '../lib/types'
-import { useUiStore } from '../lib/ui'
+import { useAuthStore } from '../lib/auth'
+import { type ErrorInfo, errorInfo } from '../lib/errors'
+import { goBackOrFallback, THREAD_FALLBACK_VIEW } from '../lib/history'
+import { characterShortcutAllowed } from '../lib/keymap'
+import { scrollCardBody, scrollThreadPage } from '../lib/scroll'
+import { useSettings } from '../lib/store'
+import type { PostModel, ThreadEntry } from '../lib/types'
+import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 
 function replyHandle(entry: ThreadEntry): string {
   return entry.post.author.handle.length > 0 ? entry.post.author.handle : 'unknown'
 }
 
-let hasAppHistory = false
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('pushState', () => {
-    hasAppHistory = true
-  })
+/**
+ * The post `p` walks up to: the direct parent of the focused reply, or of the
+ * focus post when no reply is selected. A selected reply never falls back to
+ * the focus post, so the key cannot skip a level.
+ */
+export function threadParentTarget(
+  focusPost: PostModel | null,
+  focusedReplyPost: PostModel | null,
+): string | null {
+  const source = focusedReplyPost ?? focusPost
+  return source?.replyParent?.uri ?? null
 }
 
 export default function ThreadView() {
@@ -30,9 +40,16 @@ export default function ThreadView() {
   const [searchParams] = useSearchParams()
   const uri = (searchParams.get('uri') ?? '').trim()
   const [focusedReply, setFocusedReply] = useState<number | null>(null)
+  const [capturedFailure, setCapturedFailure] = useState<{
+    requestKey: string
+    info: ErrorInfo
+  } | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   const replyRefs = useRef<(HTMLElement | null)[]>([])
+  const appViewHost = useSettings((state) => state.appView.host)
+  const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const thread = useThread(uri)
+  const requestKey = `${appViewHost}\u0000${viewerDid ?? 'anonymous'}\u0000${uri}`
   const entries = thread.data?.entries ?? []
   const focus = entries.find((entry) => entry.role === 'focus')
   const openingPost = useUiStore((state) => state.openingPost)
@@ -40,14 +57,35 @@ export default function ThreadView() {
   const closeInlineCompose = useUiStore((state) => state.closeInlineCompose)
   const focusPost = focus?.post ?? (openingPost?.uri === uri ? openingPost : null)
   const replies = entries.filter((entry) => entry.role === 'reply')
+  const focusedReplyPost = focusedReply === null ? null : (replies[focusedReply]?.post ?? null)
   useViewerSync(entries.map((entry) => entry.post))
   const info = thread.error !== null ? errorInfo(thread.error) : null
+  // tanstack clears the error while a refetch has no data yet; the failure the
+  // reader is retrying has to stay on screen while that request runs
+  let shownInfo = info
+  if (shownInfo === null && capturedFailure !== null) {
+    const sameRequest = capturedFailure.requestKey === requestKey
+    if (sameRequest && thread.data === null && thread.isFetching) {
+      shownInfo = capturedFailure.info
+    }
+  }
+  const retryThread = () => {
+    if (shownInfo !== null) setCapturedFailure({ requestKey, info: shownInfo })
+    thread.retry()
+  }
   const loadingReplies = (
     <div className="b-thread__replies">
-      <p className="b-thread__replies-label">replies</p>
-      <p className="b-thread__replies-empty">loading replies</p>
+      <Progress label="loading replies" indeterminate />
     </div>
   )
+
+  useEffect(() => {
+    setCapturedFailure(null)
+  }, [requestKey])
+
+  useEffect(() => {
+    if (thread.data !== null) setCapturedFailure(null)
+  }, [thread.data])
 
   useEffect(() => {
     setFocusedReply(null)
@@ -76,10 +114,13 @@ export default function ThreadView() {
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       }
       if (document.querySelector('dialog[open]') !== null) return
+      if (uiOwnsKeyboard()) return
       const direction = event.key === 'PageUp' || event.key === 'ArrowUp' ? -1 : 1
-      if (scrollPostBody(document.querySelector('.b-thread > .b-post-card'), direction)) {
-        event.preventDefault()
-      }
+      // the thread view owns these keys outright: when nothing can scroll the
+      // key must still be consumed instead of extending a text selection
+      event.preventDefault()
+      scrollCardBody(document.querySelector('.b-thread > .b-post-card'), direction)
+      scrollThreadPage(direction)
     }
 
     window.addEventListener('keydown', handleScrollKey)
@@ -92,12 +133,21 @@ export default function ThreadView() {
     if (focusedReply !== null) return
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey) return
+      if (event.isComposing) return
+      // j/k mirror the arrows; Home/End jump to the ends of the reply list.
+      // down/j enter the first reply, up/k climb back: the reply article owns
+      // the key while a reply is focused, so reaching this handler means the
+      // ladder is at the focus post. From there up/k open the parent thread
+      // when the focus post has a parent, and otherwise leave the thread.
       if (
         event.key !== 'ArrowDown' &&
         event.key !== 'j' &&
         event.key !== 'ArrowUp' &&
-        event.key !== 'k'
+        event.key !== 'k' &&
+        event.key !== 'Home' &&
+        event.key !== 'End'
       ) {
         return
       }
@@ -106,32 +156,69 @@ export default function ThreadView() {
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       }
       if (document.querySelector('dialog[open]') !== null) return
+      if (uiOwnsKeyboard()) return
 
       if (event.key === 'ArrowUp' || event.key === 'k') {
-        event.preventDefault()
-        if (hasAppHistory) {
-          window.history.back()
-        } else {
-          navigate('/feed')
+        // a held key must not pop the history stack more than once, and a
+        // focused link or button keeps the key for itself
+        if (event.repeat) return
+        if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
+          return
         }
+        event.preventDefault()
+        const parentUri = threadParentTarget(focusPost, null)
+        if (parentUri !== null) {
+          navigate(`/thread?uri=${encodeURIComponent(parentUri)}`)
+          return
+        }
+        goBackOrFallback(navigate, THREAD_FALLBACK_VIEW)
         return
       }
 
-      const first = replyRefs.current[0]
-      if (first === null || first === undefined) return
+      const target =
+        event.key === 'End' ? replyRefs.current[replyRefs.current.length - 1] : replyRefs.current[0]
+      if (target === null || target === undefined) return
       event.preventDefault()
-      first.focus()
+      target.focus()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focusedReply, replies.length])
+  }, [focusedReply, replies.length, navigate, focusPost])
+
+  // p jumps to the thread of the parent post (the focused reply's parent, or
+  // the focus post's parent). Escape leaves the thread outright; the up/k
+  // ladder opens that parent thread at the focus post instead.
+  useEffect(() => {
+    const handleParentKey = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
+      if (event.shiftKey || event.repeat) return
+      if (event.key !== 'p') return
+      if (event.target instanceof HTMLElement) {
+        if (event.target.isContentEditable) return
+        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
+      }
+      if (document.querySelector('dialog[open]') !== null) return
+      if (uiOwnsKeyboard()) return
+      const parentUri = threadParentTarget(focusPost, focusedReplyPost)
+      if (parentUri === null) return
+      event.preventDefault()
+      navigate(`/thread?uri=${encodeURIComponent(parentUri)}`)
+    }
+
+    window.addEventListener('keydown', handleParentKey)
+    return () => {
+      window.removeEventListener('keydown', handleParentKey)
+    }
+  }, [focusPost, focusedReplyPost, navigate])
 
   useEffect(() => {
     const handleReplyNumber = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey || event.repeat) return
       if (!/^[1-9]$/.test(event.key)) return
       if (event.target instanceof HTMLElement) {
@@ -140,6 +227,7 @@ export default function ThreadView() {
         if (event.target.closest('a, button') !== null) return
       }
       if (document.querySelector('dialog[open]') !== null) return
+      if (uiOwnsKeyboard()) return
       const thread = document.querySelector('.b-thread')
       const active = document.activeElement
       if (
@@ -175,18 +263,27 @@ export default function ThreadView() {
   }
 
   const handleReplyKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
+    if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
-    if (event.key === 'ArrowDown') {
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'ArrowDown' || event.key === 'j') {
       event.preventDefault()
       focusNextReply(index)
       return
     }
-    if (event.key === 'ArrowUp') {
+    if (event.key === 'ArrowUp' || event.key === 'k') {
       event.preventDefault()
       focusPreviousReply(index)
       return
     }
-    if (event.key !== 'Enter' && event.key !== ' ') return
+    if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      const last = replyRefs.current.length - 1
+      replyRefs.current[event.key === 'Home' ? 0 : last]?.focus()
+      return
+    }
+    // enter is the only activation key; space keeps its native page scroll
+    if (event.key !== 'Enter') return
     if ((event.target as HTMLElement).closest('a, button') !== null) return
     const entry = replies[index]
     if (entry === undefined) return
@@ -266,6 +363,23 @@ export default function ThreadView() {
     inlineCompose.post.uri === focusPost.uri
       ? inlineCompose
       : null
+  useEffect(() => {
+    if (dockRequest === null) return
+    // the suggestion list and the dock consume their own Escape; an unclaimed
+    // Escape anywhere else closes the dock instead of navigating away
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      // an IME owns the key that commits its composition
+      if (isImeComposing(event)) return
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      closeInlineCompose()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [dockRequest, closeInlineCompose])
+
   const composeDock =
     dockRequest !== null && dockRequest.post !== null ? (
       <InlineComposer request={dockRequest} onClose={closeInlineCompose} />
@@ -280,13 +394,17 @@ export default function ThreadView() {
       <div className="b-view__body b-view__body--thread">
         {uri.length === 0 ? (
           <EmptyState title="no thread selected" hint="open a card or paste an at-uri" />
-        ) : info !== null ? (
-          <ErrorNotice title={info.title} message={info.detail} onRetry={thread.retry} />
+        ) : shownInfo !== null ? (
+          <ErrorNotice
+            title={shownInfo.title}
+            message={shownInfo.detail}
+            onRetry={retryThread}
+            retrying={thread.isFetching}
+          />
         ) : focusPost === null ? (
           thread.isPending ? (
             <Frame label="thread" meta="loading">
-              <p className="mono-label">loading replies</p>
-              <Progress indeterminate />
+              <Progress label="loading replies" indeterminate />
             </Frame>
           ) : (
             <EmptyState title="empty thread" hint="the appview returned no posts" />
