@@ -1,9 +1,8 @@
-import type { KeyboardEvent } from 'react'
 import { useFeedPreview } from '../hooks/useFeedPreview'
 import { formatAbsoluteTime } from '../lib/time'
 import type { FeedSource } from '../lib/types'
-import { DitherImage } from './DitherImage'
-import { Tag } from './ui'
+import { Avatar } from './Avatar'
+import { CardBack, CardBackButton, cardBackIndex, FrameBody, FrameHead, Tag } from './ui'
 
 export type FeedChoice =
   | {
@@ -45,9 +44,20 @@ export interface FeedCardBackProps {
   postDate: string
   appview: string
   hint?: string
+  /** makes the back's content one native button, leaving its footer outside it */
+  onOpen?: (() => void) | undefined
   onRefresh?: (() => void) | undefined
   refreshing?: boolean | undefined
-  refreshArmed?: boolean | undefined
+}
+
+/** A peek back that is one whole native button, so it cannot carry a footer. */
+export interface FeedCardBackButtonProps {
+  feedName: string
+  postIndex: number
+  postDate: string
+  appview: string
+  hint?: string
+  onOpen: () => void
 }
 
 export function FeedCardBack({
@@ -56,45 +66,60 @@ export function FeedCardBack({
   postDate,
   appview,
   hint = '← feeds',
+  onOpen,
   onRefresh,
   refreshing = false,
-  refreshArmed = false,
 }: FeedCardBackProps) {
-  const index = String(Math.max(0, postIndex)).padStart(2, '0')
-
   return (
-    <article
-      className="b-frame b-card-back"
-      aria-hidden={onRefresh === undefined ? 'true' : undefined}
-    >
-      <header className="b-frame__head b-card-back__head">
-        <span className="b-frame__label mono-label">card back</span>
-      </header>
-      <div className="b-frame__body b-card-back__body">
-        <span className="b-card-back__index">[{index}]</span>
-        <span className="b-card-back__feed">{feedName}</span>
-        <span className="b-card-back__rule" aria-hidden="true" />
-        <span className="b-card-back__date">
-          {postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
-        </span>
-        <span className="b-card-back__appview">{appview}</span>
-        <span className="b-card-back__hint">{hint}</span>
-      </div>
-      {onRefresh !== undefined ? (
-        <footer className="b-post-card__foot b-card-back__foot">
-          <div className="b-post-card__actions">
-            <button
-              type="button"
-              className="b-post-card__action"
-              onClick={onRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? 'refreshing' : refreshArmed ? 'confirm refresh' : 'refresh'}
-            </button>
-          </div>
-        </footer>
-      ) : null}
-    </article>
+    <CardBack
+      label="card back"
+      index={cardBackIndex(postIndex)}
+      title={feedName}
+      date={postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
+      detail={appview}
+      hint={hint}
+      ariaHidden={onOpen === undefined && onRefresh === undefined}
+      openAction={onOpen === undefined ? undefined : { label: `open ${feedName}`, onClick: onOpen }}
+      footer={
+        onRefresh === undefined ? undefined : (
+          <footer className="b-post-card__foot b-card-back__foot">
+            <div className="b-post-card__actions">
+              <button
+                type="button"
+                className="b-post-card__action"
+                onClick={onRefresh}
+                disabled={refreshing}
+              >
+                {refreshing ? 'refreshing' : 'refresh'}
+              </button>
+            </div>
+          </footer>
+        )
+      }
+    />
+  )
+}
+
+/** The narrow back that returns to the posts deck: one native button. */
+export function FeedCardBackButton({
+  feedName,
+  postIndex,
+  postDate,
+  appview,
+  hint = '← posts',
+  onOpen,
+}: FeedCardBackButtonProps) {
+  return (
+    <CardBackButton
+      label="card back"
+      index={cardBackIndex(postIndex)}
+      title={feedName}
+      date={postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
+      detail={appview}
+      hint={hint}
+      ariaLabel={`open ${feedName}`}
+      onClick={onOpen}
+    />
   )
 }
 
@@ -106,6 +131,8 @@ function FeedPreview({ source }: { source: FeedSource }) {
       <p className="b-feed-card__preview-label">recent</p>
       {preview.isPending ? (
         <p className="b-feed-card__preview-note">loading skeets</p>
+      ) : preview.error !== null && preview.posts.length === 0 ? (
+        <p className="b-feed-card__preview-note">preview unavailable</p>
       ) : preview.posts.length === 0 ? (
         <p className="b-feed-card__preview-note">no visible skeets</p>
       ) : (
@@ -126,50 +153,64 @@ function FeedPreview({ source }: { source: FeedSource }) {
   )
 }
 
+/**
+ * One feed choice. The feed's own title is its native open control; clicking
+ * the card body anywhere else follows the same destination, and any native
+ * control inside the card keeps its own click.
+ */
 export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
-  const initial = (choice.name.length > 0 ? choice.name : '?').slice(0, 1).toUpperCase()
-
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the title button owns activation
     <article
       className="b-frame b-feed-card"
       data-kind={choice.kind}
       data-active={active ? 'true' : 'false'}
+      aria-current={active ? 'true' : undefined}
       aria-label={choice.kind === 'add' ? 'add feed' : `open ${choice.name}`}
-      onClick={onSelect}
-      onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return
-        event.preventDefault()
+      onClick={(event) => {
+        // a native control inside the card keeps its own click
+        if (event.defaultPrevented) return
+        const target = event.target
+        if (!(target instanceof HTMLElement)) return
+        if (target.closest('a, button, input, select, textarea') !== null) return
         onSelect()
       }}
     >
-      <header className="b-frame__head b-feed-card__head">
-        <span className="b-frame__label mono-label">
-          {choice.kind === 'add' ? 'action' : 'feed'}
-        </span>
-        <span className="b-frame__meta">{active ? 'active' : 'enter'}</span>
-      </header>
+      <FrameHead
+        className="b-feed-card__head"
+        label={choice.kind === 'add' ? 'action' : 'feed'}
+        meta={active ? 'active' : 'enter'}
+      />
 
-      <div className="b-frame__body b-feed-card__body">
+      <FrameBody className="b-feed-card__body">
         {choice.kind === 'add' ? (
-          <div className="b-feed-card__add">
-            <span className="b-feed-card__add-mark" aria-hidden="true">
-              +
+          <button
+            type="button"
+            className="b-card-back__surface b-feed-card__open"
+            onClick={onSelect}
+          >
+            <span className="b-feed-card__add">
+              <span className="b-feed-card__add-mark" aria-hidden="true">
+                +
+              </span>
+              <span className="b-feed-card__add-title">add feed</span>
+              <span className="b-feed-card__add-note">open a generator or paste an at-uri</span>
             </span>
-            <span className="b-feed-card__add-title">add feed</span>
-            <span className="b-feed-card__add-note">open a generator or paste an at-uri</span>
-          </div>
+          </button>
         ) : (
           <>
             <div className="b-feed-card__identity">
               <span className="b-feed-card__avatar">
-                <DitherImage
-                  src={choice.avatar}
-                  alt={`avatar of ${choice.name}`}
-                  fallback={initial}
-                />
+                <Avatar src={choice.avatar} alt={`avatar of ${choice.name}`} name={choice.name} />
               </span>
               <span className="b-feed-card__names">
-                <span className="b-feed-card__name">{choice.name}</span>
+                <button
+                  type="button"
+                  className="b-card-back__surface b-feed-card__open"
+                  onClick={onSelect}
+                >
+                  <span className="b-feed-card__name">{choice.name}</span>
+                </button>
                 <span className="b-feed-card__kind">
                   <Tag tone={active ? 'accent' : 'default'}>
                     {choice.kind === 'discover' ? 'discover' : 'pinned'}
@@ -185,7 +226,7 @@ export function FeedCard({ choice, active, focused, onSelect }: FeedCardProps) {
             {focused ? <FeedPreview source={choice.source} /> : null}
           </>
         )}
-      </div>
+      </FrameBody>
     </article>
   )
 }

@@ -1,7 +1,10 @@
+import { FrameBody, FrameHead } from './ui'
+
 export interface SignedOutCardProps {
   onSignIn: () => void
 }
 
+/** The leading peek of the anonymous feed deck: one native sign-in button. */
 export function SignedOutCard({ onSignIn }: SignedOutCardProps) {
   return (
     <button
@@ -10,10 +13,8 @@ export function SignedOutCard({ onSignIn }: SignedOutCardProps) {
       aria-label="sign in to personalize the feed"
       onClick={onSignIn}
     >
-      <header className="b-frame__head b-card-back__head">
-        <span className="b-frame__label mono-label">welcome</span>
-      </header>
-      <div className="b-frame__body b-card-back__body">
+      <FrameHead as="span" className="b-card-back__head" label="welcome" />
+      <FrameBody as="span" className="b-card-back__body">
         <span className="b-card-back__index">[00]</span>
         <span className="b-card-back__feed">discover</span>
         <span className="b-card-back__rule" aria-hidden="true" />
@@ -21,7 +22,7 @@ export function SignedOutCard({ onSignIn }: SignedOutCardProps) {
           sign in to follow people, pin feeds and keep your own deck
         </span>
         <span className="b-card-back__hint">← sign in</span>
-      </div>
+      </FrameBody>
     </button>
   )
 }

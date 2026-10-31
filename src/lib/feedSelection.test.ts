@@ -8,12 +8,16 @@ const pinned: PinnedFeedModel[] = [
     name: 'first',
     description: '',
     avatar: null,
+    generatorDid: 'did:web:feeds.test',
+    acceptsInteractions: false,
   },
   {
     uri: 'at://did:plc:test/app.bsky.feed.generator/second',
     name: 'second',
     description: '',
     avatar: null,
+    generatorDid: 'did:web:feeds.test',
+    acceptsInteractions: false,
   },
 ]
 

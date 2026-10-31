@@ -1,4 +1,4 @@
-import { Tag } from './ui'
+import { FrameBody, FrameHead, Tag } from './ui'
 
 export interface RefreshCardProps {
   index?: number | undefined
@@ -8,6 +8,10 @@ export interface RefreshCardProps {
   onRefresh: () => void
 }
 
+/**
+ * The deck's explicit refresh card. The footer button is the card's control and
+ * the body follows the same refresh; the deck activates both with Enter.
+ */
 export function RefreshCard({
   index,
   focused = false,
@@ -19,20 +23,35 @@ export function RefreshCard({
   if (focused) classes.push('b-post-card--focused')
 
   return (
-    <article className={classes.join(' ')} aria-label={label}>
-      <header className="b-frame__head b-post-card__head">
-        <span className="b-post-card__head-left">
-          {index !== undefined ? (
-            <span className="b-post-card__index">
-              [{String(Math.max(0, index)).padStart(2, '0')}]
-            </span>
-          ) : null}
-          <Tag tone="accent">action</Tag>
-        </span>
-        <span className="b-post-card__head-right mono-label">enter</span>
-      </header>
+    // biome-ignore lint/a11y/useKeyWithClickEvents: the deck owns keyboard activation
+    <article
+      className={classes.join(' ')}
+      aria-label={label}
+      onClick={(event) => {
+        // the footer's own button keeps its click; a refresh in flight rejects both
+        if (refreshing || event.defaultPrevented) return
+        const target = event.target
+        if (!(target instanceof HTMLElement)) return
+        if (target.closest('a, button, input, select, textarea') !== null) return
+        onRefresh()
+      }}
+    >
+      <FrameHead
+        className="b-post-card__head"
+        label={
+          <>
+            {index === undefined ? null : (
+              <span className="b-post-card__index">
+                [{String(Math.max(0, index)).padStart(2, '0')}]
+              </span>
+            )}{' '}
+            <Tag tone="accent">action</Tag>
+          </>
+        }
+        meta="enter"
+      />
 
-      <div className="b-frame__body b-post-card__body">
+      <FrameBody className="b-post-card__body">
         <div className="b-post-card__author">
           <span className="b-post-card__avatar b-refresh-card__mark" aria-hidden="true">
             ↻
@@ -45,7 +64,7 @@ export function RefreshCard({
         <p className="b-post-card__text">
           {refreshing ? 'refreshing the deck' : 'reload this deck from the first page'}
         </p>
-      </div>
+      </FrameBody>
 
       <footer className="b-post-card__foot">
         <div className="b-post-card__actions">
