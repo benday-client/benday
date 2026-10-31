@@ -172,7 +172,7 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
       ...letterChords(['j', 'k', 'h', 'l']),
     ],
     label:
-      'up and down move to the previous or next card; up also leaves the deck at the first card',
+      'arrows follow the deck: left/right move a wide deck, up/down a narrow one; the back arrow leaves at the first card',
   },
   {
     id: 'deck-ends',
@@ -200,7 +200,7 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     scope: 'deck',
     keys: ['enter'],
     chords: [{ key: 'Enter', shift: false }],
-    label: 'open the focused card; → also opens on a narrow deck',
+    label: 'open the focused card; ↓ also opens on a wide deck and → on a narrow one',
   },
   {
     id: 'deck-scroll',
@@ -301,9 +301,30 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
   {
     id: 'thread-move',
     scope: 'thread',
-    keys: ['↓', 'j'],
-    chords: [{ key: 'ArrowDown', shift: false }, ...letterChords(['j'])],
-    label: 'enter the replies and move down',
+    keys: ['j'],
+    chords: letterChords(['j']),
+    label: 'move to the next reply in reading order',
+  },
+  {
+    id: 'thread-child',
+    scope: 'thread',
+    keys: ['↓'],
+    chords: [{ key: 'ArrowDown', shift: false }],
+    label: 'move to the first child reply',
+  },
+  {
+    id: 'thread-previous',
+    scope: 'thread',
+    keys: ['k'],
+    chords: letterChords(['k']),
+    label: 'move to the previous reply or back to the opened post',
+  },
+  {
+    id: 'thread-up',
+    scope: 'thread',
+    keys: ['↑'],
+    chords: [{ key: 'ArrowUp', shift: false }],
+    label: 'move to the parent reply; at the opened post open its parent thread',
   },
   {
     id: 'thread-ends',
@@ -339,9 +360,9 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
   {
     id: 'thread-leave',
     scope: 'thread',
-    keys: ['↑', 'k'],
-    chords: [{ key: 'ArrowUp', shift: false }, ...letterChords(['k'])],
-    label: 'walk up to the focus post, then open its parent thread or close at the root',
+    keys: ['←'],
+    chords: [{ key: 'ArrowLeft', shift: false }],
+    label: 'leave the thread and go back',
   },
   {
     id: 'thread-scroll',

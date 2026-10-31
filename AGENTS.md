@@ -511,25 +511,27 @@ there are five key layers, and they must not fight:
    editable targets so caret word-jumps keep working. tabs are `/feed` and
    `/notifications`; a `/profile/…` route is appended as a temporary tab while it
    is open. search is a route reached by `/` or `s`, not a tab.
-3. `Deck` listens on window and owns card movement. `↑`/`↓` are previous/next on
-   every deck, on either axis, and `j`/`k` are aliases for the same. `←` is the
-   wide-deck back key and leaves at index 0 like `↑`; `→` is the wide-deck
-   forward alias, and on a narrow deck `→` opens the focused card. `h`/`l` are
-   wide-deck previous/next aliases that clamp at the ends and never exit. `↑`
-   at index 0 leaves the deck (or `←` on a wide deck; once per press, and on an
-   empty deck). `home`/`end` are canonical first/last with `g`/`G` as aliases.
-   `1`-`9` are 1-based and act whenever the deck is the active surface and the
-   target is not interactive. `enter` activates on every deck; on a narrow deck
-   `→` also opens, and no other arrow opens a card. `↑` at the thread's focus
-   post (and `k`) opens the parent post's thread when there is a parent and
-   otherwise leaves through the shared app-history back step, which `ThreadView`
-   runs once per press. page up/down and shift-arrows scroll the focused post
-   body; shift-arrows stay owned at a boundary, plain page keys release.
+3. `Deck` listens on window and owns card movement. arrows follow the deck axis:
+   on a wide deck `←`/`→` are previous/next and `↓` opens; on a narrow deck
+   `↑`/`↓` are previous/next and `→` opens. `j`/`k` are reading-order aliases on
+   either axis, and `h`/`l` are wide-deck previous/next aliases that clamp at the
+   ends and never exit. the back key (`←` wide, `↑` narrow) leaves at index 0
+   once per press, including on an empty deck. `home`/`end` are canonical
+   first/last with `g`/`G` as aliases. `1`-`9` are 1-based and act whenever the
+   deck is the active surface and the target is not interactive. `enter`
+   activates on every deck; `↓` also opens on a wide deck and `→` on a narrow
+   one. `ThreadView` owns thread tree movement: `←` leaves through the shared
+   app-history back step, `↓` moves to the first child, and `↑` moves to the
+   parent reply; at the focus post `↑` opens the parent thread when there is a
+   parent and does nothing at the root. `j`/`k` keep flat reading order. page
+   up/down and shift-arrows scroll the focused post body; shift-arrows stay owned
+   at a boundary, plain page keys release.
 4. view-local handlers add the rest: `PostCard` handles `f`, `b`, `r`, `q`, `y`,
    `m`, `v`, `x`, `o` (with `0` as an alias), `+`, `-` and the `d` delete arm
    (confirm with `enter` or `d`, 4s disarm, `esc` cancels) only while focused and
    unmodalled; `FeedView` owns a single `R`; `ThreadView` owns reply focus with
-   arrows and `j`/`k`, `home`/`end` and `p` for the parent post. every layer
+   child/parent arrows, flat `j`/`k`, `home`/`end`, `←` back and `p` for the
+   parent post. every layer
    ignores dialogs, open composers, editable targets, IME composition,
    `event.defaultPrevented` and repeats. the hold-`?` overlay only reads
    `data-keyhint` attributes, never passes a key through, and hides on any other

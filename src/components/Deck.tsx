@@ -733,11 +733,10 @@ export function Deck<T>({
     if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
 
     const key = event.key
-    // up/down always walk previous/next in every list; left/right are extra
-    // aliases on a wide deck, and j/k always follow reading order while h/l
+    // arrows follow the visual axis; j/k always follow reading order and h/l
     // only exist where there is a horizontal axis
-    const backArrow = key === 'ArrowUp' || (axis === 'x' && key === 'ArrowLeft')
-    const forwardArrow = key === 'ArrowDown' || (axis === 'x' && key === 'ArrowRight')
+    const backArrow = axis === 'x' ? key === 'ArrowLeft' : key === 'ArrowUp'
+    const forwardArrow = axis === 'x' ? key === 'ArrowRight' : key === 'ArrowDown'
     const back = backArrow || key === 'k' || (horizontal && key === 'h')
     const forward = forwardArrow || key === 'j' || (horizontal && key === 'l')
 
@@ -795,9 +794,9 @@ export function Deck<T>({
       return
     }
 
-    // a wide deck moves on every arrow so it has no arrow-open key; the
-    // narrow deck keeps → as its open key beside enter
-    if (axis === 'y' && key === 'ArrowRight') {
+    // a wide deck opens with ↓; a narrow deck keeps → beside enter
+    const openKey = axis === 'x' ? 'ArrowDown' : 'ArrowRight'
+    if (key === openKey) {
       if (isInteractiveTarget(event.target)) return
       event.preventDefault()
       if (event.repeat) return

@@ -52,10 +52,10 @@ describe('keyboard registry', () => {
     }
   })
 
-  it('leaves the thread on up and k only, never escape', () => {
+  it('leaves the thread on left only, never escape', () => {
     const leave = bindingFor('thread-leave')
-    expect(leave.keys).toEqual(['↑', 'k'])
-    expect(chordsOf(leave).map((chord) => chord.key)).toEqual(['ArrowUp', 'k'])
+    expect(leave.keys).toEqual(['←'])
+    expect(chordsOf(leave).map((chord) => chord.key)).toEqual(['ArrowLeft'])
     // escape keeps its single global back owner instead of a thread alias
     expect(chordsOf(leave).some((chord) => chord.key === 'Escape')).toBe(false)
   })

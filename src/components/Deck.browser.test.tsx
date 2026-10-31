@@ -332,8 +332,8 @@ describe('Deck shifted arrows over real post bodies', () => {
   })
 })
 
-describe('Deck vertical arrows over real cards', () => {
-  it('moves down and up without opening and opens with enter on a wide deck', async () => {
+describe('Deck arrow keys over real cards', () => {
+  it('moves left and right and opens down on a wide deck', async () => {
     const activated: string[] = []
     const { container } = renderPostDeck([SHORT, SECOND, THIRD], {
       onActivate: (item) => {
@@ -344,18 +344,20 @@ describe('Deck vertical arrows over real cards', () => {
     const deck = deckOf(container)
     expect(deck.dataset['axis']).toBe('x')
 
-    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowRight}')
     await settle()
     expect(cardOf(container, 1).dataset['focused']).toBe('true')
     expect(visibleWidth(cardOf(container, 1), deck)).toBeGreaterThan(40)
     expect(activated).toEqual([])
 
-    await userEvent.keyboard('{ArrowUp}')
+    await userEvent.keyboard('{ArrowLeft}')
     await settle()
     expect(cardOf(container, 0).dataset['focused']).toBe('true')
     expect(activated).toEqual([])
 
-    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('{ArrowDown}')
+    await settle()
+    expect(cardOf(container, 0).dataset['focused']).toBe('true')
     expect(activated).toEqual([SHORT.uri])
   })
 })

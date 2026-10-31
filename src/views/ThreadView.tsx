@@ -57,6 +57,47 @@ export default function ThreadView() {
   const closeInlineCompose = useUiStore((state) => state.closeInlineCompose)
   const focusPost = focus?.post ?? (openingPost?.uri === uri ? openingPost : null)
   const replies = entries.filter((entry) => entry.role === 'reply')
+  const replyIndexByUri = new Map(replies.map((entry, index) => [entry.post.uri, index] as const))
+  const parentTargetOf = (index: number): number | 'focus' | null => {
+    const entry = replies[index]
+    if (entry === undefined) return null
+    const parentUri = entry.post.replyParent?.uri ?? null
+    if (parentUri !== null) {
+      if (parentUri === focusPost?.uri) return 'focus'
+      const parentIndex = replyIndexByUri.get(parentUri)
+      if (parentIndex !== undefined) return parentIndex
+    }
+    // cached threads and fixtures can omit replyParent; pre-order depth still
+    // identifies the nearest ancestor
+    if (entry.depth <= 1) return 'focus'
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      const candidate = replies[cursor]
+      if (candidate !== undefined && candidate.depth === entry.depth - 1) return cursor
+    }
+    return null
+  }
+  const firstChildOf = (
+    parentUri: string,
+    parentDepth: number,
+    fromIndex: number,
+  ): number | null => {
+    for (let index = fromIndex; index < replies.length; index += 1) {
+      const entry = replies[index]
+      if (entry !== undefined && entry.post.replyParent?.uri === parentUri) return index
+    }
+    // the same fallback: depth one below the parent in pre-order
+    for (let index = fromIndex; index < replies.length; index += 1) {
+      const entry = replies[index]
+      if (
+        entry !== undefined &&
+        entry.post.replyParent === null &&
+        entry.depth === parentDepth + 1
+      ) {
+        return index
+      }
+    }
+    return null
+  }
   const focusedReplyPost = focusedReply === null ? null : (replies[focusedReply]?.post ?? null)
   useViewerSync(entries.map((entry) => entry.post))
   const info = thread.error !== null ? errorInfo(thread.error) : null
@@ -136,21 +177,19 @@ export default function ThreadView() {
       if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey) return
       if (event.isComposing) return
-      // j/k mirror the arrows; Home/End jump to the ends of the reply list.
-      // down/j enter the first reply, up/k climb back: the reply article owns
-      // the key while a reply is focused, so reaching this handler means the
-      // ladder is at the focus post. From there up/k open the parent thread
-      // when the focus post has a parent, and otherwise leave the thread.
-      if (
-        event.key !== 'ArrowDown' &&
-        event.key !== 'j' &&
-        event.key !== 'ArrowUp' &&
-        event.key !== 'k' &&
-        event.key !== 'Home' &&
-        event.key !== 'End'
-      ) {
-        return
-      }
+      // left is the thread's back key. down descends to the first child,
+      // up climbs to the parent thread at the opened post, j enters the
+      // replies in reading order and k does nothing at the top of the tree.
+      const key = event.key
+      const isLeave = key === 'ArrowLeft'
+      const isTreeKey =
+        key === 'ArrowDown' ||
+        key === 'ArrowUp' ||
+        key === 'j' ||
+        key === 'k' ||
+        key === 'Home' ||
+        key === 'End'
+      if (!isLeave && !isTreeKey) return
       if (event.target instanceof HTMLElement) {
         if (event.target.isContentEditable) return
         if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
@@ -158,25 +197,48 @@ export default function ThreadView() {
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
 
-      if (event.key === 'ArrowUp' || event.key === 'k') {
-        // a held key must not pop the history stack more than once, and a
+      if (isLeave) {
+        if (event.repeat) return
+        event.preventDefault()
+        goBackOrFallback(navigate, THREAD_FALLBACK_VIEW)
+        return
+      }
+
+      if (key === 'ArrowUp') {
+        // a held key must not push the parent thread more than once, and a
         // focused link or button keeps the key for itself
         if (event.repeat) return
         if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
           return
         }
+        const parentUri = focusPost?.replyParent?.uri ?? null
+        if (parentUri === null) return
         event.preventDefault()
-        const parentUri = threadParentTarget(focusPost, null)
-        if (parentUri !== null) {
-          navigate(`/thread?uri=${encodeURIComponent(parentUri)}`)
-          return
-        }
-        goBackOrFallback(navigate, THREAD_FALLBACK_VIEW)
+        navigate(`/thread?uri=${encodeURIComponent(parentUri)}`)
         return
       }
 
+      if (key === 'ArrowDown') {
+        if (focusPost === null) return
+        const childIndex = firstChildOf(focusPost.uri, 0, 0)
+        if (childIndex === null) return
+        event.preventDefault()
+        replyRefs.current[childIndex]?.focus()
+        return
+      }
+
+      if (key === 'j') {
+        const first = replyRefs.current[0]
+        if (first === null || first === undefined) return
+        event.preventDefault()
+        first.focus()
+        return
+      }
+
+      if (key === 'k') return
+
       const target =
-        event.key === 'End' ? replyRefs.current[replyRefs.current.length - 1] : replyRefs.current[0]
+        key === 'End' ? replyRefs.current[replyRefs.current.length - 1] : replyRefs.current[0]
       if (target === null || target === undefined) return
       event.preventDefault()
       target.focus()
@@ -186,11 +248,11 @@ export default function ThreadView() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [focusedReply, replies.length, navigate, focusPost])
+  }, [focusedReply, replies, navigate, focusPost])
 
   // p jumps to the thread of the parent post (the focused reply's parent, or
-  // the focus post's parent). Escape leaves the thread outright; the up/k
-  // ladder opens that parent thread at the focus post instead.
+  // the focus post's parent). Escape or left leaves the thread outright; up
+  // walks to a parent reply and opens the parent thread only at the focus post.
   useEffect(() => {
     const handleParentKey = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
@@ -266,12 +328,35 @@ export default function ThreadView() {
     if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
     if (event.nativeEvent.isComposing) return
-    if (event.key === 'ArrowDown' || event.key === 'j') {
+    if (event.key === 'ArrowLeft') {
+      if (event.repeat) return
+      event.preventDefault()
+      goBackOrFallback(navigate, THREAD_FALLBACK_VIEW)
+      return
+    }
+    if (event.key === 'ArrowDown') {
+      const entry = replies[index]
+      if (entry === undefined) return
+      const childIndex = firstChildOf(entry.post.uri, entry.depth, index + 1)
+      if (childIndex === null) return
+      event.preventDefault()
+      replyRefs.current[childIndex]?.focus()
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      const parent = parentTargetOf(index)
+      if (parent === null) return
+      event.preventDefault()
+      if (parent === 'focus') mainRef.current?.focus()
+      else replyRefs.current[parent]?.focus()
+      return
+    }
+    if (event.key === 'j') {
       event.preventDefault()
       focusNextReply(index)
       return
     }
-    if (event.key === 'ArrowUp' || event.key === 'k') {
+    if (event.key === 'k') {
       event.preventDefault()
       focusPreviousReply(index)
       return

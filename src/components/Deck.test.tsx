@@ -53,7 +53,8 @@ describe('Deck keyboard', () => {
     expect(onExitStart).toHaveBeenCalledTimes(1)
   })
 
-  it('exits an empty deck with the up arrow too', () => {
+  it('exits an empty narrow deck with the up arrow too', () => {
+    stubWide(false)
     const onExitStart = vi.fn()
     render(deck([], onExitStart))
 
@@ -124,7 +125,7 @@ describe('Deck keyboard', () => {
     expect(onExitStart).not.toHaveBeenCalled()
   })
 
-  it('moves down and up on a wide deck without opening a card', () => {
+  it('moves left and right and opens down on a wide deck', () => {
     const onActivate = vi.fn()
     const onExitStart = vi.fn()
     const { container } = render(
@@ -138,32 +139,32 @@ describe('Deck keyboard', () => {
       />,
     )
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(focusedIndex(container)).toBe('1')
     expect(onActivate).not.toHaveBeenCalled()
 
-    fireEvent.keyDown(window, { key: 'ArrowUp' })
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(focusedIndex(container)).toBe('0')
-    expect(onActivate).not.toHaveBeenCalled()
 
-    fireEvent.keyDown(window, { key: 'Enter' })
+    // down opens instead of moving
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    expect(focusedIndex(container)).toBe('0')
     expect(onActivate).toHaveBeenCalledTimes(1)
     expect(onActivate).toHaveBeenCalledWith(ITEMS[0], 0)
     expect(onExitStart).not.toHaveBeenCalled()
   })
 
-  it('leaves a wide deck with the up arrow at the first card', () => {
+  it('leaves the up arrow inert on a wide deck', () => {
     const onExitStart = vi.fn()
     const { container } = render(deck(ITEMS, onExitStart))
 
     fireEvent.keyDown(window, { key: 'ArrowUp' })
-    fireEvent.keyDown(window, { key: 'ArrowUp', repeat: true })
 
-    expect(onExitStart).toHaveBeenCalledTimes(1)
+    expect(onExitStart).not.toHaveBeenCalled()
     expect(focusedIndex(container)).toBe('0')
   })
 
-  it('keeps left inert and opens with right on a narrow deck', () => {
+  it('moves vertically and opens with right on a narrow deck', () => {
     stubWide(false)
     const onActivate = vi.fn()
     const onExitStart = vi.fn()
@@ -480,6 +481,16 @@ describe('Deck repeat ownership', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowRight', repeat: true })
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+  })
+
+  it('activates once for a held down on a wide deck', () => {
+    const onActivate = vi.fn()
+    render(activatable(onActivate))
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'ArrowDown', repeat: true })
 
     expect(onActivate).toHaveBeenCalledTimes(1)
   })

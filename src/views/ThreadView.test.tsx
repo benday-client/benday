@@ -63,10 +63,16 @@ function threadWith(post: PostModel, replyPosts: PostModel[] = []): ThreadModel 
   return { focusUri: post.uri, entries }
 }
 
+function threadTree(post: PostModel, replies: { post: PostModel; depth: number }[]): ThreadModel {
+  const entries: ThreadEntry[] = [{ post, depth: 0, role: 'focus' }]
+  for (const reply of replies) entries.push({ post: reply.post, depth: reply.depth, role: 'reply' })
+  return { focusUri: post.uri, entries }
+}
+
 /**
  * App's Escape layer, reduced to the one branch a thread exercises: an
  * unconsumed Escape leaves the route through the shared history helper, so at
- * a root thread Escape and the up/k ladder agree on the destination.
+ * a root thread Escape and left agree on the destination.
  */
 function BackLayer({ children }: { children: ReactNode }) {
   const [, navigate] = useLocation()
@@ -315,23 +321,23 @@ describe('ThreadView reply keys', () => {
     expect(document.activeElement).toBe(replies[0])
   })
 
-  it('leaves a root thread with arrow up at the focus post, once', () => {
+  it('does not leave a root thread with arrow up at the opened post', () => {
     const { memory } = renderReplies()
 
     fireEvent.keyDown(document.body, { key: 'ArrowUp' })
 
-    expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
+    expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
-  it('leaves a root thread with k at the focus post, once', () => {
+  it('does not leave a root thread with k at the opened post', () => {
     const { memory } = renderReplies()
 
     fireEvent.keyDown(document.body, { key: 'k' })
 
-    expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
+    expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
-  it('walks into the first reply and back to the root focus post before leaving', () => {
+  it('walks into the first reply and back to the opened post, then leaves with left', () => {
     const { memory, replies } = renderReplies()
 
     fireEvent.keyDown(document.body, { key: 'ArrowDown' })
@@ -344,7 +350,7 @@ describe('ThreadView reply keys', () => {
     expect(document.activeElement).toBe(thread)
     expect(memory.history).toEqual([threadUrl('at://focus')])
 
-    fireEvent.keyDown(thread, { key: 'ArrowUp' })
+    fireEvent.keyDown(thread, { key: 'ArrowLeft' })
     expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
   })
 
@@ -394,6 +400,112 @@ describe('ThreadView reply keys', () => {
   })
 })
 
+describe('ThreadView reply tree', () => {
+  function renderTree() {
+    const focusPost = parentedPost('at://focus', null)
+    const first = parentedPost('at://reply-1', focusPost.uri)
+    const child = parentedPost('at://reply-1-child', first.uri)
+    const second = parentedPost('at://reply-2', focusPost.uri)
+    threadState.data = threadTree(focusPost, [
+      { post: first, depth: 1 },
+      { post: child, depth: 2 },
+      { post: second, depth: 1 },
+    ])
+    const rendered = renderThread(focusPost.uri)
+    const replies = Array.from(document.querySelectorAll<HTMLElement>('.b-thread__reply'))
+    const [one, nested, two] = replies
+    if (one === undefined || nested === undefined || two === undefined) {
+      throw new Error('missing reply articles')
+    }
+    return { ...rendered, replies: [one, nested, two] as const }
+  }
+
+  function threadSurface(): HTMLElement {
+    const thread = document.querySelector<HTMLElement>('.b-thread')
+    if (thread === null) throw new Error('missing thread surface')
+    return thread
+  }
+
+  it('moves down from the opened post to its first child', () => {
+    const { replies } = renderTree()
+
+    fireEvent.keyDown(document.body, { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(replies[0])
+  })
+
+  it('moves down from a reply to its child instead of the next sibling', () => {
+    const { replies } = renderTree()
+
+    fireEvent.keyDown(document.body, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(replies[0])
+
+    fireEvent.keyDown(replies[0], { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(replies[1])
+  })
+
+  it('stays put with down on a leaf reply', () => {
+    const { replies } = renderTree()
+
+    act(() => {
+      replies[1].focus()
+    })
+    fireEvent.keyDown(replies[1], { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(replies[1])
+  })
+
+  it('moves up from a child to its parent reply', () => {
+    const { replies } = renderTree()
+
+    act(() => {
+      replies[1].focus()
+    })
+    fireEvent.keyDown(replies[1], { key: 'ArrowUp' })
+
+    expect(document.activeElement).toBe(replies[0])
+  })
+
+  it('moves up from a top-level reply to the opened post', () => {
+    const { replies } = renderTree()
+
+    act(() => {
+      replies[0].focus()
+    })
+    fireEvent.keyDown(replies[0], { key: 'ArrowUp' })
+
+    expect(document.activeElement).toBe(threadSurface())
+  })
+
+  it('keeps j and k in reading order across the tree', () => {
+    const { replies } = renderTree()
+
+    fireEvent.keyDown(document.body, { key: 'j' })
+    expect(document.activeElement).toBe(replies[0])
+
+    fireEvent.keyDown(replies[0], { key: 'j' })
+    expect(document.activeElement).toBe(replies[1])
+
+    fireEvent.keyDown(replies[1], { key: 'j' })
+    expect(document.activeElement).toBe(replies[2])
+
+    fireEvent.keyDown(replies[2], { key: 'k' })
+    expect(document.activeElement).toBe(replies[1])
+  })
+
+  it('leaves the thread with left from a focused reply', () => {
+    const { memory, replies } = renderTree()
+
+    act(() => {
+      replies[1].focus()
+    })
+    fireEvent.keyDown(replies[1], { key: 'ArrowLeft' })
+
+    expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
+  })
+})
+
 describe('ThreadView focus parent boundary', () => {
   function renderParented(options: { backLayer?: boolean } = {}) {
     const focusPost = parentedPost('at://focus', 'at://focus-parent')
@@ -424,7 +536,7 @@ describe('ThreadView focus parent boundary', () => {
     back.mockRestore()
   })
 
-  it('opens the parent thread with k at a parented focus post', () => {
+  it('does not open the parent thread with k at a parented focus post', () => {
     seedHistoryDepth(1)
     const { memory } = renderParented()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
@@ -432,15 +544,14 @@ describe('ThreadView focus parent boundary', () => {
     fireEvent.keyDown(document.body, { key: 'k' })
 
     expect(back).not.toHaveBeenCalled()
-    expect(memory.history).toEqual([threadUrl('at://focus'), threadUrl('at://focus-parent')])
+    expect(memory.history).toEqual([threadUrl('at://focus')])
     back.mockRestore()
   })
 
-  it('does not reopen the parent on a held key', () => {
+  it('does not reopen the parent on a held up key', () => {
     const { memory } = renderParented()
 
     fireEvent.keyDown(document.body, { key: 'ArrowUp', repeat: true })
-    fireEvent.keyDown(document.body, { key: 'k', repeat: true })
 
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
@@ -455,7 +566,7 @@ describe('ThreadView focus parent boundary', () => {
     expect(document.activeElement).toBe(threadSurface())
     expect(memory.history).toEqual([threadUrl('at://focus')])
 
-    fireEvent.keyDown(threadSurface(), { key: 'k' })
+    fireEvent.keyDown(threadSurface(), { key: 'ArrowUp' })
     expect(memory.history).toEqual([threadUrl('at://focus'), threadUrl('at://focus-parent')])
   })
 })
@@ -471,7 +582,7 @@ describe('ThreadView leave history', () => {
     const { memory } = renderRootThread()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
 
     expect(back).not.toHaveBeenCalled()
     expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
@@ -482,7 +593,7 @@ describe('ThreadView leave history', () => {
     const { memory } = renderRootThread()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'k' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
 
     expect(back).not.toHaveBeenCalled()
     expect(memory.history).toEqual([THREAD_FALLBACK_VIEW])
@@ -493,7 +604,7 @@ describe('ThreadView leave history', () => {
     const { memory } = renderRootThread()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
 
     expect(back).toHaveBeenCalledTimes(1)
     expect(memory.history).toEqual([threadUrl('at://focus')])
@@ -504,16 +615,16 @@ describe('ThreadView leave history', () => {
     const { memory } = renderRootThread()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
-    fireEvent.keyDown(document.body, { key: 'k' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
 
     expect(back).toHaveBeenCalledTimes(1)
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
-  it('has Escape and arrow up agree on the fallback at the route root', () => {
+  it('has Escape and left agree on the fallback at the route root', () => {
     const viaKey = renderRootThread()
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
     expect(viaKey.memory.history).toEqual([THREAD_FALLBACK_VIEW])
     viaKey.unmount()
 
@@ -522,12 +633,12 @@ describe('ThreadView leave history', () => {
     expect(viaEscape.memory.history).toEqual([THREAD_FALLBACK_VIEW])
   })
 
-  it('has Escape and k agree on stepping back when app history exists', () => {
+  it('has Escape and left agree on stepping back when app history exists', () => {
     seedHistoryDepth(1)
     const viaKey = renderRootThread()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'k' })
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' })
     expect(back).toHaveBeenCalledTimes(1)
     expect(viaKey.memory.history).toEqual([threadUrl('at://focus')])
     viaKey.unmount()
@@ -655,7 +766,7 @@ describe('ThreadView character shortcut opt-out', () => {
 
   it('leaves p j k and digits inert while arrows still walk the thread', () => {
     const focusPost = parentedPost('at://focus', 'at://parent')
-    const replyPost = parentedPost('at://reply', 'at://parent')
+    const replyPost = parentedPost('at://reply', focusPost.uri)
     threadState.data = threadWith(focusPost, [replyPost])
     const { memory } = renderThread(focusPost.uri)
 

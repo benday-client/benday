@@ -69,13 +69,13 @@ the password fallback works everywhere else, including `localhost`.
 
 | key                     | action                                                          |
 | ----------------------- | --------------------------------------------------------------- |
-| `↑` `↓`                 | previous / next card, on any deck and either axis               |
-| `j` `k`                 | previous / next card, on any deck                               |
 | `←` `→`                 | previous / next card on a wide deck; `→` opens on a narrow deck |
+| `↑` `↓`                 | previous / next card on a narrow deck; `↓` opens on a wide deck |
+| `j` `k`                 | previous / next card, on any deck                               |
 | `h` `l`                 | previous / next card on a wide deck                             |
-| `↑` (or `←`) first card | leave the deck                                                  |
-| `↑` (or `←`) first post | exit the posts deck for the feeds deck                          |
-| `↑` (or `←`) first feed | exit the feeds deck back to the posts deck                      |
+| back at the first card  | `←` on a wide deck, `↑` on a narrow deck                        |
+| back at the first post  | the same back key exits the posts deck for the feeds deck       |
+| back at the first feed  | the same back key exits the feeds deck back to the posts deck   |
 | `home` / `end`          | first / last card, or first / last reply                        |
 | `g` / `G`               | first / last card, the vim aliases                              |
 | `1`-`9`                 | focus the nth card in the active deck, or the nth reply         |
@@ -336,10 +336,11 @@ send clears it. markers are removed before publishing and converted to atproto
 facets with UTF-8 byte offsets. mentions, hashtags and bare urls are still detected by the
 atproto rich-text layer. the counter counts the stripped text.
 
-in a thread `↑` or `k` walks up the replies; at the focus post it opens the
-parent post's thread when the thread has a parent and otherwise closes the
-thread at the root. `↓` or `j` enters the replies, and escape leaves the thread
-from anywhere.
+in a thread `←` leaves the thread through the shared app-history back step and
+falls back to the feed. `↓` moves to the first child reply and `↑` moves to the
+parent reply. at the opened post `↑` opens the parent post's thread when there
+is a parent and does nothing at the root. `j` and `k` stay in flat reading
+order. escape leaves the thread from anywhere.
 
 in a thread, `r` or `q` on the focused main card opens a docked composer instead
 of the dialog: a quote dock sits above the post and a reply dock below it, and

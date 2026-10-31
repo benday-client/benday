@@ -325,13 +325,33 @@ describe('ThreadView page keys', () => {
   })
 })
 
-describe('ThreadView focus up key', () => {
+describe('ThreadView tree keys', () => {
   const PARENT_URI = 'at://did:plc:test/app.bsky.feed.post/parent'
 
   beforeEach(() => {
     // the k alias is a character shortcut; the stored preference is shared
     // with other browser specs through localStorage
     useSettings.setState({ keyboardShortcuts: true })
+  })
+
+  it('moves down into children and up to the parent reply', async () => {
+    const { container } = renderThread(nestedThread())
+    await settle()
+    const replies = Array.from(container.querySelectorAll<HTMLElement>('.b-thread__reply'))
+    const [first, nested] = replies
+    if (first === undefined || nested === undefined) throw new Error('missing replies')
+
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(first)
+
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(nested)
+
+    await userEvent.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(first)
+
+    await userEvent.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(container.querySelector('.b-thread'))
   })
 
   it('opens the parent thread with ArrowUp at a parented focus post', async () => {
@@ -347,12 +367,12 @@ describe('ThreadView focus up key', () => {
     expect(history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(PARENT_URI)}`)
   })
 
-  it('leaves a root thread with k instead of opening a parent', async () => {
+  it('leaves a root thread with left instead of opening a parent', async () => {
     window.history.replaceState(null, '')
     const { history } = renderThread(rootThread(false))
     await settle()
 
-    await userEvent.keyboard('k')
+    await userEvent.keyboard('{ArrowLeft}')
     await settle()
 
     expect(history.at(-1)).toBe('/feed')
