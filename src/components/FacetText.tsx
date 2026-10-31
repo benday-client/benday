@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'wouter'
-import { facetHref, segmentText } from '../lib/facets'
+import { type FacetLink, facetHref, segmentText } from '../lib/facets'
 import type { FacetFeature, FacetSpan } from '../lib/types'
 
 export interface FacetTextProps {
@@ -21,7 +21,12 @@ const FEATURE_RANK: Partial<Record<FacetFeature['kind'], number>> = {
   code: 3,
 }
 
-function wrapFeature(feature: FacetFeature, children: ReactNode, key: string): ReactNode {
+function wrapFeature(
+  feature: FacetFeature,
+  children: ReactNode,
+  key: string,
+  link: FacetLink | null,
+): ReactNode {
   if (feature.kind === 'bold') {
     return (
       <strong key={key} className="b-facet-text__bold">
@@ -51,7 +56,6 @@ function wrapFeature(feature: FacetFeature, children: ReactNode, key: string): R
     )
   }
 
-  const link = facetHref(feature)
   if (link === null) return <span key={key}>{children}</span>
 
   if (link.external) {
@@ -64,6 +68,7 @@ function wrapFeature(feature: FacetFeature, children: ReactNode, key: string): R
         rel="noreferrer noopener"
       >
         {children}
+        <span aria-hidden="true"> ↗</span>
       </a>
     )
   }
@@ -83,7 +88,7 @@ export function FacetText({ text, facets, className }: FacetTextProps) {
   let cursor = 0
 
   return (
-    <span className={classes.join(' ')}>
+    <span className={classes.join(' ')} dir="auto">
       {segments.map((segment) => {
         const key = String(cursor)
         cursor += segment.text.length
@@ -96,8 +101,13 @@ export function FacetText({ text, facets, className }: FacetTextProps) {
           (left, right) => (FEATURE_RANK[left.kind] ?? 4) - (FEATURE_RANK[right.kind] ?? 4),
         )
         let node: ReactNode = segment.text
+        let anchored = false
         for (const [index, feature] of ordered.entries()) {
-          node = wrapFeature(feature, node, `${key}:${index}`)
+          const link = facetHref(feature)
+          // overlapping navigation never nests anchors; the first safe one wins
+          if (link !== null && anchored) continue
+          if (link !== null) anchored = true
+          node = wrapFeature(feature, node, `${key}:${index}`, link)
         }
         return node
       })}
