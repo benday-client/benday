@@ -50,7 +50,7 @@
 }
 
 .b-frame__label {
-  color: var(--ink-dim);
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -59,7 +59,7 @@
 .b-frame__meta {
   flex: 0 0 auto;
   margin-left: auto;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -109,7 +109,7 @@
     transform 120ms linear;
 }
 
-.b-button:hover:not(:disabled) {
+.b-button:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--ink-dim);
   box-shadow:
     2px 2px 0 0 var(--shadow),
@@ -117,42 +117,46 @@
   transform: translate(-1px, -1px);
 }
 
-.b-button:active:not(:disabled) {
+.b-button:active:not(:disabled):not([aria-disabled="true"]) {
   box-shadow: none;
   transform: none;
 }
 
-.b-button:disabled {
+/* a control that announces itself busy keeps focus and its handler guard, so
+   the disabled read comes from the attribute, not from native disabling */
+.b-button:disabled,
+.b-button[aria-disabled="true"] {
   opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .b-button--solid {
-  border-color: var(--blue);
-  background: var(--blue);
-  color: var(--void);
+  border-color: var(--fill-solid);
+  background: var(--fill-solid);
+  color: var(--on-accent);
   box-shadow: 0 0 10px -4px var(--neon);
 }
 
-.b-button--solid:hover:not(:disabled) {
-  border-color: var(--blue-hot);
-  background: var(--blue-hot);
+.b-button--solid:hover:not(:disabled):not([aria-disabled="true"]) {
+  border-color: var(--fill-solid-hover);
+  background: var(--fill-solid-hover);
 }
 
 .b-button--outline {
   background: var(--panel);
 }
 
-.b-button--outline:hover:not(:disabled) {
+.b-button--outline:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--panel-raised);
 }
 
 .b-button--ghost {
   border-color: transparent;
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--text-muted);
 }
 
-.b-button--ghost:hover:not(:disabled) {
+.b-button--ghost:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--panel-raised);
   color: var(--ink);
 }
@@ -167,7 +171,7 @@
 }
 
 .b-input__label {
-  color: var(--ink-dim);
+  color: var(--text-muted);
 }
 
 .b-input__control {
@@ -182,7 +186,7 @@
 }
 
 .b-input__control::placeholder {
-  color: var(--ink-faint);
+  color: var(--text-muted);
 }
 
 .b-input__control:focus-visible {
@@ -194,8 +198,14 @@
   opacity: 0.5;
 }
 
+/* pending editors go read-only instead of disabled: the draft stays legible
+   and selectable, only the surface says it will not take input */
+.b-input__control:read-only:not(:disabled) {
+  background: var(--panel);
+}
+
 .b-input__hint {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -209,7 +219,7 @@
   border: 1px solid var(--line);
   border-radius: 0;
   background: var(--panel);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step--2);
   letter-spacing: 0.1em;
   line-height: 1.6;
@@ -222,12 +232,12 @@
 
 .b-tag--accent {
   border-color: var(--blue-deep);
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-tag--warn {
   border-color: var(--rust);
-  color: var(--rust);
+  color: var(--ink);
 }
 
 /* progress ---------------------------------------------------------- */
@@ -240,7 +250,7 @@
 }
 
 .b-progress__label {
-  color: var(--ink-faint);
+  color: var(--text-muted);
 }
 
 .b-progress__track {
@@ -287,15 +297,43 @@
   }
 }
 
+/* forced colors: the theme's blue and void both collapse to the same system
+   colour, so the track and its fill must be told apart by system roles. the
+   scanline hatch and the striped indeterminate fill would be dropped anyway,
+   so they are released explicitly instead of leaving a hollow bar. */
+@media (forced-colors: active) {
+  .b-progress__track {
+    border-color: CanvasText;
+    background: Canvas;
+  }
+
+  .b-progress__track::after {
+    display: none;
+  }
+
+  .b-progress__fill {
+    background: Highlight;
+  }
+
+  .b-progress[data-state="indeterminate"] .b-progress__fill {
+    background-color: Highlight;
+    background-image: none;
+  }
+}
+
 /* dialog ------------------------------------------------------------ */
 
 .b-dialog {
+  /* total viewport clearance, not a per-side gutter: every dialog caps its own
+     preferred width against this one subtraction so the outer margin matches */
+  --dialog-gutter: 32px;
+
   position: fixed;
   inset: 0;
   width: 100%;
   height: max-content;
-  max-width: min(640px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
+  max-width: min(640px, calc(100vw - var(--dialog-gutter)));
+  max-height: calc(100dvh - var(--dialog-gutter));
   margin: auto;
   padding: 0;
   border: 1px solid var(--line-strong);
@@ -303,7 +341,17 @@
   background: var(--panel);
   color: var(--ink);
   box-shadow: 6px 6px 0 0 var(--shadow);
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  /* the frame is not the scroller: its corner treatment is painted in the
+     box so a scrolled body cannot drag the cuts and brackets out of place */
+  overflow: hidden;
+}
+
+/* the flex display above would otherwise outlive the ua hide of a closed
+   dialog; Dialog holds a theme with an exit animation open and then closes */
+.b-dialog:not([open]) {
+  display: none;
 }
 
 .b-dialog::backdrop {
@@ -334,7 +382,7 @@
   border: 1px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   font-size: 1.25rem;
@@ -348,6 +396,7 @@
 }
 
 .b-dialog__title {
+  font-family: var(--font-display);
   color: var(--ink);
   font-size: var(--step-0);
   font-weight: 500;
@@ -358,6 +407,8 @@
 .b-dialog__body {
   padding: var(--space-4);
   font-size: var(--step-0);
+  min-height: 0;
+  overflow: auto;
 }
 
 .b-dialog__foot {
@@ -380,7 +431,7 @@
   border: 1px solid var(--line-strong);
   border-radius: 0;
   background: var(--panel-raised);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   line-height: 1.4;
@@ -400,19 +451,32 @@
 }
 
 .b-empty__title {
-  color: var(--ink-dim);
+  font-family: var(--font-display);
+  color: var(--ink);
   font-size: var(--step-0);
   letter-spacing: 0.1em;
   text-transform: lowercase;
 }
 
 .b-empty__hint {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
 .b-empty__action {
   margin-top: var(--space-1);
+}
+
+/* one large glyph, pushed through the same ordered dither as the imagery */
+.b-empty__glyph {
+  margin: 0;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: var(--step-5);
+  line-height: 1;
+  filter: var(--dither-filter, url(#benday-dither-void));
+  image-rendering: var(--dither-rendering, pixelated);
+  opacity: 0.9;
 }
 
 /* error ------------------------------------------------------------- */
@@ -428,14 +492,14 @@
 }
 
 .b-error__title {
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
   letter-spacing: 0.1em;
   text-transform: lowercase;
 }
 
 .b-error__message {
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step-0);
   overflow-wrap: anywhere;
 }
@@ -498,24 +562,69 @@
   scroll-snap-align: start;
 }
 
-/* leave half-neighbour space before the first and after the last card */
-.b-deck[data-axis="x"]:has(.b-deck__item)::before,
-.b-deck[data-axis="x"]:has(.b-deck__item)::after {
+/* the leading peek is a half-visible sliver, never a resting card. as a snap
+   target it lets the browser centre the switcher card after a deck swap (the
+   login transition), so it opts out of snapping. */
+.b-deck__item.b-deck__peek {
+  scroll-snap-align: none;
+}
+
+/* real cards replace the skeletons the deck showed while the first page was
+   loading, so the incoming items fade in instead of popping. The selector is
+   keyed on the deck actually having items, which is also when the row grows its
+   leading and trailing breathing room. The deal animation still owns the mode
+   switch; this only handles arrivals. */
+@media (prefers-reduced-motion: no-preference) {
+  .b-deck:has(.b-deck__item:not(.b-deck__peek)) > .b-deck__item {
+    opacity: 1;
+    transition: opacity var(--motion-dur, 160ms) var(--motion-ease, ease);
+  }
+
+  @starting-style {
+    .b-deck:has(.b-deck__item:not(.b-deck__peek)) > .b-deck__item {
+      opacity: 0;
+    }
+  }
+}
+
+/* leave half-neighbour space before the first and after the last card, and
+   around an empty slot so the message lands where the first card would */
+/* the peek is not a card: keyed on it alone the leading spacer centres the
+   switcher while the first page loads */
+.b-deck[data-axis="x"]:has(.b-deck__item:not(.b-deck__peek))::before,
+.b-deck[data-axis="x"]:has(.b-deck__item:not(.b-deck__peek))::after,
+.b-deck[data-axis="x"]:has(.b-deck__empty)::before,
+.b-deck[data-axis="x"]:has(.b-deck__empty)::after {
   flex: 0 0 calc(25% - var(--deck-gap) * 0.75);
   content: "";
 }
 
-/* an empty state shares the row with its leading peek */
-.b-deck[data-axis="x"]:has(.b-deck__empty)::before,
-.b-deck[data-axis="x"]:has(.b-deck__empty)::after {
-  flex: 0 0 0;
-  content: none;
+/* pointer affordance: the border warms and the index shifts a hair */
+.b-deck__item > .b-frame {
+  transition: border-color 120ms linear;
 }
 
+.b-post-card__index {
+  transition: transform 120ms linear;
+}
+
+.b-deck__item > .b-frame:hover {
+  border-color: color-mix(in srgb, var(--blue) 55%, var(--line-strong));
+}
+
+.b-deck__item > .b-frame:hover .b-post-card__index {
+  transform: translateX(2px);
+}
+
+/* the focused card wears two hairlines: one on the edge and one tucked inside,
+   so clipped and rounded themes keep the same read as square ones */
 .b-deck__item[data-focused="true"] > .b-frame,
 .b-deck__item:focus-within > .b-frame {
   outline: 1px solid var(--blue);
-  outline-offset: 2px;
+  outline-offset: -3px;
+  box-shadow:
+    inset 0 0 0 1px var(--blue),
+    var(--card-shadow);
 }
 
 .b-deck__skeleton {
@@ -533,7 +642,9 @@
     var(--panel) 90%
   );
   background-size: 240% 100%;
-  animation: b-deck-skeleton 1.8s linear infinite;
+  animation:
+    benday-deal var(--deal-dur, 620ms) cubic-bezier(0.18, 0.82, 0.22, 1.18) both,
+    b-deck-skeleton 1.8s linear infinite;
 }
 
 .b-deck__skeleton::after {
@@ -555,7 +666,7 @@
 }
 
 .b-deck__skeleton-label {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.06em;
 }
@@ -577,6 +688,12 @@
   justify-content: center;
   min-width: 0;
   padding: var(--space-3);
+}
+
+.b-deck[data-axis="x"] .b-deck__empty {
+  flex: 0 0 var(--card-width);
+  /* its own snap point, or the peek's centre pulls the row back to the start */
+  scroll-snap-align: center;
 }
 
 .b-deck__empty > * {
@@ -603,7 +720,7 @@
   min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--line);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.04em;
 }
@@ -636,8 +753,7 @@
   }
 
   .b-dialog {
-    max-width: calc(100vw - 16px);
-    max-height: calc(100dvh - 16px);
+    --dialog-gutter: 16px;
   }
 }
 
@@ -660,5 +776,69 @@
     background-image: none;
     opacity: 0.55;
     animation: none;
+  }
+}
+
+/* key hints --------------------------------------------------------- */
+
+/* One inert layer. The badges are painted from the owning controls' own rects,
+   so a reveal reserves no space, moves nothing and takes no pointer events. */
+.b-keyhints {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-topbar) + 1);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.b-keyhints__group {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* the group's own bottom-right corner lands on the control's top-right one */
+  transform: translate(-100%, -100%);
+}
+
+/* near the top edge the group flips under its control instead of clipping */
+.b-keyhints__group[data-placement="below"] {
+  transform: translate(-100%, 0);
+}
+
+.b-keyhint {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: var(--panel-raised);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* a hint is the loudest thing on screen for as long as it shows, so high
+   contrast gives it the ink border instead of a raised panel wash */
+[data-contrast="high"] .b-keyhint {
+  border-color: var(--ink);
+  background: var(--void);
+}
+
+@keyframes b-keyhint-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .b-keyhints__group {
+    animation: b-keyhint-in 120ms ease-out;
   }
 }

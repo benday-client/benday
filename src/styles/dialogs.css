@@ -3,7 +3,7 @@
 /* command palette --------------------------------------------------- */
 
 .b-palette {
-  max-width: min(560px, calc(100vw - 32px));
+  max-width: min(560px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-palette > .b-dialog__body {
@@ -45,18 +45,31 @@
 
 .b-palette__input:focus,
 .b-palette__input:focus-visible {
-  outline: none;
+  /* the input has no border of its own, and a shadow alone vanishes under the
+     clipped corner treatments: an offset outline draws the cue in the form's
+     own void field, clear of the dialog edge */
+  outline: 1px solid var(--blue);
+  outline-offset: 1px;
 }
 
 .b-palette__input::placeholder {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step-0);
 }
 
+/* one reserved box for every result shape: the pending note, the empty note, a
+   two-row suggestion list and the long command list all keep the same height,
+   so the centred dialog never re-centres while the user arrows through it */
+.b-palette__results {
+  height: min(46vh, 21rem);
+  overflow: hidden;
+}
+
 .b-palette__list {
-  max-height: 46vh;
+  height: 100%;
   padding: var(--space-1) 0;
   overflow: auto;
+  scrollbar-gutter: stable;
   list-style: none;
 }
 
@@ -73,7 +86,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font: inherit;
   font-size: var(--step-0);
   letter-spacing: 0.04em;
@@ -106,19 +119,24 @@
 
 .b-palette__meta {
   flex: 0 0 auto;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.06em;
 }
 
 .b-palette__command[data-selected="true"] .b-palette__meta {
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-palette__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
   padding: var(--space-4);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step-0);
+  text-align: center;
 }
 
 .b-palette__hint {
@@ -128,7 +146,7 @@
   gap: var(--space-1) var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-top: 1px solid var(--line);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -141,17 +159,10 @@
   color: var(--line-strong);
 }
 
-.b-palette__hint-esc {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-left: auto;
-}
-
 /* appview switcher -------------------------------------------------- */
 
 .b-appview {
-  max-width: min(620px, calc(100vw - 32px));
+  max-width: min(620px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-appview__list {
@@ -214,7 +225,7 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -225,7 +236,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   letter-spacing: 0.08em;
   white-space: nowrap;
@@ -239,7 +250,7 @@
 }
 
 .b-appview__status[data-state="ok"] {
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-appview__status[data-state="ok"]::before {
@@ -247,7 +258,7 @@
 }
 
 .b-appview__status[data-state="error"] {
-  color: var(--rust);
+  color: var(--ink);
 }
 
 .b-appview__status[data-state="error"]::before {
@@ -255,12 +266,12 @@
 }
 
 .b-appview__status[data-state="checking"]::before {
-  background: var(--ink-faint);
+  background: var(--text-muted);
   animation: b-appview-blink 1s steps(2, end) infinite;
 }
 
 .b-appview__note {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -282,7 +293,7 @@
 }
 
 .b-appview__error {
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -293,7 +304,7 @@
 }
 
 .b-appview__disclaimer {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   letter-spacing: 0.03em;
 }
@@ -301,12 +312,12 @@
 /* keyboard help ----------------------------------------------------- */
 
 .b-help {
-  max-width: min(720px, calc(100vw - 32px));
+  max-width: min(720px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-help__note {
   margin-bottom: var(--space-3);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -335,7 +346,7 @@
 
 .b-help__empty {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -356,7 +367,7 @@
 
 .b-help__group-note {
   margin: 0 0 var(--space-2);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -376,11 +387,14 @@
   border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
 }
 
+/* the key column gives way first: a long chord list wraps onto more lines
+   instead of pushing the row past the reading column */
 .b-help__keys {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: center;
+  min-width: 0;
   gap: var(--space-1);
 }
 
@@ -391,7 +405,7 @@
 }
 
 .b-help__or {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -401,7 +415,7 @@
 
 .b-help__what {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
   text-align: right;
@@ -423,7 +437,7 @@
 /* settings --------------------------------------------------------- */
 
 .b-settings {
-  max-width: min(760px, calc(100vw - 32px));
+  max-width: min(760px, calc(100vw - var(--dialog-gutter)));
 }
 
 .b-settings__section {
@@ -444,7 +458,7 @@
 
 .b-settings__heading {
   margin: 0;
-  color: var(--accent-2);
+  color: var(--ink);
   font-size: var(--step--1);
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -453,14 +467,14 @@
 
 .b-settings__note {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   line-height: 1.5;
 }
 
 .b-settings__error {
   margin: 0;
-  color: var(--rust);
+  color: var(--ink);
   font-size: var(--step--1);
 }
 
@@ -499,7 +513,7 @@
 }
 
 .b-theme-preview__meta {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
@@ -560,29 +574,40 @@
 }
 
 .b-theme-preview__actions {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.03em;
 }
 
+/* the specimen keeps each action's hue as a mark below the label, never as
+   the label's own text colour */
+.b-theme-preview__actions [data-kind] {
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-strong);
+}
+
 .b-theme-preview__actions [data-kind="comments"] {
-  color: var(--accent-4);
+  border-bottom-color: var(--accent-4);
 }
 
 .b-theme-preview__actions [data-kind="like"] {
-  color: var(--accent-2);
+  border-bottom-color: var(--accent-2);
 }
 
 .b-theme-preview__actions [data-kind="repost"] {
-  color: var(--accent-3);
+  border-bottom-color: var(--accent-3);
 }
 
 .b-theme-preview__actions [data-kind="quote"] {
-  color: var(--accent-5);
+  border-bottom-color: var(--accent-5);
 }
 
 .b-theme-preview__link {
-  color: var(--blue);
+  color: var(--text-link);
+  text-decoration: underline;
+  text-decoration-color: var(--blue);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 .b-theme-preview__controls .b-button {
@@ -596,7 +621,7 @@
   padding: 2px var(--space-2);
   border: 1px solid var(--line-strong);
   background: var(--panel);
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -635,36 +660,9 @@
   display: none;
 }
 
-.b-settings__search-results {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.b-settings__search-result {
-  appearance: none;
-  padding: 1px var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--theme-radius);
-  background: var(--panel);
-  color: var(--ink-dim);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--step--1);
-  text-transform: lowercase;
-}
-
-.b-settings__search-result:hover {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-
 .b-settings__search-empty {
   margin: 0;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--1);
 }
 
@@ -684,7 +682,7 @@
   border: 1px solid var(--line);
   border-radius: var(--theme-radius);
   background: var(--void);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   font-size: var(--step--1);
@@ -694,7 +692,7 @@
 .b-settings__mode:hover,
 .b-settings__mode[data-active="true"] {
   border-color: var(--blue);
-  color: var(--blue);
+  color: var(--ink);
 }
 
 .b-settings__toggle {
@@ -702,7 +700,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   font-size: var(--step--1);
   cursor: pointer;
 }
@@ -712,11 +710,7 @@
 }
 
 .b-settings__toggle-note {
-  color: var(--ink-faint);
-}
-
-.b-settings__theme[data-current="true"] {
-  border-color: var(--accent-2);
+  color: var(--text-muted);
 }
 
 .b-settings__theme-groups {
@@ -749,17 +743,32 @@
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--line);
   background: var(--void);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   font-size: var(--step--1);
   text-align: left;
 }
 
+.b-settings__theme[data-seasonal="true"] {
+  border-style: dashed;
+}
+
+.b-settings__theme-tag {
+  margin-left: auto;
+  padding: 0 4px;
+  border: 1px solid color-mix(in srgb, var(--rust) 55%, var(--line));
+  color: var(--ink);
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .b-settings__theme:hover,
 .b-settings__theme[data-active="true"] {
   border-color: var(--blue);
-  color: var(--blue);
+  color: var(--ink);
   box-shadow: 0 0 10px -6px var(--neon);
 }
 
@@ -777,7 +786,7 @@
   padding: var(--space-2);
   border: 1px solid var(--line);
   background: var(--void);
-  color: var(--ink-dim);
+  color: var(--text-muted);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -786,7 +795,7 @@
 .b-settings__appview:hover,
 .b-settings__appview[data-active="true"] {
   border-color: var(--blue);
-  color: var(--blue);
+  color: var(--ink);
   box-shadow: 0 0 10px -6px var(--neon);
 }
 
@@ -795,20 +804,16 @@
   font-size: var(--step-0);
 }
 
-.b-settings__appview[data-active="true"] .b-settings__appview-name {
-  color: var(--blue);
-}
-
 .b-settings__appview-host {
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .b-settings__appview-note {
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   line-height: 1.4;
 }
@@ -850,7 +855,7 @@
 
 .b-settings__labeler-did {
   overflow: hidden;
-  color: var(--ink-faint);
+  color: var(--text-muted);
   font-size: var(--step--2);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -879,13 +884,17 @@
 }
 
 .b-settings__account-handle {
+  min-width: 0;
   color: var(--ink);
   font-size: var(--step-1);
+  overflow-wrap: anywhere;
 }
 
 .b-settings__account-did {
-  color: var(--ink-faint);
+  min-width: 0;
+  color: var(--text-muted);
   font-size: var(--step--1);
+  overflow-wrap: anywhere;
 }
 
 /* responsive -------------------------------------------------------- */
@@ -897,10 +906,6 @@
 
   .b-help__what {
     text-align: left;
-  }
-
-  .b-palette__hint-esc {
-    margin-left: 0;
   }
 }
 
