@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react()],
@@ -17,6 +17,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    clearMocks: true,
     restoreMocks: true,
+    // Native-browser specs need real layout and trusted input; jsdom would
+    // measure zeros, so they only run through vitest.browser.config.ts.
+    exclude: [...configDefaults.exclude, 'src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
   },
 })

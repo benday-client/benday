@@ -1,4 +1,4 @@
-import type { PostModel } from '../lib/types'
+import type { PostModel, ProfileModel, ThreadModel } from '../lib/types'
 
 export function postFixture(overrides: Partial<PostModel> = {}): PostModel {
   return {
@@ -9,6 +9,8 @@ export function postFixture(overrides: Partial<PostModel> = {}): PostModel {
       handle: 'test.bsky.social',
       displayName: 'test',
       avatar: null,
+      muted: false,
+      blocked: false,
     },
     text: 'hello',
     facets: [],
@@ -26,4 +28,49 @@ export function postFixture(overrides: Partial<PostModel> = {}): PostModel {
     labels: [],
     ...overrides,
   }
+}
+
+export function profileFixture(overrides: Partial<ProfileModel> = {}): ProfileModel {
+  return {
+    did: 'did:plc:test',
+    handle: 'test.bsky.social',
+    displayName: 'test',
+    description: '',
+    pronouns: '',
+    avatar: null,
+    banner: null,
+    followersCount: 0,
+    followsCount: 0,
+    postsCount: 0,
+    createdAt: null,
+    labels: [],
+    links: [],
+    isBot: false,
+    viewer: {
+      following: null,
+      followedBy: null,
+      muted: false,
+      mutedOnlyReposts: false,
+      mutedOnlyQuoteposts: false,
+      blocking: null,
+      blockedBy: false,
+      activitySubscription: null,
+    },
+    ...overrides,
+  }
+}
+
+export function threadFixture(focus: PostModel, replies: PostModel[] = []): ThreadModel {
+  return {
+    focusUri: focus.uri,
+    entries: [
+      { post: focus, depth: 0, role: 'focus' },
+      ...replies.map((post) => ({ post, depth: 1, role: 'reply' as const })),
+    ],
+  }
+}
+
+/** Body long enough that its card cannot fit inside the app shell. */
+export function longPostFixture(overrides: Partial<PostModel> = {}): PostModel {
+  return postFixture({ text: 'word '.repeat(1200), replyCount: 0, ...overrides })
 }
