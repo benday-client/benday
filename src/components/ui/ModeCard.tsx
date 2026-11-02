@@ -43,12 +43,12 @@ export function ModeCard({
       aria-describedby={describedBy}
       onClick={onSelect}
     >
-      <FrameHead label={label} meta={active ? 'active' : 'enter'} />
-      <FrameBody className="b-mode-card__body">
+      <FrameHead as="span" label={label} meta={active ? 'active' : 'enter'} />
+      <FrameBody as="span" className="b-mode-card__body">
         <span className="b-mode-card__title">{name}</span>
-        <p className="b-mode-card__description" id={descriptionId}>
+        <span className="b-mode-card__description" id={descriptionId}>
           {description}
-        </p>
+        </span>
         {countLabel === null ? null : (
           <span className="b-mode-card__count" id={countId}>
             {countLabel}
