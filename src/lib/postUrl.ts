@@ -1,6 +1,6 @@
 import type { PostModel } from './types'
 
-export function profileWebUrl(handle: string): string {
+function profileWebUrl(handle: string): string {
   return `https://bsky.app/profile/${encodeURIComponent(handle)}`
 }
 

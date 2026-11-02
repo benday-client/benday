@@ -6,7 +6,7 @@ export function cardBackIndex(count: number): string {
   return `[${String(Math.max(0, count)).padStart(2, '0')}]`
 }
 
-export interface CardBackOpenAction {
+interface CardBackOpenAction {
   label: string
   onClick: () => void
 }

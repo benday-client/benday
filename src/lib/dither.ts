@@ -18,20 +18,10 @@ export const BAYER_MATRIX = [
   [63, 31, 55, 23, 61, 29, 53, 21],
 ] as const
 
-const BAYER_VALUES: readonly number[] = BAYER_MATRIX.flat()
-
 const BAYER_SIZE = 8
 const CELL_SIZE = 2
 const LEVELS = BAYER_SIZE * BAYER_SIZE
 export const BAYER_TILE_SIZE = BAYER_SIZE * CELL_SIZE
-
-/** Threshold for a wrapped 8x8 Bayer coordinate, in the open interval (0, 1). */
-export function bayerThreshold(x: number, y: number): number {
-  const column = ((x % BAYER_SIZE) + BAYER_SIZE) % BAYER_SIZE
-  const row = ((y % BAYER_SIZE) + BAYER_SIZE) % BAYER_SIZE
-  const value = BAYER_VALUES[row * BAYER_SIZE + column] ?? 0
-  return (value + 0.5) / LEVELS
-}
 
 /**
  * Tile fill for a threshold in the open interval (0, 1). The filter inverts

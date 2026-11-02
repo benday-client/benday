@@ -7,18 +7,15 @@ export {
   cardBackIndex,
 } from './CardBack'
 export { Dialog, type DialogProps } from './Dialog'
-export { EmptyState, type EmptyStateProps } from './EmptyState'
-export { ErrorNotice, type ErrorNoticeProps } from './ErrorNotice'
+export { EmptyState } from './EmptyState'
+export { ErrorNotice } from './ErrorNotice'
 export {
   Frame,
   FrameBody,
-  type FrameBodyProps,
   FrameHead,
-  type FrameHeadProps,
-  type FrameProps,
 } from './Frame'
-export { Kbd, type KbdProps } from './Kbd'
-export { ModeCard, type ModeCardProps } from './ModeCard'
-export { Progress, type ProgressProps } from './Progress'
-export { Tag, type TagProps } from './Tag'
-export { TextInput, type TextInputProps } from './TextInput'
+export { Kbd } from './Kbd'
+export { ModeCard } from './ModeCard'
+export { Progress } from './Progress'
+export { Tag } from './Tag'
+export { TextInput } from './TextInput'

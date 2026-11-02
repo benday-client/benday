@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatAbsoluteTime, formatClock, formatRelativeTime } from './time'
+import { formatAbsoluteTime, formatRelativeTime } from './time'
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
@@ -67,20 +67,5 @@ describe('formatAbsoluteTime', () => {
 
   it('returns a dash for invalid input', () => {
     expect(formatAbsoluteTime('not a date')).toBe('—')
-  })
-})
-
-describe('formatClock', () => {
-  it('formats local wall clock hours and minutes', () => {
-    expect(formatClock(new Date(2026, 0, 1, 9, 4))).toBe('09:04')
-    expect(formatClock(new Date(2026, 0, 1, 23, 59))).toBe('23:59')
-  })
-
-  it('defaults to the current time', () => {
-    expect(formatClock()).toMatch(/^\d{2}:\d{2}$/)
-  })
-
-  it('returns a dash for an invalid date', () => {
-    expect(formatClock(new Date('invalid'))).toBe('—')
   })
 })

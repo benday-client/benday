@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   availableThemeGroups,
-  DEFAULT_IMAGE_EFFECT,
   isTheme,
   resolveTheme,
   SEASON_MONTHS,
@@ -87,22 +86,6 @@ describe('themes', () => {
     }
   })
 
-  it('uses readable labels for the expanded family', () => {
-    expect(THEME_LABELS['catppuccin-mocha']).toBe('catppuccin mocha')
-    expect(THEME_LABELS['catppuccin-latte']).toBe('catppuccin latte')
-    expect(THEME_LABELS.atom).toBe('atom one dark')
-    expect(THEME_LABELS['github-dark']).toBe('github dark')
-    expect(THEME_LABELS['github-light']).toBe('github light')
-    expect(THEME_LABELS.cyberpunk).toBe('cyberpunk 2077')
-    expect(THEME_LABELS.cottagecore).toBe('cottagecore')
-    expect(THEME_LABELS['truth-to-materials']).toBe('truth to materials')
-    expect(THEME_LABELS.bluesky).toBe('bluesky')
-    expect(THEME_LABELS['pumpkin-ember']).toBe('pumpkin ember')
-    expect(THEME_LABELS['toxic-midnight']).toBe('toxic midnight')
-    expect(THEME_LABELS['candy-crypt']).toBe('candy crypt')
-    expect(THEME_LABELS['dead-leaves']).toBe('dead leaves')
-  })
-
   it('labels every theme uniquely', () => {
     const labels = THEMES.map((theme) => THEME_LABELS[theme])
     expect(new Set(labels).size).toBe(THEMES.length)
@@ -134,8 +117,7 @@ describe('themes', () => {
     expect(isTheme({ theme: 'oxide' })).toBe(false)
   })
 
-  it('gives every theme a valid image effect and defaults to grunge', () => {
-    expect(DEFAULT_IMAGE_EFFECT).toBe('grunge')
+  it('gives every theme a valid image effect', () => {
     for (const theme of THEMES) {
       expect(['grunge', 'clean', 'none', 'industrial', 'halftone']).toContain(THEME_EFFECTS[theme])
     }

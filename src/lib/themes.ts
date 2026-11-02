@@ -4,8 +4,6 @@ export type ImageEffect = 'grunge' | 'clean' | 'none' | 'industrial' | 'halftone
 export type ThemeScheme = 'light' | 'dark'
 export type ThemeSeason = 'october'
 
-export const DEFAULT_IMAGE_EFFECT: ImageEffect = 'grunge'
-
 export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
   void: 'grunge',
   bone: 'grunge',

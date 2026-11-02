@@ -33,8 +33,3 @@ export function formatAbsoluteTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return '—'
   return `${localDate(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
-
-export function formatClock(date: Date = new Date()): string {
-  if (Number.isNaN(date.getTime())) return '—'
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
-}

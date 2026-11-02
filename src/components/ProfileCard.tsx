@@ -17,16 +17,15 @@ import {
 } from '../lib/profileActions'
 import { formatAbsoluteTime } from '../lib/time'
 import type { ProfileActivitySubscription, ProfileModel, ProfileViewerState } from '../lib/types'
+import { useUiStore } from '../lib/ui'
+import { Avatar } from './Avatar'
+import { DitherImage } from './DitherImage'
+import { Frame, Tag } from './ui'
 
 interface ProfileIdentity {
   viewerDid: string
   profileDid: string
 }
-
-import { useUiStore } from '../lib/ui'
-import { Avatar } from './Avatar'
-import { DitherImage } from './DitherImage'
-import { Frame, Tag } from './ui'
 
 export interface ProfileCardProps {
   profile: ProfileModel

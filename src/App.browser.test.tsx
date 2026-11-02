@@ -26,6 +26,11 @@ function paintedColors(svg: string): string[] {
   return [...svg.matchAll(/(?:fill|stroke)="([^"]*)"/g)].map((match) => match[1] ?? '')
 }
 
+// an SVG presentation attribute can only carry a concrete colour: a computed
+// oklch() or color(srgb ...) string would render as nothing, so the asset itself
+// is checked for the format, then resolved to compare the pixels it paints
+const SVG_COLOR = /^(?:#[0-9a-f]{3,8}|rgba?\([^)]*\))$/i
+
 /** Whether every painted channel of a cursor colour is the same extreme. */
 function isChannel(color: string, expected: 0 | 255): boolean {
   const { r, g, b } = resolveSrgbColor(color)
@@ -50,8 +55,9 @@ function expectConcrete(svg: string): string[] {
   for (const color of colors) {
     expect(color).not.toContain('light-dark(')
     expect(color).not.toContain('var(')
-    // resolving throws for anything the browser cannot paint, which is exactly
-    // the failure a cursor asset would show as a missing image
+    // the asset must carry a concrete colour, not a browser-only serialization
+    expect(color).toMatch(SVG_COLOR)
+    // and it must be a colour the browser can actually paint
     resolveSrgbColor(color)
   }
   return colors

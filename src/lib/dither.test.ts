@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   BAYER_MATRIX,
-  bayerThreshold,
   buildBayerPatternDataUri,
   buildBayerPatternSvg,
   buildHalftonePatternDataUri,
@@ -21,35 +20,6 @@ describe('BAYER_MATRIX', () => {
       [15, 47, 7, 39, 13, 45, 5, 37],
       [63, 31, 55, 23, 61, 29, 53, 21],
     ])
-  })
-})
-
-describe('bayerThreshold', () => {
-  it('returns the midpoint threshold at the corners', () => {
-    expect(bayerThreshold(0, 0)).toBe(0.0078125)
-    expect(bayerThreshold(1, 0)).toBe(0.5078125)
-    expect(bayerThreshold(0, 1)).toBe(0.7578125)
-    expect(bayerThreshold(3, 3)).toBe(0.3203125)
-  })
-
-  it('produces sixty-four distinct levels inside the open unit interval', () => {
-    const levels = BAYER_MATRIX.flatMap((row, y) => row.map((_, x) => bayerThreshold(x, y)))
-    const expected = BAYER_MATRIX.flat().map((value) => (value + 0.5) / 64)
-
-    expect(levels).toEqual(expected)
-    expect(new Set(expected).size).toBe(64)
-    for (const level of expected) {
-      expect(level).toBeGreaterThan(0)
-      expect(level).toBeLessThan(1)
-    }
-  })
-
-  it('wraps coordinates in both directions', () => {
-    expect(bayerThreshold(8, 0)).toBe(bayerThreshold(0, 0))
-    expect(bayerThreshold(-8, -8)).toBe(bayerThreshold(0, 0))
-    expect(bayerThreshold(-1, 0)).toBe(bayerThreshold(7, 0))
-    expect(bayerThreshold(0, -1)).toBe(bayerThreshold(0, 7))
-    expect(bayerThreshold(13, 15)).toBe(bayerThreshold(5, 7))
   })
 })
 

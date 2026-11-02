@@ -113,12 +113,6 @@ export function insertSuggestion(
   return { text: next, cursor }
 }
 
-export function mentionAt(text: string, cursor: number): MentionToken | null {
-  const token = suggestionAt(text, cursor)
-  if (token === null || token.kind !== 'mention') return null
-  return { start: token.start, end: token.end, query: token.query }
-}
-
 export function useActorSuggestions(query: string, enabled: boolean): ActorSuggestionsState {
   const target = useSettings((state) => state.appView)
   const searchSupported = capabilitiesFor(target).search
