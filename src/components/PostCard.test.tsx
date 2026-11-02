@@ -12,6 +12,7 @@ import type { PostModel } from '../lib/types'
 import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
+import { HOLD_PAINT_MS, HOLD_THRESHOLD_MS, KeyHints } from './KeyHints'
 import { PostCard } from './PostCard'
 
 vi.mock('../lib/actions', () => ({
@@ -1515,5 +1516,196 @@ describe('PostCard shortcut opt-out', () => {
     useSettings.setState({ keyboardShortcuts: true })
     fireEvent.keyDown(window, { key: 'o' })
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
+  })
+})
+
+describe('PostCard video controls', () => {
+  function renderFocusedVideo(embed: PostModel['embed']) {
+    const queryClient = createTestQueryClient()
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={postFixture({ embed })} focused />
+          <KeyHints route="/feed" />
+        </Router>
+      </QueryClientProvider>,
+    )
+  }
+
+  it('never activates or teaches the video key without a playlist', () => {
+    vi.useFakeTimers()
+    try {
+      renderFocusedVideo({ type: 'video', thumbnail: null, alt: 'clip', playlist: null })
+
+      fireEvent.keyDown(window, { key: 'v' })
+      expect(document.querySelector('.b-video-player__poster')).toBeNull()
+      expect(document.querySelector('.b-video-player__video')).toBeNull()
+
+      fireEvent.keyDown(window, { key: '?' })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_THRESHOLD_MS + HOLD_PAINT_MS + 20)
+      })
+      const labels = Array.from(document.querySelectorAll('.b-keyhint')).map(
+        (node) => node.textContent,
+      )
+      expect(labels).toContain('m')
+      // a key that is refused must not advertise itself
+      expect(labels).not.toContain('v')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves a quoted video without a playlist inert', () => {
+    renderFocusedVideo({
+      type: 'recordWithMedia',
+      quote: quoteFixture(),
+      media: { type: 'video', thumbnail: null, alt: 'clip', playlist: null },
+    })
+
+    fireEvent.keyDown(window, { key: 'v' })
+    expect(document.querySelector('.b-video-player__video')).toBeNull()
+  })
+
+  it('plays a quoted video that has a playlist', () => {
+    renderFocusedVideo({
+      type: 'recordWithMedia',
+      quote: quoteFixture(),
+      media: {
+        type: 'video',
+        thumbnail: null,
+        alt: 'clip',
+        playlist: 'https://example.test/clip.m3u8',
+      },
+    })
+
+    expect(document.querySelector('.b-video-player__poster')).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'v' })
+    expect(document.querySelector('.b-video-player__video')).not.toBeNull()
+  })
+})
+
+describe('PostCard identity ownership', () => {
+  function signIn() {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+  }
+
+  function ownPost(index: number) {
+    return postFixture({ uri: `at://did:plc:test/app.bsky.feed.post/${index}` })
+  }
+
+  function cardTree(post: PostModel) {
+    return (
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={post} focused />
+        </Router>
+      </QueryClientProvider>
+    )
+  }
+
+  it('drops a clipboard completion from a replaced card', async () => {
+    const pending = Promise.withResolvers<void>()
+    const writeText = vi.fn(() => pending.promise)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+
+    const { rerender } = render(cardTree(postFixture()))
+    fireEvent.keyDown(window, { key: 'y' })
+    expect(writeText).toHaveBeenCalledTimes(1)
+
+    // the same mounted component now shows another post
+    rerender(cardTree(postFixture({ uri: 'at://did:plc:test/app.bsky.feed.post/other' })))
+    pending.resolve()
+    await act(async () => undefined)
+
+    expect(screen.queryByRole('button', { name: 'copied' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'copy link' })).toBeInTheDocument()
+  })
+
+  it('drops a generator-feedback completion from a replaced card', async () => {
+    signIn()
+    const gate = Promise.withResolvers<void>()
+    const onFeedback = vi.fn(() => gate.promise)
+    const tree = (post: PostModel) => (
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={post} focused onFeedback={onFeedback} />
+        </Router>
+      </QueryClientProvider>
+    )
+
+    const { rerender } = render(tree(postFixture()))
+    fireEvent.keyDown(window, { key: '+' })
+    expect(onFeedback).toHaveBeenCalledWith('more')
+
+    rerender(tree(postFixture({ uri: 'at://did:plc:test/app.bsky.feed.post/other' })))
+    gate.resolve()
+    await act(async () => undefined)
+
+    // the new card never claims the previous card's sent feedback
+    expect(document.querySelector('.b-post-card__feedback-sent')).toBeNull()
+    expect(screen.getByRole('button', { name: 'more like this' })).toBeEnabled()
+  })
+
+  it('drops a delete completion from a replaced card but still invalidates reads', async () => {
+    signIn()
+    const gate = Promise.withResolvers<void>()
+    vi.mocked(deletePost).mockReturnValue(gate.promise)
+    const queryClient = createTestQueryClient()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    const tree = (post: PostModel) => (
+      <QueryClientProvider client={queryClient}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={post} focused />
+        </Router>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(tree(ownPost(1)))
+    fireEvent.keyDown(window, { key: 'd' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() =>
+      expect(deletePost).toHaveBeenCalledWith('at://did:plc:test/app.bsky.feed.post/1'),
+    )
+
+    rerender(tree(ownPost(2)))
+    gate.resolve()
+    await act(async () => undefined)
+
+    // the old write's result must not paint on the new card
+    expect(screen.queryByText('post deleted')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'confirm delete' })).toBeNull()
+    // but the server-derived reads it changed are still refreshed
+    expect(invalidate).toHaveBeenCalled()
+  })
+
+  it('drops a delete completion that lands after unmount', async () => {
+    signIn()
+    const gate = Promise.withResolvers<void>()
+    vi.mocked(deletePost).mockReturnValue(gate.promise)
+    const location = memoryLocation({ path: '/' })
+    const queryClient = createTestQueryClient()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={ownPost(1)} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.keyDown(window, { key: 'd' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() => expect(deletePost).toHaveBeenCalledTimes(1))
+    unmount()
+    gate.resolve()
+    await act(async () => undefined)
+
+    expect(invalidate).toHaveBeenCalled()
   })
 })

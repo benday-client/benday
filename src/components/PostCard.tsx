@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,7 +21,7 @@ import { characterShortcutAllowed } from '../lib/keymap'
 import { postWebUrl } from '../lib/postUrl'
 import { invalidateNonFeedQueries } from '../lib/queries'
 import { useSettings } from '../lib/store'
-import type { PostModel } from '../lib/types'
+import type { EmbedModel, PostModel, VideoEmbed } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 import { Avatar } from './Avatar'
 import { Embeds } from './Embeds'
@@ -28,6 +29,16 @@ import { FacetText } from './FacetText'
 import { MediaViewer, mediaItems } from './MediaViewer'
 import { RelativeTime } from './RelativeTime'
 import { Tag } from './ui'
+
+/** The playable video a card can start: a bare video or the media beside a quote. */
+function playableVideo(embed: EmbedModel | null): VideoEmbed | null {
+  if (embed === null) return null
+  const media =
+    embed.type === 'video' ? embed : embed.type === 'recordWithMedia' ? embed.media : null
+  if (media === null || media.type !== 'video') return null
+  // a null or empty playlist has nothing to play, so no control may advertise it
+  return media.playlist !== null && media.playlist.length > 0 ? media : null
+}
 
 export interface PostCardProps {
   post: PostModel
@@ -109,6 +120,11 @@ export function PostCard({
   const accountDid = useAuthStore((state) => state.account?.did ?? null)
   const queryClient = useQueryClient()
   const cardRef = useRef<HTMLElement>(null)
+  // a layout-lifecycle ownership token: the same uri under another account is a
+  // different card, and a completion from the previous identity may not touch
+  // this surface after it is replaced or unmounted
+  const identity = `${post.uri}\n${accountDid ?? 'signed-out'}`
+  const owner = useMemo(() => ({ identity, active: true }), [identity])
   // a control in the top bar or another card keeps its own keys: only this
   // card's own controls may lose their keys to its shortcuts
   const ownsOutsideCard = (target: EventTarget | null): boolean =>
@@ -117,9 +133,6 @@ export function PostCard({
   const [inView, setInView] = useState(false)
   // a labelled post hides its media until the reader asks for it
   const [revealed, setRevealed] = useState(false)
-  useEffect(() => {
-    setRevealed(false)
-  }, [post.uri])
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   // a successful write replaces the card's actions with a local result
@@ -142,12 +155,12 @@ export function PostCard({
   const mediaReady = post.labels.length === 0 || revealed
   // the overlay only decorates the card the deck has focused, and only with
   // actions this state can actually run
+  const video = playableVideo(post.embed)
+  const canPlayVideo = mediaReady && video !== null
   const mediaHints: string[] = []
   if (focused) {
     if (mediaReady && media.length > 0) mediaHints.push('card-media')
-    if (mediaReady && post.embed !== null && post.embed.type === 'video') {
-      mediaHints.push('card-video')
-    }
+    if (canPlayVideo) mediaHints.push('card-video')
     if (quotedUri !== null) mediaHints.push('card-quoted')
   }
   const dismissTimerRef = useRef<number | null>(null)
@@ -172,15 +185,16 @@ export function PostCard({
     cancelDelete()
     deleteButtonRef.current?.focus()
   }, [cancelDelete])
-  // a delete waits 4s for its confirm, then forgets the arm
+  // a delete waits 4s for its confirm, then forgets the arm; a timer that
+  // outlived its card's identity has no state left to disarm
   const armDelete = useCallback(() => {
     clearDeleteArmTimer()
     setConfirmingDelete(true)
     deleteArmTimerRef.current = window.setTimeout(() => {
       deleteArmTimerRef.current = null
-      setConfirmingDelete(false)
+      if (owner.active) setConfirmingDelete(false)
     }, DELETE_ARM_MS)
-  }, [clearDeleteArmTimer])
+  }, [clearDeleteArmTimer, owner])
   const own =
     authed &&
     accountDid !== null &&
@@ -221,18 +235,22 @@ export function PostCard({
   }
 
   const copyLink = useCallback(async () => {
+    const card = owner
+    const target = postWebUrl(post)
     if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
     try {
-      await navigator.clipboard.writeText(postWebUrl(post))
+      await navigator.clipboard.writeText(target)
+      if (!card.active) return
       setCopyState('copied')
     } catch {
+      if (!card.active) return
       setCopyState('failed')
     }
     copyTimerRef.current = window.setTimeout(() => {
-      setCopyState('idle')
       copyTimerRef.current = null
+      if (card.active) setCopyState('idle')
     }, 1600)
-  }, [post])
+  }, [post, owner])
 
   const feedbackAction = useCallback(
     async (kind: FeedFeedbackEvent) => {
@@ -245,43 +263,58 @@ export function PostCard({
       // the pressed control is about to be disabled or removed; the deck takes
       // keyboard ownership before that happens
       focusOwningDeck(cardRef.current)
+      const card = owner
       setFeedbackPending(true)
       setFeedbackError(null)
       try {
         await onFeedback(kind)
+        if (!card.active) return
         if (kind === 'more') setFeedbackSent(true)
         // dismissal waits for the operator to accept the less signal
         if (kind === 'less' && onDismiss !== undefined) {
           setLeaving(true)
-          dismissTimerRef.current = window.setTimeout(onDismiss, 240)
+          dismissTimerRef.current = window.setTimeout(() => {
+            dismissTimerRef.current = null
+            if (card.active) onDismiss()
+          }, 240)
         }
       } catch (caught) {
-        setFeedbackError(errorInfo(caught).detail)
+        if (card.active) setFeedbackError(errorInfo(caught).detail)
       } finally {
-        setFeedbackPending(false)
+        if (card.active) setFeedbackPending(false)
       }
     },
-    [authed, openDialog, onDismiss, onFeedback, feedbackSent, feedbackPending],
+    [authed, openDialog, onDismiss, onFeedback, feedbackSent, feedbackPending, owner],
   )
 
-  useEffect(() => {
-    cancelDelete()
+  // a different post or account invalidates the previous token and every timer
+  // it owned; the cleanup runs before the new identity paints
+  useLayoutEffect(() => {
+    return () => {
+      owner.active = false
+      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
+      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
+      dismissTimerRef.current = null
+      copyTimerRef.current = null
+      clearDeleteArmTimer()
+    }
+  }, [owner, clearDeleteArmTimer])
+
+  // the new identity starts from a clean surface: a result or arm painted for
+  // the previous post, account or media-open state must not survive the swap
+  useLayoutEffect(() => {
+    setRevealed(false)
+    setConfirmingDelete(false)
+    setDeleting(false)
     setDeleted(false)
     setDeleteError(null)
     setLeaving(false)
+    setMediaOpen(false)
     setFeedbackSent(false)
     setFeedbackPending(false)
     setFeedbackError(null)
     setCopyState('idle')
-  }, [post.uri, own, cancelDelete])
-
-  useEffect(() => {
-    return () => {
-      if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
-      clearDeleteArmTimer()
-    }
-  }, [clearDeleteArmTimer])
+  }, [owner])
 
   useEffect(() => {
     const node = cardRef.current
@@ -344,7 +377,7 @@ export function PostCard({
         return
       }
 
-      if (event.key === 'v' && mediaReady && cardRef.current !== null) {
+      if (event.key === 'v' && canPlayVideo && cardRef.current !== null) {
         const poster = cardRef.current.querySelector<HTMLButtonElement>('.b-video-player__poster')
         if (poster !== null) {
           event.preventDefault()
@@ -460,23 +493,29 @@ export function PostCard({
     // the confirming control is disabled for the write, so the deck owns
     // keyboard focus before that happens
     focusOwningDeck(cardRef.current)
+    const card = owner
+    const targetUri = post.uri
     setDeleting(true)
     setDeleteError(null)
 
     try {
-      await deletePost(post.uri)
+      await deletePost(targetUri)
+      // the record is gone on the server, so the reads it changed are
+      // invalidated even when this card no longer owns the screen
       await invalidateNonFeedQueries(queryClient)
+      if (!card.active) return
       // a successful write leaves a local result instead of the actions
       setConfirmingDelete(false)
       setDeleted(true)
     } catch (error) {
+      if (!card.active) return
       setDeleteError(errorInfo(error).detail)
       // a failed confirm stays armed only for another 4s
       armDelete()
     } finally {
-      setDeleting(false)
+      if (card.active) setDeleting(false)
     }
-  }, [deleting, post.uri, queryClient, clearDeleteArmTimer, armDelete])
+  }, [deleting, post.uri, queryClient, clearDeleteArmTimer, armDelete, owner])
 
   useEffect(() => {
     if (!focused || !own || deleted) return

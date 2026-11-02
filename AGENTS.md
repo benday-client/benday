@@ -658,6 +658,14 @@ there are five key layers, and they must not fight:
    `bindingFor('back')` rather than through `useHotkeys`, because it must also
    close a dialog while the key layer above it is disabled.
 
+`PostCard` owns a layout-lifecycle token keyed by post uri and account did. an
+identity change or unmount invalidates it, clears the copy, feedback and
+delete-arm timers and resets the local surface before paint; every async
+continuation checks the token after its await and in its finally/timer
+callbacks, and a completed remote delete still invalidates the reads it
+changed. `v` and its overlay hint exist only when a bare or quoted video has a
+non-null playlist.
+
 `0` only acts when the focused post has a quoted post. `d d` only appears for
 the signed-in account's own post records and arms on the first press. a single
 `R` resets the feed and does nothing while that refresh is still running.
