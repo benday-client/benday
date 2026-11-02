@@ -286,11 +286,20 @@ describe.each(VIEWPORTS)('command palette at $width×$height', (viewport) => {
     assertStill()
 
     await userEvent.keyboard('{PageDown}')
-    expect(rowIndex(rows())).toBe(Math.min(pageRows * 2, rows().length - 1))
+    const lastPageEnd = Math.min(pageRows * 2, rows().length - 1)
+    expect(rowIndex(rows())).toBe(lastPageEnd)
     assertStill()
 
+    // PageUp subtracts a page from wherever the clamped PageDown landed, so a
+    // list shorter than two pages leaves the last row rather than a page edge.
     await userEvent.keyboard('{PageUp}')
-    expect(rowIndex(rows())).toBe(Math.min(pageRows, rows().length - 1))
+    const firstPageUp = Math.max(lastPageEnd - pageRows, 0)
+    expect(rowIndex(rows())).toBe(firstPageUp)
+    assertStill()
+
+    // and repeated presses clamp at the first row
+    await userEvent.keyboard('{PageUp}')
+    expect(rowIndex(rows())).toBe(Math.max(firstPageUp - pageRows, 0))
     assertStill()
   })
 
