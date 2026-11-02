@@ -169,14 +169,18 @@ async function loadSubjectPosts(
   const posts = new Map<string, PostModel>()
   if (uris.length === 0) return posts
   const reader = agent.withProxy('bsky_appview', 'did:web:api.bsky.app')
+  // the chunks are independent reads and start together; they merge in source
+  // order, and a failed chunk is only missing context for its own rows
+  const chunks: string[][] = []
   for (let index = 0; index < uris.length; index += SUBJECT_CHUNK) {
-    const chunk = uris.slice(index, index + SUBJECT_CHUNK)
-    try {
-      const response = await reader.app.bsky.feed.getPosts({ uris: chunk })
-      for (const view of response.data.posts) posts.set(view.uri, mapPostView(view))
-    } catch {
-      // a hidden subject post is a missing context line, not a failed inbox
-    }
+    chunks.push(uris.slice(index, index + SUBJECT_CHUNK))
+  }
+  const settled = await Promise.allSettled(
+    chunks.map((chunk) => reader.app.bsky.feed.getPosts({ uris: chunk })),
+  )
+  for (const result of settled) {
+    if (result.status === 'rejected') continue
+    for (const view of result.value.data.posts) posts.set(view.uri, mapPostView(view))
   }
   return posts
 }

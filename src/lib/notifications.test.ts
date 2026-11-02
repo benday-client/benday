@@ -341,6 +341,62 @@ describe('notification seen state', () => {
     ).toBeNull()
   })
 
+  it('starts subject-post chunks together and keeps the chunk that answered', async () => {
+    await signIn(ALICE, PDS_A)
+    const subjects = Array.from(
+      { length: 26 },
+      (_, index) => `at://did:plc:me/app.bsky.feed.post/p${index}`,
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.notification.listNotifications`, () =>
+      jsonResponse(200, {
+        notifications: subjects.map((subject, index) =>
+          wireNotification({
+            uri: `at://did:plc:actor/app.bsky.feed.post/n${index}`,
+            reason: 'like',
+            reasonSubject: subject,
+            record: {
+              $type: 'app.bsky.feed.like',
+              subject: { uri: subject, cid: CID },
+              createdAt: '2026-10-29T12:00:00.000Z',
+            },
+          }),
+        ),
+      }),
+    )
+    // a serial reader would deadlock on this barrier
+    let started = 0
+    const bothStarted = Promise.withResolvers<void>()
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getPosts`, async (request) => {
+      started += 1
+      if (started === 2) bothStarted.resolve()
+      await bothStarted.promise
+
+      const requested = new URL(request.url).searchParams.getAll('uris')
+      if (requested.length === 1) {
+        return jsonResponse(500, { error: 'InternalServerError', message: 'no subjects' })
+      }
+      return jsonResponse(200, {
+        posts: requested.map((uri) => ({
+          uri,
+          cid: CID,
+          author: { did: 'did:plc:me', handle: 'me.test' },
+          record: {
+            $type: 'app.bsky.feed.post',
+            text: 'a subject',
+            createdAt: '2026-10-29T12:00:00.000Z',
+          },
+          indexedAt: '2026-10-29T12:00:00.000Z',
+        })),
+      })
+    })
+
+    const page = await fetchNotifications(ALICE.did)
+
+    expect(page.notifications.filter((row) => row.subjectPost !== null)).toHaveLength(25)
+    // the failed chunk keeps only its own row without a subject post
+    expect(page.notifications.find((row) => row.subject === subjects[25])?.subjectPost).toBeNull()
+  })
+
   it('keeps the inbox when the subject posts cannot be read', async () => {
     await signIn(ALICE, PDS_A)
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.notification.listNotifications`, () =>

@@ -854,3 +854,88 @@ describe('opaque post records', () => {
     ])
   })
 })
+
+describe('hydration batches', () => {
+  it('starts reply-parent batches together and keeps the batch that answered', async () => {
+    const parents = Array.from(
+      { length: 26 },
+      (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
+    )
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
+    )
+    // neither batch may answer before both have started: a serial read would
+    // deadlock here instead of quietly passing
+    let started = 0
+    const bothStarted = Promise.withResolvers<void>()
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, async (request) => {
+      started += 1
+      if (started === 2) bothStarted.resolve()
+      await bothStarted.promise
+
+      const requested = new URL(request.url).searchParams.getAll('uris')
+      if (requested.length === 1) {
+        return jsonResponse(500, { error: 'InternalServerError', message: 'no parents' })
+      }
+      return jsonResponse(200, {
+        posts: requested.map((uri) => ({
+          uri,
+          cid: CID,
+          author: VISIBLE_AUTHOR,
+          record: {
+            $type: 'app.bsky.feed.post',
+            text: 'a parent',
+            createdAt: '2026-10-29T12:00:00.000Z',
+          },
+          indexedAt: '2026-10-29T12:00:00.000Z',
+        })),
+      })
+    })
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+
+    expect(page.posts.slice(0, 25).every((post) => post.replyContext !== null)).toBe(true)
+    // the failed batch keeps only its own reply context missing
+    expect(page.posts[25]?.replyContext).toBeNull()
+  })
+
+  it('starts hidden-author batches together and keeps the batch that answered', async () => {
+    const dids = Array.from({ length: 26 }, (_, index) => `did:plc:author${index}`)
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, {
+        posts: dids.map((did, index) => ({
+          ...wirePost(index),
+          author: { did, handle: `author${index}.test` },
+        })),
+      }),
+    )
+    let started = 0
+    const bothStarted = Promise.withResolvers<void>()
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, async (request) => {
+      started += 1
+      if (started === 2) bothStarted.resolve()
+      await bothStarted.promise
+
+      const requested = new URL(request.url).searchParams.getAll('actors')
+      if (requested.length === 1) {
+        return jsonResponse(500, { error: 'InternalServerError', message: 'no profiles' })
+      }
+      return jsonResponse(200, {
+        profiles: requested.map((did, index) => ({
+          did,
+          handle: `author${index}.test`,
+          ...(index === 0 ? { viewer: { muted: true } } : {}),
+        })),
+      })
+    })
+    await signIn(ALICE, PDS_A)
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+
+    // the muted author from the batch that answered is gone; the failed batch's
+    // authors stay visible instead of the whole page failing
+    expect(page.posts.map((post) => post.author.did)).not.toContain(dids[0])
+    expect(page.posts).toHaveLength(25)
+    expect(page.posts.map((post) => post.author.did)).toContain(dids[25])
+  })
+})

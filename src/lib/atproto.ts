@@ -71,18 +71,21 @@ async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise
   const parentUris = [...new Set(missing.flatMap((post) => post.replyParent?.uri ?? []))]
   const parents = new Map<string, PostModel>()
 
+  // the batches are independent reads, so they start together and merge in
+  // source order; one failed batch keeps the contexts the others resolved
+  const batches: string[][] = []
   for (let index = 0; index < parentUris.length; index += 25) {
-    try {
-      const response = await agent.app.bsky.feed.getPosts({
-        uris: parentUris.slice(index, index + 25),
-      })
-      for (const view of response.data.posts) {
-        const parent = mapPostView(view)
-        if (hidesAuthor(parent.author)) continue
-        parents.set(view.uri, parent)
-      }
-    } catch {
-      // one failed batch keeps the contexts the other batches already resolved
+    batches.push(parentUris.slice(index, index + 25))
+  }
+  const settled = await Promise.allSettled(
+    batches.map((batch) => agent.app.bsky.feed.getPosts({ uris: batch })),
+  )
+  for (const result of settled) {
+    if (result.status === 'rejected') continue
+    for (const view of result.value.data.posts) {
+      const parent = mapPostView(view)
+      if (hidesAuthor(parent.author)) continue
+      parents.set(view.uri, parent)
     }
   }
 
@@ -109,25 +112,28 @@ async function hiddenAuthorDids(
   const reader = requireViewerAgent(viewerDid).withProxy('bsky_appview', 'did:web:api.bsky.app')
   const unique = [...new Set(dids)]
 
+  // independent batches start together and merge in source order; a batch the
+  // appview cannot answer keeps only its own authors visible
+  const batches: string[][] = []
   for (let index = 0; index < unique.length; index += 25) {
-    try {
-      const response = await reader.app.bsky.actor.getProfiles({
-        actors: unique.slice(index, index + 25),
-      })
-      for (const profile of response.data.profiles) {
-        const view = profile.viewer
-        if (
-          view?.muted === true ||
-          view?.mutedByList != null ||
-          view?.blocking != null ||
-          view?.blockingByList != null ||
-          view?.blockedBy === true
-        ) {
-          hidden.add(profile.did)
-        }
+    batches.push(unique.slice(index, index + 25))
+  }
+  const settled = await Promise.allSettled(
+    batches.map((batch) => reader.app.bsky.actor.getProfiles({ actors: batch })),
+  )
+  for (const result of settled) {
+    if (result.status === 'rejected') continue
+    for (const profile of result.value.data.profiles) {
+      const view = profile.viewer
+      if (
+        view?.muted === true ||
+        view?.mutedByList != null ||
+        view?.blocking != null ||
+        view?.blockingByList != null ||
+        view?.blockedBy === true
+      ) {
+        hidden.add(profile.did)
       }
-    } catch {
-      // a batch the appview cannot answer keeps its posts visible
     }
   }
 

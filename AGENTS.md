@@ -266,16 +266,22 @@ reads:
    asserted into a full SDK record.
 4. search feeds attach missing reply parents in batches through
    `app.bsky.feed.getPosts`; thread reads use `getPostThread` with depth 3,
-   parent height 6 and a flattened cap of 80 entries.
+   parent height 6 and a flattened cap of 80 entries. reply-parent, hidden-author
+   and notification-subject hydration start their 25-item batches together with
+   `Promise.allSettled`, merge in chunk order and keep the batches that answered;
+   a failed batch only leaves its own rows without context.
 
 writes:
 
 - `actions.ts` and `profileActions.ts` use `getAuthAgent()`. signed-out calls
   either throw or are gated in the component before they are attempted.
 - writes that change records outside the feed (post, reply, quote and delete)
-  call `invalidateNonFeedQueries(queryClient)`. that helper deliberately leaves
-  every key whose first element is `feed` untouched. likes, reposts and profile
-  relationship changes update their local stores or profile query instead.
+  call `invalidateNonFeedQueries(queryClient)`. the stable roots it leaves alone
+  are `feed` (an explicit-refresh deck), `pinned-feeds` (settings keyed by their
+  own inputs), `feed-generator` (DID and interaction capability) and
+  `labeler-details` (keyed by the DID list); everything else is invalidated.
+  likes, reposts and profile relationship changes update their local stores or
+  profile query instead.
 - a composed post, reply or quote clears its draft and invalidates non-feed
   queries. it does not navigate to a thread that may not be indexed yet.
 
