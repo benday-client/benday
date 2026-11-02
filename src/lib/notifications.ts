@@ -157,11 +157,13 @@ async function loadSubjectPosts(
   agent: ReturnType<typeof requireViewerAgent>,
   notifications: readonly NotificationModel[],
 ): Promise<Map<string, PostModel>> {
+  // only post subjects have a post to hydrate; a starter pack or profile
+  // record uri would spend the read on a record getPosts cannot answer
   const uris = [
     ...new Set(
       notifications
         .map((notification) => notification.subject)
-        .filter((uri): uri is string => uri !== null),
+        .filter((uri): uri is string => uri !== null && POST_URI.test(uri)),
     ),
   ]
   const posts = new Map<string, PostModel>()

@@ -285,6 +285,62 @@ describe('notification seen state', () => {
     expect(notifications[0]?.subjectPost?.likeCount).toBe(7)
   })
 
+  it('asks only for post subjects and skips a starter pack record', async () => {
+    await signIn(ALICE, PDS_A)
+    const STARTER = 'at://did:plc:actor/app.bsky.graph.starterpack/1'
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.notification.listNotifications`, () =>
+      jsonResponse(200, {
+        notifications: [
+          wireNotification({
+            uri: 'at://did:plc:actor/app.bsky.feed.post/starter',
+            reason: 'starterpack-joined',
+            reasonSubject: STARTER,
+            record: { $type: 'app.bsky.graph.starterpack' },
+          }),
+          wireNotification({
+            reason: 'like',
+            reasonSubject: NOTIFY_POST,
+            record: {
+              $type: 'app.bsky.feed.like',
+              subject: { uri: NOTIFY_POST, cid: CID },
+              createdAt: '2026-10-29T12:00:00.000Z',
+            },
+          }),
+        ],
+      }),
+    )
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getPosts`, (request) => {
+      const requested = new URL(request.url).searchParams.getAll('uris')
+      return jsonResponse(200, {
+        posts: requested.map((uri) => ({
+          uri,
+          cid: CID,
+          author: { did: 'did:plc:me', handle: 'me.test' },
+          record: {
+            $type: 'app.bsky.feed.post',
+            text: 'the liked post',
+            createdAt: '2026-10-29T12:00:00.000Z',
+          },
+          indexedAt: '2026-10-29T12:00:00.000Z',
+        })),
+      })
+    })
+
+    const page = await fetchNotifications(ALICE.did)
+
+    const requests = transport.calls.filter(
+      (call) => new URL(call.url).pathname === '/xrpc/app.bsky.feed.getPosts',
+    )
+    expect(requests).toHaveLength(1)
+    expect(new URL(requests[0]?.url ?? '').searchParams.getAll('uris')).toEqual([NOTIFY_POST])
+    expect(page.notifications.find((row) => row.reason === 'like')?.subjectPost?.text).toBe(
+      'the liked post',
+    )
+    expect(
+      page.notifications.find((row) => row.reason === 'starterpack-joined')?.subjectPost,
+    ).toBeNull()
+  })
+
   it('keeps the inbox when the subject posts cannot be read', async () => {
     await signIn(ALICE, PDS_A)
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.notification.listNotifications`, () =>

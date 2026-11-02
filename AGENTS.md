@@ -380,6 +380,8 @@ preview, footer with the open affordance) so the list reads like the decks.
 
 opening the view marks the list seen once per did using the newest indexed time
 of the unfiltered wire page, so a hidden newest row still advances the cursor.
+subject hydration asks `getPosts` only for post at-uris: a starter pack or
+profile subject keeps its row and gains no subject post.
 `markNotificationsSeen` is best effort and must never block or fail the list.
 there is no paging and no realtime subscription; the refresh button and the
 query's mount/reconnect refetch are the reload paths.
