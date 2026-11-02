@@ -46,6 +46,9 @@ interface SettingSearchEntry {
   keywords: string
 }
 
+// a portable settings file is tiny; anything larger is not this format
+const MAX_SETTINGS_FILE_BYTES = 256 * 1024
+
 const SETTING_SEARCH: readonly SettingSearchEntry[] = [
   {
     id: 'settings-appearance',
@@ -258,6 +261,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
     setTransferError(null)
     setTransferNotice(null)
+
+    // a settings file is a few kilobytes; refuse an oversized one before the
+    // reader's browser loads it into memory, and leave settings untouched
+    if (file.size > MAX_SETTINGS_FILE_BYTES) {
+      setTransferError('settings file is too large · maximum 256 kib')
+      return
+    }
 
     let text: string
     try {

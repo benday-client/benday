@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_APPVIEW, makeCustomAppView, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
+import { type PortableSettings, serializeSettings } from '../lib/settingsTransfer'
 import { SETTINGS_STORAGE_KEY, useSettings } from '../lib/store'
 import type { AppViewTarget } from '../lib/types'
 import { createTestQueryClient } from '../test/queryClient'
@@ -543,5 +544,57 @@ describe('SettingsDialog sign-out ownership', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(dialogElement(container).open).toBe(false)
+  })
+})
+
+describe('SettingsDialog import limits', () => {
+  const MAX_BYTES = 256 * 1024
+  const SAMPLE: PortableSettings = {
+    theme: 'oxide',
+    appearance: 'dark',
+    lightTheme: 'bone',
+    darkTheme: 'oxide',
+    imageEffects: true,
+    highContrast: false,
+    keyboardShortcuts: true,
+    appView: toAppViewTarget(DEFAULT_APPVIEW),
+    labelers: [],
+  }
+
+  function pickFile(container: HTMLElement, file: File): void {
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')
+    if (input === null) throw new Error('settings file input missing')
+    fireEvent.change(input, { target: { files: [file] } })
+  }
+
+  it('rejects an oversized file before reading it and leaves settings alone', async () => {
+    const { container } = renderSettings()
+    const before = useSettings.getState()
+    const read = vi.spyOn(File.prototype, 'text')
+    const oversized = new File([new Uint8Array(MAX_BYTES + 1)], 'big.json', {
+      type: 'application/json',
+    })
+
+    pickFile(container, oversized)
+
+    expect(await screen.findByText(/settings file is too large/)).toBeInTheDocument()
+    expect(read).not.toHaveBeenCalled()
+    expect(useSettings.getState()).toBe(before)
+    // the dialog is still usable and the same picker can be used again
+    expect(dialogElement(container).open).toBe(true)
+    read.mockRestore()
+  })
+
+  it('accepts a file at the limit and applies it', async () => {
+    const { container } = renderSettings()
+    const json = serializeSettings(SAMPLE)
+    const padded = json + ' '.repeat(MAX_BYTES - json.length)
+    const file = new File([padded], 'settings.json', { type: 'application/json' })
+    expect(file.size).toBe(MAX_BYTES)
+
+    pickFile(container, file)
+
+    expect(await screen.findByText('settings imported')).toBeInTheDocument()
+    expect(useSettings.getState().theme).toBe('oxide')
   })
 })
