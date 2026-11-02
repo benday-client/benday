@@ -6,6 +6,7 @@ import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useSettings } from '../lib/store'
 import type { Theme } from '../lib/types'
+import { resolveSrgbColor, type SrgbColor } from '../test/colors'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
 import { renderStage } from '../test/stage'
@@ -54,13 +55,23 @@ function splitContainer(): HTMLElement {
  * custom property may itself be a `var()` alias, so a probe element is the only
  * way to read the value the cascade actually computes.
  */
-function roleColor(property: '--text-muted' | '--text-link'): string {
+function painted(input: string): SrgbColor {
+  return resolveSrgbColor(input)
+}
+
+/** The `rgb()` serialization a computed gradient contains for one colour. */
+function cssRgb(color: string): string {
+  const { r, g, b } = resolveSrgbColor(color)
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+function roleColor(property: '--text-muted' | '--text-link'): SrgbColor {
   const probe = document.createElement('span')
   probe.style.color = `var(${property})`
   document.documentElement.append(probe)
   const color = getComputedStyle(probe).color
   probe.remove()
-  return color
+  return resolveSrgbColor(color)
 }
 
 /**
@@ -225,21 +236,20 @@ describe('canonical upstream palettes', () => {
     },
   ]
 
-  function rgb(hex: string): string {
-    const value = Number.parseInt(hex.slice(1), 16)
-    return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`
+  function rgb(hex: string): SrgbColor {
+    return resolveSrgbColor(hex)
   }
 
   interface Rendered {
-    root: string
-    frame: string
-    body: string
-    label: string
-    meta: string
-    head: string
-    tag: string
-    border: string
-    link: string
+    root: SrgbColor
+    frame: SrgbColor
+    body: SrgbColor
+    label: SrgbColor
+    meta: SrgbColor
+    head: SrgbColor
+    tag: SrgbColor
+    border: SrgbColor
+    link: SrgbColor
     radius: string
     face: string
     faceSize: string
@@ -283,15 +293,15 @@ describe('canonical upstream palettes', () => {
 
     const frameStyle = getComputedStyle(frame)
     return {
-      root: getComputedStyle(app).backgroundColor,
-      frame: frameStyle.backgroundColor,
-      body: getComputedStyle(body).color,
-      label: getComputedStyle(label).color,
-      meta: getComputedStyle(meta).color,
-      head: getComputedStyle(head).backgroundColor,
-      tag: getComputedStyle(tag).backgroundColor,
-      border: frameStyle.borderTopColor,
-      link: getComputedStyle(link).color,
+      root: resolveSrgbColor(getComputedStyle(app).backgroundColor),
+      frame: resolveSrgbColor(frameStyle.backgroundColor),
+      body: resolveSrgbColor(getComputedStyle(body).color),
+      label: resolveSrgbColor(getComputedStyle(label).color),
+      meta: resolveSrgbColor(getComputedStyle(meta).color),
+      head: resolveSrgbColor(getComputedStyle(head).backgroundColor),
+      tag: resolveSrgbColor(getComputedStyle(tag).backgroundColor),
+      border: resolveSrgbColor(frameStyle.borderTopColor),
+      link: resolveSrgbColor(getComputedStyle(link).color),
       radius: frameStyle.borderRadius,
       face: frameStyle.backgroundImage,
       faceSize: frameStyle.backgroundSize,
@@ -303,20 +313,20 @@ describe('canonical upstream palettes', () => {
       const actual = rendered(expected.theme)
 
       // page field and card surface are the upstream base pane
-      expect(actual.root).toBe(rgb(expected.base))
-      expect(actual.frame).toBe(rgb(expected.base))
+      expect(actual.root).toEqual(rgb(expected.base))
+      expect(actual.frame).toEqual(rgb(expected.base))
       // body copy is the upstream text colour; the label and meta are the
       // readable muted role, which is the dim ramp on these themes
-      expect(actual.body).toBe(rgb(expected.text))
-      expect(actual.label).toBe(roleColor('--text-muted'))
-      expect(actual.meta).toBe(roleColor('--text-muted'))
+      expect(actual.body).toEqual(rgb(expected.text))
+      expect(actual.label).toEqual(roleColor('--text-muted'))
+      expect(actual.meta).toEqual(roleColor('--text-muted'))
       // chrome and raised trim are the palette's secondary panes / surface0
-      expect(actual.head).toBe(rgb(expected.raised))
-      expect(actual.tag).toBe(rgb(expected.panel))
-      expect(actual.border).toBe(rgb(expected.line))
+      expect(actual.head).toEqual(rgb(expected.raised))
+      expect(actual.tag).toEqual(rgb(expected.panel))
+      expect(actual.border).toEqual(rgb(expected.line))
       // the anchor consumes the readable link role: ink on latte, raw blue here
-      expect(actual.link).toBe(roleColor('--text-link'))
-      expect(actual.link).toBe(rgb(expected.linkInk === true ? expected.text : expected.blue))
+      expect(actual.link).toEqual(roleColor('--text-link'))
+      expect(actual.link).toEqual(rgb(expected.linkInk === true ? expected.text : expected.blue))
       // catppuccin keeps soft corners, dracula stays square
       expect(actual.radius).toBe(expected.radius)
     })
@@ -324,7 +334,7 @@ describe('canonical upstream palettes', () => {
 
   it('draws the dracula bracket in the corrected purple', () => {
     const dracula = rendered('dracula')
-    expect(dracula.face).toContain(rgb('#bd93f9'))
+    expect(dracula.face).toContain(cssRgb('#bd93f9'))
     expect(dracula.faceSize.startsWith('12px 1px')).toBe(true)
   })
 })
@@ -604,9 +614,19 @@ function clipOf(selector: string, root: ParentNode = document): string {
   return styleOf(selector, root).clipPath
 }
 
-function hexToRgb(token: string): string {
-  const value = Number.parseInt(token.trim().replace('#', ''), 16)
-  return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`
+/** A theme token as the `rgb()` serialization a computed gradient contains. */
+function paintedTokenCss(name: string, scope: Element = document.documentElement): string {
+  const probe = document.createElement('span')
+  probe.style.color = `var(${name})`
+  scope.append(probe)
+  const color = getComputedStyle(probe).color
+  probe.remove()
+  return cssRgb(color)
+}
+
+/** Compares two colours as painted pixels, never as a serialization format. */
+function expectPainted(actual: string, expected: string): void {
+  expect(painted(actual)).toEqual(painted(expected))
 }
 
 /** `background-position` layers as plain numbers, so `0px`/`0%` compare equally. */
@@ -659,36 +679,40 @@ describe('cottagecore herbarium', () => {
     const focused = must(container.querySelector<HTMLElement>('.b-post-card--focused'))
 
     // page and card surfaces: linen #f2ebd8 under pressed sheet #ebe1cb
-    expect(
+    expectPainted(
       getComputedStyle(must(container.querySelector<HTMLElement>('.b-app'))).backgroundColor,
-    ).toBe(hexToRgb('#f2ebd8'))
-    expect(getComputedStyle(frame).backgroundColor).toBe(hexToRgb('#ebe1cb'))
+      '#f2ebd8',
+    )
+    expectPainted(getComputedStyle(frame).backgroundColor, '#ebe1cb')
     // body 10.86:1, dim 6.98:1, faint 5.01:1 on paper
-    expect(
+    expectPainted(
       getComputedStyle(must(container.querySelector<HTMLElement>('.b-post-card__text'))).color,
-    ).toBe(hexToRgb('#2f2b21'))
-    expect(
+      '#2f2b21',
+    )
+    expectPainted(
       getComputedStyle(must(container.querySelector<HTMLElement>('.b-frame__label'))).color,
-    ).toBe(hexToRgb('#4f4837'))
+      '#4f4837',
+    )
     expect(
-      getComputedStyle(must(container.querySelector<HTMLElement>('.b-frame__meta'))).color,
-    ).toBe(roleColor('--text-muted'))
+      painted(getComputedStyle(must(container.querySelector<HTMLElement>('.b-frame__meta'))).color),
+    ).toEqual(roleColor('--text-muted'))
     // links 5.91:1 on paper
-    expect(getComputedStyle(must(container.querySelector<HTMLElement>('a'))).color).toBe(
-      hexToRgb('#3f5a3a'),
+    expectPainted(
+      getComputedStyle(must(container.querySelector<HTMLElement>('a'))).color,
+      '#3f5a3a',
     )
     // a meaningful selected edge consumes the raw --blue accent, 5.91:1 here
-    expect(getComputedStyle(focused).borderLeftColor).toBe(hexToRgb('#3f5a3a'))
+    expectPainted(getComputedStyle(focused).borderLeftColor, '#3f5a3a')
 
     // the plate: solid engraved edge, one stitched rule under the label, no
     // hatch, an inner mount rule and a resting-sheet shadow
     const frameStyle = getComputedStyle(frame)
     expect(frameStyle.borderTopStyle).toBe('solid')
-    expect(frameStyle.borderTopColor).toBe(hexToRgb('#ccbc9e'))
+    expectPainted(frameStyle.borderTopColor, '#ccbc9e')
     const head = getComputedStyle(must(container.querySelector<HTMLElement>('.b-frame__head')))
     expect(head.backgroundImage).toBe('none')
     expect(head.borderBottomStyle).toBe('dashed')
-    expect(head.borderBottomColor).toBe(hexToRgb('#8b7754'))
+    expectPainted(head.borderBottomColor, '#8b7754')
     expect(
       getComputedStyle(must(container.querySelector<HTMLElement>('.b-frame__body'))).boxShadow,
     ).toContain('inset')
@@ -696,8 +720,8 @@ describe('cottagecore herbarium', () => {
     expect(getComputedStyle(focused).backgroundImage).toContain('6px')
     // a tag is a printed label on raised paper, not a kraft chip
     const tag = getComputedStyle(must(container.querySelector<HTMLElement>('.b-tag')))
-    expect(tag.backgroundColor).toBe(hexToRgb('#f4ebd7'))
-    expect(tag.borderTopColor).toBe(hexToRgb('#8b7754'))
+    expectPainted(tag.backgroundColor, '#f4ebd7')
+    expectPainted(tag.borderTopColor, '#8b7754')
   })
 
   function imageEffect(theme: Theme) {
@@ -899,7 +923,7 @@ describe('cyberpunk corner language', () => {
     const bracket = getComputedStyle(frame, '::after')
     expect(bracket.content).not.toBe('none')
     expect(positions(bracket.backgroundPosition)).toEqual(['100 0', '100 0', '0 100', '0 100'])
-    const accent = hexToRgb(getComputedStyle(document.documentElement).getPropertyValue('--blue'))
+    const accent = paintedTokenCss('--blue')
     expect(bracket.backgroundImage).toContain(accent)
     expect(bracket.backgroundImage).not.toContain('light-dark')
     expect(bracket.backgroundImage).not.toContain('var(')
@@ -1026,7 +1050,7 @@ describe('cyberpunk corner language', () => {
     expect(positions(diagonal.backgroundPosition)).toEqual(['0 0', '100 100'])
     const bracket = getComputedStyle(cyberHalf, '::after')
     expect(positions(bracket.backgroundPosition)).toEqual(['100 0', '100 0', '0 100', '0 100'])
-    const accent = hexToRgb(getComputedStyle(cyberHalf).getPropertyValue('--blue'))
+    const accent = paintedTokenCss('--blue', cyberHalf)
     expect(bracket.backgroundImage).toContain(accent)
   })
 
@@ -1159,7 +1183,7 @@ describe('cyberpunk corner language', () => {
       'transparent',
     )
     expect(getComputedStyle(frame, '::before').content).not.toBe('none')
-    const accent = hexToRgb('#9ecbff')
+    const accent = cssRgb('#9ecbff')
     expect(getComputedStyle(frame, '::after').backgroundImage).toContain(accent)
     expect(getComputedStyle(frame, '::after').backgroundImage).not.toContain('rgb(255, 42, 109)')
 

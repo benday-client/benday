@@ -13,7 +13,7 @@ else is browser storage.
 
 ```text
 src/
-  main.tsx              react root and the stylesheet import order
+  main.tsx              react root; appStyles owns the stylesheet order
   App.tsx               query client, routes, tab order, global dialogs, theme
                         application, global hotkeys
   lib/                  framework-free logic and zustand stores
@@ -508,9 +508,12 @@ the october set in a pre-hydration script; update both together.
   the store when the theme actually changes. a self-rescheduling timer at the
   next local midnight + 1s and a visible-tab check keep an open tab honest when a
   seasonal theme expires or returns.
-- `installCursors` resolves a function-valued token (`light-dark()`, `var()`)
-  through one temporary hidden child so the cursor svg only ever contains real
-  colors; literal tokens keep their fast path.
+- `installCursors` resolves every token through a probe in the real theme
+  context, so a `var()` chain, `light-dark()` or a literal all become one
+  concrete colour, then converts a non-SVG serialization (`oklch(…)`,
+  `color(srgb …)`) through at most one reused canvas per installation and keeps
+  its alpha. a jsdom run without canvas keeps the fallback colours instead of
+  requiring a canvas.
 - motion beyond the theme tokens: route swaps crossfade by wrapping navigation
   in `Router aroundNav` + `document.startViewTransition` with a `flushSync`
   commit, skipped entirely when the api is missing or reduced motion is
@@ -713,7 +716,10 @@ native-browser specs are `*.browser.test.ts(x)` and run only through
 `vitest.browser.config.ts` (`pnpm test:browser`): vitest browser mode with
 `@vitest/browser-playwright`, real chromium, the production stylesheet order and
 `src/test/browserSetup.ts` (root attributes, stores, selection and key listeners
-reset between cases). they exist for behavior jsdom cannot judge: real layout,
+reset between cases). both import `src/appStyles.ts`, so painted geometry and
+colour are measured through the production cascade, and `src/test/colors.ts`
+resolves any browser-supported colour to its painted 8-bit sRGB pixels instead of
+comparing serialization strings. they exist for behavior jsdom cannot judge: real layout,
 trusted keys, native selection and decoded cursor assets. `src/test/stage.tsx`
 gives them the definite-height app shell. `@vitest/browser-playwright@5.0.5`,
 `playwright@1.64.1` and the chromium download are the only browser

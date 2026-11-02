@@ -7,8 +7,10 @@ import { memoryLocation } from 'wouter/memory-location'
 import App from './App'
 import { Deck } from './components/Deck'
 import { PostCard } from './components/PostCard'
+import { installCursors } from './lib/cursors'
 import { useSettings } from './lib/store'
 import { useUiStore } from './lib/ui'
+import { resolveSrgbColor } from './test/colors'
 import { postFixture } from './test/fixtures'
 import { createTestQueryClient } from './test/queryClient'
 import { renderStage } from './test/stage'
@@ -24,21 +26,22 @@ function paintedColors(svg: string): string[] {
   return [...svg.matchAll(/(?:fill|stroke)="([^"]*)"/g)].map((match) => match[1] ?? '')
 }
 
-const CONCRETE = /^(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|color\(|oklab\(|oklch\(|lab\(|lch\()/i
-
-/** Chrome serialises a resolved `light-dark()` token as either hex or rgb. */
+/** Whether every painted channel of a cursor colour is the same extreme. */
 function isChannel(color: string, expected: 0 | 255): boolean {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color)
-  if (hex?.[1] !== undefined) {
-    const value = hex[1]
-    const full = value.length === 3 ? [...value].map((part) => part + part).join('') : value
-    return [0, 2, 4].every(
-      (index) => Number.parseInt(full.slice(index, index + 2), 16) === expected,
-    )
+  const { r, g, b } = resolveSrgbColor(color)
+  return r === expected && g === expected && b === expected
+}
+
+/** Resolves a theme token as the reader's browser actually paints it. */
+function paintedToken(name: string) {
+  const holder = document.createElement('span')
+  holder.setAttribute('style', `position:absolute;left:-9999px;color:var(${name})`)
+  document.body.append(holder)
+  try {
+    return resolveSrgbColor(getComputedStyle(holder).color)
+  } finally {
+    holder.remove()
   }
-  const rgb = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color)
-  if (rgb !== null) return [1, 2, 3].every((index) => Number(rgb[index]) === expected)
-  return false
 }
 
 function expectConcrete(svg: string): string[] {
@@ -47,7 +50,9 @@ function expectConcrete(svg: string): string[] {
   for (const color of colors) {
     expect(color).not.toContain('light-dark(')
     expect(color).not.toContain('var(')
-    expect(color).toMatch(CONCRETE)
+    // resolving throws for anything the browser cannot paint, which is exactly
+    // the failure a cursor asset would show as a missing image
+    resolveSrgbColor(color)
   }
   return colors
 }
@@ -73,7 +78,7 @@ describe('live appearance', () => {
     const unmount = await mountApp()
     try {
       const normal = cursorSvg('--cursor-default')
-      expect(normal).toContain('#7f9cff')
+      expect(paintedColors(normal).map(resolveSrgbColor)).toContainEqual(paintedToken('--blue'))
       expectConcrete(normal)
 
       await act(async () => {
@@ -115,6 +120,33 @@ describe('live appearance', () => {
     }
   })
 
+  it('serializes oklch cursor tokens to the colours they paint', async () => {
+    const root = document.documentElement
+    const saved = {
+      ink: root.style.getPropertyValue('--ink'),
+      blue: root.style.getPropertyValue('--blue'),
+      paper: root.style.getPropertyValue('--paper'),
+    }
+    const tokens = {
+      '--ink': 'oklch(0.85 0.04 250)',
+      '--blue': 'oklch(0.72 0.14 260)',
+      '--paper': 'oklch(0.22 0.02 250)',
+    }
+    for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value)
+    try {
+      installCursors()
+      const colors = expectConcrete(cursorSvg('--cursor-pointer')).map(resolveSrgbColor)
+      for (const value of Object.values(tokens)) {
+        expect(colors).toContainEqual(resolveSrgbColor(value))
+      }
+    } finally {
+      root.style.setProperty('--ink', saved.ink)
+      root.style.setProperty('--blue', saved.blue)
+      root.style.setProperty('--paper', saved.paper)
+      installCursors()
+    }
+  })
+
   it('paints a stored high-contrast preference in the same commit as the theme', async () => {
     useSettings.setState({
       appearance: 'dark',
@@ -152,18 +184,24 @@ describe('live appearance', () => {
     })
     const unmount = await mountApp()
     try {
-      await vi.waitFor(() => expect(meta?.content).toBe('#07090c'))
+      await vi.waitFor(() =>
+        expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#07090c')),
+      )
 
       await act(async () => {
         useSettings.getState().setHighContrast(true)
       })
       // a dark scheme asks the browser for black chrome instead of the palette
-      await vi.waitFor(() => expect(meta?.content).toBe('#000000'))
+      await vi.waitFor(() =>
+        expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#000000')),
+      )
 
       await act(async () => {
         useSettings.setState({ appearance: 'light', lightTheme: 'bone', theme: 'bone' })
       })
-      await vi.waitFor(() => expect(meta?.content).toBe('#ffffff'))
+      await vi.waitFor(() =>
+        expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#ffffff')),
+      )
     } finally {
       unmount()
       if (created) meta.remove()

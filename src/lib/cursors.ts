@@ -13,34 +13,26 @@ const FALLBACK: CursorPalette = {
 const PROBE_STYLE =
   'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;pointer-events:none'
 
-/**
- * A token value may be a literal color or a function that only a real element
- * can resolve (`light-dark()`, `var()` chains). Cursor assets are SVG strings,
- * so anything unresolved would be embedded verbatim and render as nothing:
- * resolve those through one throwaway child that inherits the root
- * color-scheme, and fall back when the result is not a color.
- */
-function resolveColor(styles: CSSStyleDeclaration, name: string, fallback: string): string {
-  const value = styles.getPropertyValue(name).trim()
-  if (value.length === 0) return fallback
-  if (!value.includes('light-dark(') && !value.includes('var(')) return value
+// a serialization an SVG presentation attribute can carry unchanged
+const SVG_COLOR = /^(?:#[0-9a-f]{3,8}|rgba?\([^)]*\))$/i
 
-  const holder = document.createElement('span')
-  holder.setAttribute('aria-hidden', 'true')
-  holder.setAttribute('style', `${PROBE_STYLE};color:rgb(1,2,3)`)
-  const probe = document.createElement('span')
-  probe.setAttribute('style', `color:var(${name})`)
-  holder.appendChild(probe)
-  document.body.appendChild(holder)
-  try {
-    const resolved = getComputedStyle(probe).color
-    // An unresolved token computes as `unset`, which inherits the holder's
-    // sentinel instead of producing a color of its own.
-    if (resolved === '' || resolved === 'rgb(1, 2, 3)') return fallback
-    return resolved
-  } finally {
-    holder.remove()
-  }
+/**
+ * Paints one pixel and reads it back. A computed modern colour (`oklch(…)`,
+ * `color(srgb …)`) is not a string an SVG attribute can use, so the browser's
+ * own conversion produces the sRGB channels, alpha included.
+ */
+function canvasColor(
+  computed: string,
+  painter: () => CanvasRenderingContext2D | null,
+): string | null {
+  const context = painter()
+  if (context === null) return null
+  context.clearRect(0, 0, 1, 1)
+  context.fillStyle = computed
+  context.fillRect(0, 0, 1, 1)
+  const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data
+  if (r === undefined || g === undefined || b === undefined || a === undefined) return null
+  return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`
 }
 
 function cursorUrl(svg: string): string {
@@ -60,15 +52,66 @@ function ibeam(palette: CursorPalette): string {
 }
 
 export function installCursors(): void {
-  const styles = getComputedStyle(document.documentElement)
-  const palette: CursorPalette = {
-    ink: resolveColor(styles, '--ink', FALLBACK.ink),
-    accent: resolveColor(styles, '--blue', FALLBACK.accent),
-    paper: resolveColor(styles, '--paper', FALLBACK.paper),
+  // one holder in the real theme context; each read gets a fresh child because
+  // Chromium can hand back the previous computed colour when the same element's
+  // inline color is rewritten within one task
+  const holder = document.createElement('span')
+  holder.setAttribute('aria-hidden', 'true')
+  holder.setAttribute('style', `${PROBE_STYLE};color:rgb(1,2,3)`)
+  document.body.appendChild(holder)
+
+  // at most one canvas per installation, and only when a colour actually needs
+  // the browser's conversion; a jsdom run without canvas keeps the fallbacks
+  let painter: CanvasRenderingContext2D | null | undefined
+  const context = (): CanvasRenderingContext2D | null => {
+    if (painter !== undefined) return painter
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 1
+      canvas.height = 1
+      painter = canvas.getContext('2d', { willReadFrequently: true })
+    } catch {
+      painter = null
+    }
+    return painter
   }
 
-  const root = document.documentElement
-  root.style.setProperty('--cursor-default', `${cursorUrl(arrow(palette))} 3 2, auto`)
-  root.style.setProperty('--cursor-pointer', `${cursorUrl(crosshair(palette))} 10 10, pointer`)
-  root.style.setProperty('--cursor-text', `${cursorUrl(ibeam(palette))} 10 10, text`)
+  const svgColor = (computed: string, fallback: string): string => {
+    const value = computed.trim()
+    if (value.length === 0) return fallback
+    if (SVG_COLOR.test(value)) return value
+    return canvasColor(value, context) ?? fallback
+  }
+
+  // every token is read through the same probe: a var() chain, light-dark() or
+  // a literal all resolve in the real theme context, then become one concrete
+  // colour an SVG attribute can carry
+  const readToken = (name: string, fallback: string): string => {
+    const probe = document.createElement('span')
+    probe.setAttribute('style', `color:var(${name})`)
+    holder.appendChild(probe)
+    try {
+      const computed = getComputedStyle(probe).color
+      // an unresolved token inherits the holder's sentinel instead of a colour
+      if (computed === '' || computed === 'rgb(1, 2, 3)') return fallback
+      return svgColor(computed, fallback)
+    } finally {
+      probe.remove()
+    }
+  }
+
+  try {
+    const palette: CursorPalette = {
+      ink: readToken('--ink', FALLBACK.ink),
+      accent: readToken('--blue', FALLBACK.accent),
+      paper: readToken('--paper', FALLBACK.paper),
+    }
+
+    const root = document.documentElement
+    root.style.setProperty('--cursor-default', `${cursorUrl(arrow(palette))} 3 2, auto`)
+    root.style.setProperty('--cursor-pointer', `${cursorUrl(crosshair(palette))} 10 10, pointer`)
+    root.style.setProperty('--cursor-text', `${cursorUrl(ibeam(palette))} 10 10, text`)
+  } finally {
+    holder.remove()
+  }
 }

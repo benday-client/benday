@@ -10,6 +10,7 @@ import type { NotificationModel } from '../lib/notifications'
 import { useSettings } from '../lib/store'
 import { THEMES } from '../lib/themes'
 import type { PostModel, Theme } from '../lib/types'
+import { resolveSrgbColor } from '../test/colors'
 import { longPostFixture, postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
 import { renderStage } from '../test/stage'
@@ -36,34 +37,12 @@ interface Rgba {
 const OPAQUE_WHITE: Rgba = { r: 255, g: 255, b: 255, a: 1 }
 
 /**
- * Reads the computed colour formats Chromium actually emits: legacy rgb/rgba
- * and the `color(srgb ...)` serialization that computed `color-mix()` values
- * use. Anything else is a test bug, so it throws instead of guessing.
+ * Reads the painted colour of anything the browser can parse, so a computed
+ * `rgb()`, `color(srgb …)` or `oklch(…)` serialization compares as pixels
+ * rather than as a string format.
  */
 function parseColor(input: string): Rgba {
-  const value = input.trim().toLowerCase()
-  if (value === 'transparent') return { r: 0, g: 0, b: 0, a: 0 }
-
-  const rgb = /^rgba?\(([^)]+)\)$/.exec(value)
-  if (rgb !== null) {
-    const parts = (rgb[1] ?? '').split(/[\s,/]+/).filter((part) => part !== '')
-    const [r = '0', g = '0', b = '0', a = '1'] = parts
-    return { r: Number(r), g: Number(g), b: Number(b), a: Number(a) }
-  }
-
-  const srgb = /^color\(srgb\s+([^)]+)\)$/.exec(value)
-  if (srgb !== null) {
-    const [channels = '', alpha] = (srgb[1] ?? '').split('/')
-    const [r = '0', g = '0', b = '0'] = channels.trim().split(/\s+/)
-    return {
-      r: Number(r) * 255,
-      g: Number(g) * 255,
-      b: Number(b) * 255,
-      a: alpha === undefined ? 1 : Number(alpha),
-    }
-  }
-
-  throw new Error(`unsupported computed colour: ${input}`)
+  return resolveSrgbColor(input)
 }
 
 function composite(fg: Rgba, bg: Rgba): Rgba {
