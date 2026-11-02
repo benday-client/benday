@@ -230,6 +230,9 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   portal restore is reported as its own `restoreError` notice above the route
   and cleared by an explicit sign-in, sign-out or `clearError`; a successful
   password fallback never erases it, and it never opens a dialog.
+- a password candidate that loses the epoch after its own login revokes that
+  session best effort before returning false; the cleanup is candidate-local and
+  never touches the committed account.
 - reads go to the selected appview with the configured labeler dids through the
   `accept-labelers` header. search terms and labeler dids are therefore visible
   to that appview. writes and viewer-state reads go through the account's pds.

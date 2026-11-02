@@ -157,6 +157,37 @@ describe('sign-in transitions', () => {
     expect(storedSession()?.refreshJwt).toBe('alice-refresh-2')
   })
 
+  it('revokes a candidate that lost the race and keeps the committed account', async () => {
+    const bobGate = deferred<Response>()
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', (request) => {
+      const body: unknown = JSON.parse(request.body ?? '{}')
+      const identifier =
+        typeof body === 'object' && body !== null && 'identifier' in body
+          ? body.identifier
+          : undefined
+      if (identifier === 'bob.test') return bobGate.promise
+      return jsonResponse(200, sessionFor(typeof identifier === 'string' ? identifier : ''))
+    })
+    const revocations: string[] = []
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', (request) => {
+      revocations.push(request.url)
+      return jsonResponse(200, {})
+    })
+
+    const stale = useAuthStore.getState().signIn('bob.test', 'password', 'https://pds.test')
+    await signInAs(ALICE)
+    bobGate.resolve(jsonResponse(200, BOB))
+
+    await expect(stale).resolves.toBe(false)
+    // only the losing candidate is revoked; the committed login stays
+    expect(revocations).toHaveLength(1)
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'authenticated',
+      account: { did: 'did:plc:alice' },
+    })
+    expect(getAuthAgent()?.did).toBe('did:plc:alice')
+  })
+
   it('clears an expired committed session without cancelling a newer login', async () => {
     await signInAs(ALICE)
     const gate = deferred<Response>()

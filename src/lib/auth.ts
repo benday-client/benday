@@ -365,14 +365,28 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
       const candidate = makeAgent(service)
       await candidate.login({ identifier: cleaned, password })
-      if (epoch !== authEpoch) return false
+
+      // A candidate that loses the epoch after its own login must revoke the
+      // session it just created. The cleanup is candidate-local: it never
+      // touches the committed account, and its own failure is swallowed so a
+      // completed remote cleanup cannot fail a login the reader can see.
+      const discard = async (): Promise<boolean> => {
+        try {
+          await candidate.logout()
+        } catch {
+          // the losing candidate is already unreachable locally
+        }
+        return false
+      }
+
+      if (epoch !== authEpoch) return discard()
       const session = candidate.session
       if (session === undefined) throw new Error('login did not return a session')
 
       // A password sign-in owns the account now: drop any portal session so a
       // later restore cannot quietly switch back to the previous account.
       await signOutOAuth()
-      if (epoch !== authEpoch) return false
+      if (epoch !== authEpoch) return discard()
 
       release()
       activeAgent = candidate
