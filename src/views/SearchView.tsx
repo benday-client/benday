@@ -20,6 +20,7 @@ import {
   useActorSuggestions,
 } from '../hooks/useActorSuggestions'
 import { useActorSearch, useFeedSearch, usePostFeed } from '../hooks/useBskyQueries'
+import { useDealFlash } from '../hooks/useDealFlash'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
@@ -98,8 +99,7 @@ export default function SearchView() {
   const query = (searchParams.get('q') ?? '').trim()
   const [mode, setMode] = useState<SearchMode>('posts')
   const [modeDeck, setModeDeck] = useState(false)
-  const [dealMode, setDealMode] = useState<'modes' | 'results' | null>(null)
-  const dealTimerRef = useRef<number | null>(null)
+  const [dealMode, playDeal] = useDealFlash<'modes' | 'results'>()
   const wide = useMediaQuery('(min-width: 900px)')
   const [draft, setDraft] = useState(query)
   const [cursor, setCursor] = useState(0)
@@ -235,15 +235,6 @@ export default function SearchView() {
     requestDeckFocus()
   }, [showingFailure, requestDeckFocus])
 
-  const playDeal = useCallback((next: 'modes' | 'results') => {
-    setDealMode(next)
-    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
-    dealTimerRef.current = window.setTimeout(() => {
-      setDealMode(null)
-      dealTimerRef.current = null
-    }, 900)
-  }, [])
-
   const switchModeDeck = useCallback(
     (next: boolean) => {
       setModeDeck(next)
@@ -269,7 +260,6 @@ export default function SearchView() {
 
   useEffect(() => {
     return () => {
-      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
       focusDisposerRef.current?.()
       focusDisposerRef.current = null
     }

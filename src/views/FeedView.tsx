@@ -14,6 +14,7 @@ import {
   TextInput,
 } from '../components/ui'
 import { useFeedGenerator, usePostFeed } from '../hooks/useBskyQueries'
+import { useDealFlash } from '../hooks/useDealFlash'
 import { isEditableTarget, isImeComposing } from '../hooks/useHotkeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
@@ -39,8 +40,7 @@ export default function FeedView() {
   const [draft, setDraft] = useState(uri)
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const [feedsMode, setFeedsMode] = useState(false)
-  const [dealMode, setDealMode] = useState<'posts' | 'feeds' | null>(null)
-  const dealTimerRef = useRef<number | null>(null)
+  const [dealMode, playDeal] = useDealFlash<'posts' | 'feeds'>()
   // a press that already asked for a refresh, before react-query has a chance
   // to report the request it started
   const refreshPendingRef = useRef(false)
@@ -72,7 +72,6 @@ export default function FeedView() {
   useEffect(() => {
     return () => {
       swapFocusRef.current?.()
-      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
       if (useUiStore.getState().dialog === 'feed-add') closeDialog()
     }
   }, [closeDialog])
@@ -242,15 +241,6 @@ export default function FeedView() {
       : activeUri.length > 0
         ? (activeUri.split('/').at(-1) ?? 'custom feed')
         : 'discover'
-
-  const playDeal = (mode: 'posts' | 'feeds') => {
-    setDealMode(mode)
-    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
-    dealTimerRef.current = window.setTimeout(() => {
-      setDealMode(null)
-      dealTimerRef.current = null
-    }, 900)
-  }
 
   const switchMode = (next: boolean) => {
     setFeedsMode(next)

@@ -43,7 +43,9 @@ is appended only while it is open.
 screens the content deck's leading peek card opens a second deck — the feeds
 list, or the shared `ModeCard` modes — and choosing an entry
 deals the content deck back. below 900px a narrow-only strip of `b-pinned-feed`
-chip buttons switches modes and feeds instead.
+chip buttons switches modes and feeds instead. the 900 ms deal flash that carries
+a deck swap is `useDealFlash` in `src/hooks/useDealFlash.ts`; each view keeps its
+own modes and types.
 
 ownership by concern:
 

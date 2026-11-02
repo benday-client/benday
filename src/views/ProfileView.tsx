@@ -15,6 +15,7 @@ import {
   Progress,
 } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
+import { useDealFlash } from '../hooks/useDealFlash'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
@@ -90,8 +91,7 @@ export default function ProfileView() {
   const wide = useMediaQuery('(min-width: 900px)')
   const [mode, setMode] = useState<ProfileMode>('profile')
   const [modeDeck, setModeDeck] = useState(false)
-  const [dealMode, setDealMode] = useState<'modes' | 'posts' | null>(null)
-  const dealTimerRef = useRef<number | null>(null)
+  const [dealMode, playDeal] = useDealFlash<'modes' | 'posts'>()
   const viewRef = useRef<HTMLElement>(null)
   const focusSwapRef = useRef<(() => void) | null>(null)
 
@@ -157,15 +157,6 @@ export default function ProfileView() {
     media: modeEntries('media').length,
   }
 
-  const playDeal = (next: 'modes' | 'posts') => {
-    setDealMode(next)
-    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
-    dealTimerRef.current = window.setTimeout(() => {
-      setDealMode(null)
-      dealTimerRef.current = null
-    }, 900)
-  }
-
   const switchModeDeck = (next: boolean) => {
     setModeDeck(next)
     playDeal(next ? 'modes' : 'posts')
@@ -184,7 +175,6 @@ export default function ProfileView() {
 
   useEffect(() => {
     return () => {
-      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
       focusSwapRef.current?.()
     }
   }, [])
