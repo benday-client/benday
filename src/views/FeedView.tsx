@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, FeedCardBackButton, type FeedChoice } from '../components/FeedCard'
@@ -51,10 +51,13 @@ export default function FeedView() {
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const openDialog = useUiStore((state) => state.openDialog)
   const openPost = useUiStore((state) => state.openPost)
-  const openThread = (post: PostModel) => {
-    openPost(post)
-    navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
-  }
+  const openThread = useCallback(
+    (post: PostModel) => {
+      openPost(post)
+      navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+    },
+    [navigate, openPost],
+  )
   const closeDialog = useUiStore((state) => state.closeDialog)
 
   const viewRef = useRef<HTMLElement | null>(null)
@@ -119,6 +122,19 @@ export default function FeedView() {
   // from its own generator metadata. no did means no service to address.
   const discoverGenerator = useFeedGenerator(source.kind === 'discover' ? DISCOVER_FEED_URI : '')
   const feedbackTarget = feedbackTargetFor(source, pinned.feeds, discoverGenerator)
+  const feedbackFeed = feedbackTarget?.feed ?? null
+  const feedbackDid = feedbackTarget?.generatorDid ?? null
+  // memoized by the target values, so an unchanged card keeps the same callback
+  // and PostCard.memo skips it on every deck move
+  const sendFeedback = useMemo(
+    () =>
+      feedbackFeed === null || feedbackDid === null
+        ? null
+        : async (post: PostModel, event: FeedFeedbackEvent) => {
+            await sendFeedFeedback(feedbackFeed, feedbackDid, post, event)
+          },
+    [feedbackFeed, feedbackDid],
+  )
   useViewerSync(posts)
   // a retry drops the failed page before its replacement arrives, so the shown
   // failure is captured while that same request has nothing else to report
@@ -150,14 +166,14 @@ export default function FeedView() {
     refreshPendingRef.current = false
   }, [activeUri, appView.host, viewerDid])
 
-  const dismissPost = (postUri: string) => {
+  const dismissPost = useCallback((postUri: string) => {
     setDismissed((current) => {
       if (current.has(postUri)) return current
       const next = new Set(current)
       next.add(postUri)
       return next
     })
-  }
+  }, [])
 
   const canPickFeeds = authenticated && wide && supported
   const showingFeeds = feedsMode && canPickFeeds
@@ -447,23 +463,9 @@ export default function FeedView() {
                   post={post}
                   index={index}
                   focused={focused}
-                  onOpen={() => {
-                    openThread(post)
-                  }}
-                  {...(feedbackTarget !== null
-                    ? {
-                        onFeedback: (event: FeedFeedbackEvent) =>
-                          sendFeedFeedback(
-                            feedbackTarget.feed,
-                            feedbackTarget.generatorDid,
-                            post,
-                            event,
-                          ),
-                        onDismiss: () => {
-                          dismissPost(post.uri)
-                        },
-                      }
-                    : {})}
+                  onOpen={openThread}
+                  onDismiss={dismissPost}
+                  {...(sendFeedback !== null ? { onFeedback: sendFeedback } : {})}
                 />
               )}
               onActivate={(post) => {

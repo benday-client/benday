@@ -705,7 +705,11 @@ there are five key layers, and they must not fight:
    `bindingFor('back')` rather than through `useHotkeys`, because it must also
    close a dialog while the key layer above it is disabled.
 
-`PostCard` owns a layout-lifecycle token keyed by post uri and account did. an
+`PostCard` is memoized and its view callbacks take the captured post or uri
+(`onOpen(post)`, `onDismiss(uri)`, `onFeedback(post, event)`), with the view owner
+memoizing them, so a deck move re-renders only the two cards whose focus changed
+instead of every loaded card. it also owns a layout-lifecycle token keyed by post
+uri and account did. an
 identity change or unmount invalidates it, clears the copy, feedback and
 delete-arm timers and resets the local surface before paint; every async
 continuation checks the token after its await and in its finally/timer
@@ -724,9 +728,9 @@ element for CSS.
 the suite is vitest with jsdom, testing library, `css: true` and
 `restoreMocks: true`. setup lives in `src/test/setup.ts` (hygiene in
 `src/test/hygiene.ts`), shared shapes in `src/test/fixtures.ts`. tests are
-co-located as `*.test.ts` / `*.test.tsx`. there are 513 jsdom tests across 54
-files; keep that number and the browser count in `README.md` accurate when tests
-change. setup clears localStorage, installs a rejecting fetch stub and fails a
+co-located as `*.test.ts` / `*.test.tsx`. `pnpm test` reports the current file
+and case counts, and the README names commands rather than numbers. setup clears
+localStorage, installs a rejecting fetch stub and fails a
 test that leaves an unexpected request on it, and `src/test/queryClient.ts`
 hands out tracked clients (no retries, zero gc time). tests that exercise
 transport replace the stub with deterministic routes

@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { PostCard } from '../components/PostCard'
@@ -78,10 +78,13 @@ export default function ProfileView() {
   const params = useParams<{ actor?: string }>()
   const actor = decodeActor(params.actor ?? '')
   const openPost = useUiStore((state) => state.openPost)
-  const openThread = (post: PostModel) => {
-    openPost(post)
-    navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
-  }
+  const openThread = useCallback(
+    (post: PostModel) => {
+      openPost(post)
+      navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+    },
+    [navigate, openPost],
+  )
   const appViewHost = useSettings((state) => state.appView.host)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const profile = useProfile(actor)
@@ -391,9 +394,7 @@ export default function ProfileView() {
                         post={item.post}
                         index={index}
                         focused={focused}
-                        onOpen={() => {
-                          openThread(item.post)
-                        }}
+                        onOpen={openThread}
                       />
                     )
                   }}

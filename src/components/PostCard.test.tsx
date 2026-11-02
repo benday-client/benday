@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { displayedCount, useActionStore } from '../lib/actionStore'
-import { deletePost, fetchViewerStates, likePost } from '../lib/actions'
+import { deletePost, type FeedFeedbackEvent, fetchViewerStates, likePost } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { useSettings } from '../lib/store'
 import type { PostModel } from '../lib/types'
@@ -517,7 +517,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     const gate = Promise.withResolvers<void>()
-    const feedback = vi.fn(() => gate.promise)
+    const feedback = vi.fn((_post: PostModel, _event: FeedFeedbackEvent) => gate.promise)
     const dismiss = vi.fn()
     const location = memoryLocation({ path: '/' })
     const queryClient = createTestQueryClient()
@@ -530,7 +530,7 @@ describe('PostCard actions', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'less like this' }))
-    expect(feedback).toHaveBeenCalledWith('less')
+    expect(feedback.mock.calls[0]?.[1]).toBe('less')
     expect(dismiss).not.toHaveBeenCalled()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
 
@@ -548,7 +548,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     const gate = Promise.withResolvers<void>()
-    const feedback = vi.fn(() => gate.promise)
+    const feedback = vi.fn((_post: PostModel, _event: FeedFeedbackEvent) => gate.promise)
     const location = memoryLocation({ path: '/' })
     const queryClient = createTestQueryClient()
     render(
@@ -581,7 +581,9 @@ describe('PostCard actions', () => {
       pending: false,
       error: null,
     })
-    const feedback = vi.fn(() => Promise.reject(new Error('operator refused')))
+    const feedback = vi.fn((_post: PostModel, _event: FeedFeedbackEvent) =>
+      Promise.reject(new Error('operator refused')),
+    )
     const dismiss = vi.fn()
     const location = memoryLocation({ path: '/' })
     const queryClient = createTestQueryClient()
@@ -1630,7 +1632,7 @@ describe('PostCard identity ownership', () => {
   it('drops a generator-feedback completion from a replaced card', async () => {
     signIn()
     const gate = Promise.withResolvers<void>()
-    const onFeedback = vi.fn(() => gate.promise)
+    const onFeedback = vi.fn((_post: PostModel, _event: FeedFeedbackEvent) => gate.promise)
     const tree = (post: PostModel) => (
       <QueryClientProvider client={createTestQueryClient()}>
         <Router hook={memoryLocation({ path: '/' }).hook}>
@@ -1641,7 +1643,7 @@ describe('PostCard identity ownership', () => {
 
     const { rerender } = render(tree(postFixture()))
     fireEvent.keyDown(window, { key: '+' })
-    expect(onFeedback).toHaveBeenCalledWith('more')
+    expect(onFeedback.mock.calls[0]?.[1]).toBe('more')
 
     rerender(tree(postFixture({ uri: 'at://did:plc:test/app.bsky.feed.post/other' })))
     gate.resolve()

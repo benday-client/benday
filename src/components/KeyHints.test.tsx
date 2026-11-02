@@ -88,7 +88,7 @@ function ShowPath() {
 
 interface DeckOptions {
   authed?: boolean
-  onFeedback?: (event: FeedFeedbackEvent) => Promise<void>
+  onFeedback?: (post: PostModel, event: FeedFeedbackEvent) => Promise<void>
 }
 
 function renderDeck(post: PostModel, options: DeckOptions = {}) {
@@ -211,7 +211,7 @@ describe('KeyHints hold gesture', () => {
   })
 
   it('hides on any other key and lets that key keep its meaning', () => {
-    const feedback = vi.fn(async () => {})
+    const feedback = vi.fn(async (_post: PostModel, _event: FeedFeedbackEvent) => {})
     const { layer } = renderDeck(imagePost(), { authed: true, onFeedback: feedback })
 
     hold()
@@ -220,7 +220,7 @@ describe('KeyHints hold gesture', () => {
     fireEvent.keyDown(window, { key: '+' })
 
     expect(layer()).toBeNull()
-    expect(feedback).toHaveBeenCalledWith('more')
+    expect(feedback.mock.calls[0]?.[1]).toBe('more')
     // the key that closed the overlay was not swallowed
     expect(useUiStore.getState().dialog).toBeNull()
   })

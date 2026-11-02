@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  memo,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useCallback,
@@ -47,9 +48,9 @@ export interface PostCardProps {
   eyebrow?: string
   replies?: ReactNode
   showReplyContext?: boolean
-  onFeedback?: (event: FeedFeedbackEvent) => Promise<void>
-  onDismiss?: () => void
-  onOpen?: () => void
+  onFeedback?: (post: PostModel, event: FeedFeedbackEvent) => Promise<void>
+  onDismiss?: (uri: string) => void
+  onOpen?: (post: PostModel) => void
 }
 
 function mediaWord(embed: PostModel['embed']): string {
@@ -98,7 +99,7 @@ function isOwnPostUri(uri: string, did: string): boolean {
 /** how long `d` stays armed before the confirm expires */
 const DELETE_ARM_MS = 4000
 
-export function PostCard({
+function PostCardView({
   post,
   index,
   focused = false,
@@ -267,7 +268,7 @@ export function PostCard({
       setFeedbackPending(true)
       setFeedbackError(null)
       try {
-        await onFeedback(kind)
+        await onFeedback(post, kind)
         if (!card.active) return
         if (kind === 'more') setFeedbackSent(true)
         // dismissal waits for the operator to accept the less signal
@@ -275,7 +276,7 @@ export function PostCard({
           setLeaving(true)
           dismissTimerRef.current = window.setTimeout(() => {
             dismissTimerRef.current = null
-            if (card.active) onDismiss()
+            if (card.active) onDismiss(post.uri)
           }, 240)
         }
       } catch (caught) {
@@ -612,7 +613,7 @@ export function PostCard({
     ) {
       return
     }
-    onOpen()
+    onOpen(post)
   }
 
   return (
@@ -963,3 +964,6 @@ export function PostCard({
     </article>
   )
 }
+
+/** Cards re-render only when their own props change, not on every deck move. */
+export const PostCard = memo(PostCardView)

@@ -253,10 +253,13 @@ export default function SearchView() {
 
   // a clicked card and a deck activation open the same thread; the post is
   // handed to the route so it can render before the thread request settles
-  const openThread = (post: PostModel) => {
-    openPost(post)
-    navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
-  }
+  const openThread = useCallback(
+    (post: PostModel) => {
+      openPost(post)
+      navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
+    },
+    [navigate, openPost],
+  )
 
   useEffect(() => {
     return () => {
@@ -568,14 +571,7 @@ export default function SearchView() {
               items={posts}
               getKey={(post) => post.uri}
               renderItem={(post, index, focused) => (
-                <PostCard
-                  post={post}
-                  index={index}
-                  focused={focused}
-                  onOpen={() => {
-                    openThread(post)
-                  }}
-                />
+                <PostCard post={post} index={index} focused={focused} onOpen={openThread} />
               )}
               onActivate={openThread}
               pending={feed.isPending && activeInfo === null}
