@@ -185,7 +185,7 @@ describe('ProfileCard actions', () => {
 
   it("ignores a previous account's settle on another profile", async () => {
     const gate = Promise.withResolvers<never>()
-    vi.mocked(follow).mockReturnValueOnce(gate.promise as never)
+    vi.mocked(follow).mockReturnValueOnce(gate.promise)
 
     const queryClient = createTestQueryClient()
     const aliceKey = ['profile', 'custom.test', 'alpha.test', 'did:plc:alice']
@@ -224,7 +224,7 @@ describe('ProfileCard actions', () => {
 
   it('leaves newer cache fields alone when an optimistic-free follow fails', async () => {
     const gate = Promise.withResolvers<never>()
-    vi.mocked(follow).mockReturnValueOnce(gate.promise as never)
+    vi.mocked(follow).mockReturnValueOnce(gate.promise)
     signedIn()
 
     const queryClient = createTestQueryClient()

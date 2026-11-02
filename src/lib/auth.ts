@@ -5,6 +5,7 @@ import { normalizeAppViewHost } from './appviews'
 import { errorInfo } from './errors'
 import { applyConfiguredLabelers } from './labelers'
 import { restoreOAuth, signInOAuth, signOutOAuth } from './oauth'
+import { isRecord } from './records'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
 
@@ -47,26 +48,24 @@ let authEpoch = 0
 let pendingAuthEpoch: number | null = null
 
 function isSessionData(value: unknown): value is AtpSessionData {
-  if (typeof value !== 'object' || value === null) return false
-  const record = value as Record<string, unknown>
+  if (!isRecord(value)) return false
   return (
-    typeof record['accessJwt'] === 'string' &&
-    typeof record['refreshJwt'] === 'string' &&
-    typeof record['handle'] === 'string' &&
-    typeof record['did'] === 'string' &&
-    record['did'].startsWith('did:') &&
-    typeof record['active'] === 'boolean'
+    typeof value['accessJwt'] === 'string' &&
+    typeof value['refreshJwt'] === 'string' &&
+    typeof value['handle'] === 'string' &&
+    typeof value['did'] === 'string' &&
+    value['did'].startsWith('did:') &&
+    typeof value['active'] === 'boolean'
   )
 }
 
 function isStoredAuth(value: unknown): value is StoredAuth {
-  if (typeof value !== 'object' || value === null) return false
-  const record = value as Record<string, unknown>
-  const service = record['service']
+  if (!isRecord(value)) return false
+  const service = value['service']
   return (
     typeof service === 'string' &&
     normalizeAppViewHost(service) === service &&
-    isSessionData(record['session'])
+    isSessionData(value['session'])
   )
 }
 
@@ -139,10 +138,8 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
 
   if (did === null) {
     const body = await fetchJson(`${RESOLVE_HANDLE_URL}?handle=${encodeURIComponent(cleaned)}`)
-    if (typeof body !== 'object' || body === null) {
-      throw new Error('could not resolve that handle')
-    }
-    const resolvedDid = (body as Record<string, unknown>)['did']
+    if (!isRecord(body)) throw new Error('could not resolve that handle')
+    const resolvedDid = body['did']
     if (typeof resolvedDid !== 'string' || !resolvedDid.startsWith('did:')) {
       throw new Error('could not resolve that handle')
     }
@@ -159,16 +156,14 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
   if (docUrl !== null) {
     try {
       const document = await fetchJson(docUrl)
-      if (typeof document === 'object' && document !== null) {
-        const record = document as Record<string, unknown>
+      if (isRecord(document)) {
         // a document served for a different did cannot speak for this one
-        const services = record['id'] === did ? record['service'] : null
+        const services = document['id'] === did ? document['service'] : null
         if (Array.isArray(services)) {
           for (const entry of services) {
-            if (typeof entry !== 'object' || entry === null) continue
-            const serviceEntry = entry as Record<string, unknown>
-            if (serviceEntry['type'] !== 'AtprotoPersonalDataServer') continue
-            const endpoint = serviceEntry['serviceEndpoint']
+            if (!isRecord(entry)) continue
+            if (entry['type'] !== 'AtprotoPersonalDataServer') continue
+            const endpoint = entry['serviceEndpoint']
             if (typeof endpoint !== 'string') continue
             const normalized = normalizeAppViewHost(endpoint)
             if (normalized === null) continue

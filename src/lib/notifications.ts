@@ -1,6 +1,7 @@
 import type { AppBskyNotificationListNotifications } from '@atproto/api'
 import { requireViewerAgent } from './auth'
 import { hidesAuthor, mapAuthor, mapPostView } from './model'
+import { isRecord } from './records'
 import type { AuthorModel, PostModel } from './types'
 
 export const NOTIFICATION_LIMIT = 50
@@ -46,8 +47,8 @@ function readSubjectText(record: Record<string, unknown>): string | null {
 function readSubjectRef(record: Record<string, unknown>): string | null {
   // like and repost records point at their target through subject.uri
   const subject = record['subject']
-  if (typeof subject !== 'object' || subject === null) return null
-  const uri = (subject as Record<string, unknown>)['uri']
+  if (!isRecord(subject)) return null
+  const uri = subject['uri']
   return typeof uri === 'string' && uri.length > 0 ? uri : null
 }
 

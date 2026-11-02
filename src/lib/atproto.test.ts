@@ -129,6 +129,17 @@ beforeEach(async () => {
   transport.calls.length = 0
 })
 
+// signed-in feed reads hydrate hidden authors and reply parents best effort;
+// answering "nothing to change" keeps each case's own wire the subject
+function routeQuietViewerReads(host = PDS_A): void {
+  transport.route('GET', `${host}/xrpc/app.bsky.actor.getProfiles`, () =>
+    jsonResponse(200, { profiles: [] }),
+  )
+  transport.route('GET', `${host}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
+}
+
 async function signIn(session: AtpSessionData, service: string): Promise<void> {
   await expect(useAuthStore.getState().signIn(session.handle, 'password', service)).resolves.toBe(
     true,
@@ -147,6 +158,7 @@ describe('fetchFeedPage', () => {
     const anonymous = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
     expect(anonymous.posts[0]?.text).toBe('post 1')
 
+    routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
     const signedIn = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
     expect(signedIn.posts[0]?.text).toBe('post 2')
@@ -174,6 +186,7 @@ describe('fetchFeedPage', () => {
         feed: [{ post: muted }, { post: blocked }, { post: wirePost(3) }, reposted],
       }),
     )
+    routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
 
     const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
@@ -738,7 +751,7 @@ describe('fetchProfile', () => {
 
 describe('pinnedFeedUris', () => {
   it('collects pinned feeds from current and legacy preferences', () => {
-    const preferences = [
+    const preferences: AppBskyActorDefs.Preferences = [
       {
         $type: 'app.bsky.actor.defs#savedFeedsPrefV2',
         items: [
@@ -752,7 +765,7 @@ describe('pinnedFeedUris', () => {
         pinned: ['at://did:plc:test/app.bsky.feed.generator/legacy', FEED_URI],
         saved: [],
       },
-    ] as unknown as AppBskyActorDefs.Preferences
+    ]
 
     expect(pinnedFeedUris(preferences)).toEqual([
       FEED_URI,

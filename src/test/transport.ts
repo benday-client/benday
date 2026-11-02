@@ -9,6 +9,20 @@ export interface RouteRequest {
 
 export type RouteHandler = (request: RouteRequest) => Response | Promise<Response>
 
+// A request with no route still answers 404 so a test can exercise that path,
+// but it is remembered: hygiene asserts the list is empty after cleanup, so an
+// accidental fallback cannot pass as an intended error response.
+let unmatchedRequests: string[] = []
+
+export function resetTransportRequests(): void {
+  unmatchedRequests = []
+}
+
+export function assertNoUnmatchedRequests(): void {
+  if (unmatchedRequests.length === 0) return
+  throw new Error(`unmatched transport requests:\n${unmatchedRequests.join('\n')}`)
+}
+
 export interface TestTransport {
   calls: RouteRequest[]
   route: (method: string, where: string, handler: RouteHandler) => void
@@ -45,6 +59,7 @@ export function installTransport(): TestTransport {
 
     const handler = routes.get(`${method} ${url.origin}${url.pathname}`)
     if (handler === undefined) {
+      unmatchedRequests.push(`${method} ${call.url}`)
       return jsonResponse(404, { error: 'NotFound', message: `no route for ${method} ${call.url}` })
     }
     return handler(call)

@@ -15,6 +15,7 @@ import { APPVIEW_PRESETS, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { bindingFor, matchesBinding } from '../lib/keymap'
+import { isRecord } from '../lib/records'
 import { useSettings } from '../lib/store'
 import { availableThemeGroups, THEME_LABELS } from '../lib/themes'
 import { useUiStore } from '../lib/ui'
@@ -46,10 +47,9 @@ function readHistory(): JumpEntry[] {
     return parsed
       .filter(
         (entry): entry is JumpEntry =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          typeof (entry as Record<string, unknown>)['href'] === 'string' &&
-          typeof (entry as Record<string, unknown>)['label'] === 'string',
+          isRecord(entry) &&
+          typeof entry['href'] === 'string' &&
+          typeof entry['label'] === 'string',
       )
       .slice(0, HISTORY_LIMIT)
   } catch {

@@ -163,6 +163,13 @@ async function signInAsAlice(): Promise<void> {
   transport.route('POST', `${PDS}/xrpc/com.atproto.server.createSession`, () =>
     jsonResponse(200, SESSION),
   )
+  // a signed-in search hydrates hidden authors and reply parents best effort
+  transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfiles`, () =>
+    jsonResponse(200, { profiles: [] }),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
   const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
   expect(ok).toBe(true)
 }

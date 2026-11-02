@@ -152,6 +152,10 @@ async function signInAsAlice(): Promise<void> {
   transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfiles`, () =>
     jsonResponse(200, { profiles: [] }),
   )
+  // reply-parent hydration is best effort; this suite reads the author feed
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
   const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
   expect(ok).toBe(true)
 }

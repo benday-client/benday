@@ -4,9 +4,47 @@ import App from './App'
 import { appHistoryDepth, withAppHistory } from './lib/history'
 import { useSettings } from './lib/store'
 import { useUiStore } from './lib/ui'
-import { installTransport, jsonResponse } from './test/transport'
+import { installTransport, jsonResponse, type TestTransport } from './test/transport'
 
 const APPVIEW = 'https://api.bsky.app'
+// lexicon validation rejects invented cid strings
+const CID = 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'
+const DISCOVER_FEED_URI = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
+
+// the feed deck reads discover metadata on mount; these route titles do not
+// depend on it, but the read must still be an explicit fixture
+function routeDiscoverMetadata(transport: TestTransport): void {
+  transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
+    jsonResponse(200, {
+      view: {
+        uri: DISCOVER_FEED_URI,
+        cid: CID,
+        did: 'did:web:discover.bsky.app',
+        creator: { did: 'did:plc:z72i7hdynmk6r22z27h6tvur', handle: 'bsky.app' },
+        displayName: 'Discover',
+        indexedAt: '2026-10-29T12:00:00.000Z',
+      },
+      isOnline: true,
+      isValid: true,
+    }),
+  )
+}
+
+// a thread or profile the AppView cannot answer still renders its titled shell,
+// which is what these routes are asserting
+function routeUnavailableRouteReads(transport: TestTransport): void {
+  transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
+    jsonResponse(200, {
+      thread: { $type: 'app.bsky.feed.defs#notFoundPost', uri: 'at://missing', notFound: true },
+    }),
+  )
+  transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
+    jsonResponse(400, { error: 'InvalidRequest', message: 'invalid actor' }),
+  )
+  transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+    jsonResponse(400, { error: 'InvalidRequest', message: 'invalid actor' }),
+  )
+}
 
 function stubMatchMedia(prefersLight: boolean): void {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -136,6 +174,7 @@ describe('global keyboard routing', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
+    routeDiscoverMetadata(transport)
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
@@ -281,6 +320,8 @@ describe('route title', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
+    routeDiscoverMetadata(transport)
+    routeUnavailableRouteReads(transport)
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
@@ -396,7 +437,11 @@ describe('app history', () => {
   })
 
   it('replaces a direct-load thread with the feed and never walks foreign history', async () => {
-    installTransport()
+    const transport = installTransport()
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [] }),
+    )
+    routeUnavailableRouteReads(transport)
     window.history.pushState({ foreign: true }, '', '/some-foreign-page')
     window.history.pushState(
       {},
@@ -426,6 +471,7 @@ describe('app history', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
+    routeUnavailableRouteReads(transport)
     window.history.pushState({}, '', '/feed')
     window.history.pushState(
       withAppHistory(undefined),

@@ -191,6 +191,11 @@ describe('notification seen state', () => {
     transport.route('POST', `${PDS_B}/xrpc/com.atproto.server.deleteSession`, () =>
       jsonResponse(200, {}),
     )
+    // subject hydration asks the pds for the notification's post; a case that
+    // asserts a preview routes its own answer over this quiet one
+    transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getPosts`, () =>
+      jsonResponse(200, { posts: [] }),
+    )
 
     await useAuthStore.getState().signOut()
     transport.calls.length = 0

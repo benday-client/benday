@@ -40,15 +40,36 @@ function passwordSession(agent: AtpBaseClient | null): AtpAgent['sessionManager'
 }
 
 let transport: TestTransport
+// the session the last successful refresh returned, so the sdk's follow-up
+// getSession echoes it instead of rolling the refreshed handle back
+let currentRefresh: AtpSessionData = ALICE
 
 beforeEach(async () => {
   transport = installTransport()
   transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
     jsonResponse(200, {}),
   )
+  currentRefresh = ALICE
   transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
-    jsonResponse(200, ALICE),
+    jsonResponse(200, currentRefresh),
   )
+  // the sdk fills email/didDoc gaps after a refresh with getSession; echoing the
+  // session that refresh just produced keeps its handle and tokens
+  transport.route('GET', 'https://pds.test/xrpc/com.atproto.server.getSession', (request) =>
+    jsonResponse(200, {
+      ...currentRefresh,
+      accessJwt: (request.headers['authorization'] ?? '').replace(/^Bearer /, ''),
+      email: 'alice@test',
+      emailConfirmed: true,
+      didDoc: {},
+    }),
+  )
+  // signing out revokes whichever pds the previous case signed into
+  for (const host of ['https://pds.example.com', 'https://bsky.social']) {
+    transport.route('POST', `${host}/xrpc/com.atproto.server.deleteSession`, () =>
+      jsonResponse(200, {}),
+    )
+  }
   transport.route('POST', 'https://pds.example.com/xrpc/com.atproto.server.createSession', () =>
     jsonResponse(200, ALICE),
   )
@@ -66,6 +87,13 @@ beforeEach(async () => {
   await useAuthStore.getState().signOut()
   transport.calls.length = 0
 })
+
+function routeRefresh(session: AtpSessionData): void {
+  currentRefresh = session
+  transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
+    jsonResponse(200, session),
+  )
+}
 
 async function signInAs(session: AtpSessionData): Promise<void> {
   await expect(
@@ -91,9 +119,7 @@ describe('sign-in transitions', () => {
     })
     expect(getAuthAgent()?.did).toBe('did:plc:alice')
 
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
-      jsonResponse(200, { ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' }),
-    )
+    routeRefresh({ ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' })
     await passwordSession(getAuthAgent())?.refreshSession()
     expect(storedSession()?.refreshJwt).toBe('alice-refresh-2')
 
@@ -174,9 +200,7 @@ describe('sign-in transitions', () => {
     await signInAs(BOB)
     const bobOnly = storedSession()
 
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
-      jsonResponse(200, { ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' }),
-    )
+    routeRefresh({ ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' })
     await passwordSession(stale)?.refreshSession()
     expect(storedSession()).toEqual(bobOnly)
 
@@ -195,14 +219,12 @@ describe('sign-in transitions', () => {
   it('adopts a renamed handle from the committed agent refresh without replacing the session', async () => {
     await signInAs(ALICE)
     const agent = getAuthAgent()
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
-      jsonResponse(200, {
-        ...ALICE,
-        handle: 'alice.renamed',
-        accessJwt: 'alice-access-2',
-        refreshJwt: 'alice-refresh-2',
-      }),
-    )
+    routeRefresh({
+      ...ALICE,
+      handle: 'alice.renamed',
+      accessJwt: 'alice-access-2',
+      refreshJwt: 'alice-refresh-2',
+    })
 
     await passwordSession(agent)?.refreshSession()
 
@@ -222,14 +244,12 @@ describe('sign-in transitions', () => {
     await signInAs(BOB)
     const bobOnly = storedSession()
 
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
-      jsonResponse(200, {
-        ...ALICE,
-        handle: 'alice.renamed',
-        accessJwt: 'alice-access-3',
-        refreshJwt: 'alice-refresh-3',
-      }),
-    )
+    routeRefresh({
+      ...ALICE,
+      handle: 'alice.renamed',
+      accessJwt: 'alice-access-3',
+      refreshJwt: 'alice-refresh-3',
+    })
     await passwordSession(stale)?.refreshSession()
 
     expect(storedSession()).toEqual(bobOnly)

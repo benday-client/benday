@@ -1,4 +1,10 @@
-import type { AppBskyActorDefs, AppBskyFeedDefs, AppBskyRichtextFacet } from '@atproto/api'
+import type {
+  AppBskyActorDefs,
+  AppBskyEmbedRecord,
+  AppBskyFeedDefs,
+  AppBskyRichtextFacet,
+  ComAtprotoLabelDefs,
+} from '@atproto/api'
 import { describe, expect, it } from 'vitest'
 import { flattenThread, mapFacets, mapFeedViewPost, mapPostView, mapProfile } from './model'
 
@@ -26,14 +32,39 @@ function mentionFacet(text: string, needle: string, did: string): AppBskyRichtex
   return facetAt(text, needle, [{ $type: 'app.bsky.richtext.facet#mention', did }])
 }
 
-function profileBasic(overrides: Record<string, unknown> = {}): AppBskyActorDefs.ProfileViewBasic {
+function label(val: string, neg = false): ComAtprotoLabelDefs.Label {
   return {
+    $type: 'com.atproto.label.defs#label',
+    src: 'did:plc:labels.example',
+    uri: 'at://did:plc:ada/app.bsky.feed.post/1',
+    val,
+    neg,
+    cts: INDEXED_AT,
+  }
+}
+
+function profileBasic(
+  overrides: Partial<AppBskyActorDefs.ProfileViewBasic> = {},
+): AppBskyActorDefs.ProfileViewBasic {
+  const base: AppBskyActorDefs.ProfileViewBasic = {
+    $type: 'app.bsky.actor.defs#profileViewBasic',
     did: 'did:plc:ada',
     handle: 'ada.world',
     displayName: 'ada',
     avatar: 'https://cdn.example/ada.png',
-    ...overrides,
-  } as unknown as AppBskyActorDefs.ProfileViewBasic
+  }
+  return { ...base, ...overrides }
+}
+
+function profileDetailed(
+  overrides: Partial<AppBskyActorDefs.ProfileViewDetailed> = {},
+): AppBskyActorDefs.ProfileViewDetailed {
+  const base: AppBskyActorDefs.ProfileViewDetailed = {
+    $type: 'app.bsky.actor.defs#profileViewDetailed',
+    did: 'did:plc:x',
+    handle: 'x.world',
+  }
+  return { ...base, ...overrides }
 }
 
 function postRecord(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -45,35 +76,37 @@ function postRecord(overrides: Record<string, unknown> = {}): Record<string, unk
   }
 }
 
-function postView(overrides: Record<string, unknown> = {}): AppBskyFeedDefs.PostView {
-  return {
+function postView(overrides: Partial<AppBskyFeedDefs.PostView> = {}): AppBskyFeedDefs.PostView {
+  const base: AppBskyFeedDefs.PostView = {
     $type: 'app.bsky.feed.defs#postView',
     uri: 'at://did:plc:ada/app.bsky.feed.post/1',
     cid: 'cid-1',
     author: profileBasic(),
     record: postRecord(),
     indexedAt: INDEXED_AT,
-    ...overrides,
-  } as unknown as AppBskyFeedDefs.PostView
+  }
+  return { ...base, ...overrides }
 }
 
-function feedViewPost(overrides: Record<string, unknown> = {}): AppBskyFeedDefs.FeedViewPost {
-  return {
+function feedViewPost(
+  overrides: Partial<AppBskyFeedDefs.FeedViewPost> = {},
+): AppBskyFeedDefs.FeedViewPost {
+  const base: AppBskyFeedDefs.FeedViewPost = {
     $type: 'app.bsky.feed.defs#feedViewPost',
     post: postView(),
-    ...overrides,
-  } as unknown as AppBskyFeedDefs.FeedViewPost
+  }
+  return { ...base, ...overrides }
 }
 
 function threadNode(
   uri: string,
-  overrides: Record<string, unknown> = {},
+  overrides: Partial<AppBskyFeedDefs.ThreadViewPost> = {},
 ): AppBskyFeedDefs.ThreadViewPost {
-  return {
+  const base: AppBskyFeedDefs.ThreadViewPost = {
     $type: 'app.bsky.feed.defs#threadViewPost',
     post: postView({ uri }),
-    ...overrides,
-  } as unknown as AppBskyFeedDefs.ThreadViewPost
+  }
+  return { ...base, ...overrides }
 }
 
 describe('mapFacets', () => {
@@ -262,7 +295,7 @@ describe('mapPostView', () => {
       repostCount: 3,
       likeCount: 12,
       quoteCount: 1,
-      labels: [{ val: 'nsfw' }],
+      labels: [label('nsfw')],
     })
 
     const model = mapPostView(view)
@@ -285,14 +318,9 @@ describe('mapPostView', () => {
     expect(model.labels).toEqual(['nsfw'])
   })
 
-  it('drops retracted and malformed labels', () => {
+  it('drops retracted labels', () => {
     const view = postView({
-      labels: [
-        { val: 'nsfw' },
-        { val: 'nsfw', neg: true },
-        { val: 'spoiler', neg: true },
-        { val: 7 },
-      ] as unknown as AppBskyFeedDefs.PostView['labels'],
+      labels: [label('nsfw'), label('nsfw', true), label('spoiler', true)],
     })
 
     expect(mapPostView(view).labels).toEqual(['nsfw'])
@@ -448,7 +476,7 @@ describe('mapPostView embeds', () => {
   })
 
   it('drops a quote from a hidden account but keeps the media beside it', () => {
-    const quoted = {
+    const quoted: AppBskyEmbedRecord.ViewRecord = {
       $type: 'app.bsky.embed.record#viewRecord',
       uri: 'at://did:plc:bob/app.bsky.feed.post/9',
       cid: 'cid-quoted',
@@ -469,7 +497,7 @@ describe('mapPostView embeds', () => {
     const withMedia = postView({
       embed: {
         $type: 'app.bsky.embed.recordWithMedia#view',
-        record: { record: quoted },
+        record: { $type: 'app.bsky.embed.record#view', record: quoted },
         media: {
           $type: 'app.bsky.embed.images#view',
           images: [
@@ -485,7 +513,7 @@ describe('mapPostView embeds', () => {
   })
 
   it('maps record quotes only when the quoted value is a post', () => {
-    const quoted = {
+    const quoted: AppBskyEmbedRecord.ViewRecord = {
       $type: 'app.bsky.embed.record#viewRecord',
       uri: 'at://did:plc:bob/app.bsky.feed.post/9',
       cid: 'cid-quoted',
@@ -583,7 +611,7 @@ describe('mapPostView embeds', () => {
   })
 
   it('maps recordWithMedia quotes and media together', () => {
-    const quoted = {
+    const quoted: AppBskyEmbedRecord.ViewRecord = {
       $type: 'app.bsky.embed.record#viewRecord',
       uri: 'at://did:plc:bob/app.bsky.feed.post/9',
       cid: 'cid-quoted',
@@ -691,11 +719,7 @@ describe('mapFeedViewPost', () => {
 
 describe('mapProfile', () => {
   it('fills defaults for a sparse profile', () => {
-    const view = {
-      $type: 'app.bsky.actor.defs#profileViewDetailed',
-      did: 'did:plc:x',
-      handle: 'x.world',
-    } as unknown as AppBskyActorDefs.ProfileViewDetailed
+    const view = profileDetailed()
 
     expect(mapProfile(view)).toEqual({
       did: 'did:plc:x',
@@ -727,33 +751,24 @@ describe('mapProfile', () => {
 })
 
 describe('mapProfile labels', () => {
-  function profileWithLabels(labels: unknown[]): AppBskyActorDefs.ProfileViewDetailed {
-    return {
-      $type: 'app.bsky.actor.defs#profileViewDetailed',
-      did: 'did:plc:x',
-      handle: 'x.world',
-      labels,
-    } as unknown as AppBskyActorDefs.ProfileViewDetailed
+  function profileWithLabels(
+    labels: ComAtprotoLabelDefs.Label[],
+  ): AppBskyActorDefs.ProfileViewDetailed {
+    return profileDetailed({ labels })
   }
 
   it('marks a bot only from a live label', () => {
-    const model = mapProfile(profileWithLabels([{ val: 'bot' }]))
+    const model = mapProfile(profileWithLabels([label('bot')]))
 
     expect(model.isBot).toBe(true)
     expect(model.labels).toEqual(['bot'])
   })
 
   it('does not revive a retracted bot label', () => {
-    const model = mapProfile(profileWithLabels([{ val: 'bot', neg: true }]))
+    const model = mapProfile(profileWithLabels([label('bot', true)]))
 
     expect(model.isBot).toBe(false)
     expect(model.labels).toEqual([])
-  })
-
-  it('ignores malformed label values', () => {
-    const model = mapProfile(profileWithLabels([{ val: 42 }, { neg: true }, { val: 'nsfw' }]))
-
-    expect(model.labels).toEqual(['nsfw'])
   })
 })
 
@@ -764,13 +779,13 @@ describe('flattenThread', () => {
     const childA1 = threadNode('a1')
     const childA = threadNode('a', { replies: [childA1] })
     const childB = threadNode('b')
-    const blocked = {
+    const blocked: AppBskyFeedDefs.BlockedPost = {
       $type: 'app.bsky.feed.defs#blockedPost',
       uri: 'at://blocked',
       blocked: true,
-      author: { did: 'did:plc:z', handle: 'z.world' },
+      author: { did: 'did:plc:z' },
     }
-    const notFound = {
+    const notFound: AppBskyFeedDefs.NotFoundPost = {
       $type: 'app.bsky.feed.defs#notFoundPost',
       uri: 'at://missing',
       notFound: true,

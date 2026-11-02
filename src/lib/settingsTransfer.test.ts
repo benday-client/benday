@@ -100,12 +100,13 @@ describe('settings file format', () => {
   })
 
   it('normalizes the exported snapshot instead of trusting its fields', () => {
-    const dirty = {
+    const normalized = normalizePortableSettings({
       theme: 'duotone',
       appView: CUSTOM,
       labelers: [' did:plc:alpha ', 'did:plc:alpha', 'nope', 42, 'did:plc:beta'],
-    } as unknown as PortableSettings
-    const file = buildSettingsFile(dirty, FIXED_TIME)
+    })
+    if (normalized === null) throw new Error('expected the dirty snapshot to normalize')
+    const file = buildSettingsFile(normalized, FIXED_TIME)
     expect(file.theme).toBe('cyberpunk')
     expect(file.appView.kind).toBe('custom')
     expect(file.labelers).toEqual(['did:plc:alpha', 'did:plc:beta'])
@@ -129,11 +130,13 @@ describe('credential and session exclusion', () => {
   }
 
   it('never exports fields beyond the portable preferences', () => {
+    // structurally compatible with the portable snapshot, with exactly the
+    // extra keys that must never reach the file
     const dirty = {
       ...SAMPLE,
       ...secrets,
       appView: { ...SAMPLE.appView, accessJwt: secrets.appViewExtra },
-    } as unknown as PortableSettings
+    }
     const json = serializeSettings(dirty, FIXED_TIME)
     const parsed = JSON.parse(json) as Record<string, unknown>
 
@@ -509,10 +512,10 @@ describe('store settings import', () => {
       session: { token: 'secret' },
     })
     expect(applied).toBe(true)
-    const state = useSettings.getState() as unknown as Record<string, unknown>
-    expect(state['accessJwt']).toBeUndefined()
-    expect(state['session']).toBeUndefined()
-    expect(state['labelers']).toEqual(['did:plc:alpha'])
+    const state = useSettings.getState()
+    expect('accessJwt' in state).toBe(false)
+    expect('session' in state).toBe(false)
+    expect(state.labelers).toEqual(['did:plc:alpha'])
   })
 
   it('accepts the normalized result of a parsed file', () => {

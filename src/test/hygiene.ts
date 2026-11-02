@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 import { clearTestQueryClients } from './queryClient'
+import { assertNoUnmatchedRequests, resetTransportRequests } from './transport'
 
 let unexpectedRequests: string[] = []
 let installed = false
@@ -24,6 +25,7 @@ export function installTestHygiene(): void {
   beforeEach(() => {
     localStorage.clear()
     unexpectedRequests = []
+    resetTransportRequests()
     // Tests that exercise transport replace this outright. Anything left on the
     // default is a request the test did not account for, and fails the test.
     vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
@@ -36,8 +38,15 @@ export function installTestHygiene(): void {
   afterEach(() => {
     cleanup()
     clearTestQueryClients()
-    expect(unexpectedRequests, 'unstubbed network requests').toEqual([])
-    vi.unstubAllGlobals()
-    localStorage.clear()
+    // the transport list is reset even when its assertion fails, so one bad
+    // case cannot poison the next
+    try {
+      assertNoUnmatchedRequests()
+    } finally {
+      resetTransportRequests()
+      expect(unexpectedRequests, 'unstubbed network requests').toEqual([])
+      vi.unstubAllGlobals()
+      localStorage.clear()
+    }
   })
 }

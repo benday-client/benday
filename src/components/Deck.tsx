@@ -693,13 +693,12 @@ export function Deck<T>({
     )
     if (card !== null && card !== undefined) card.style.viewTransitionName = 'benday-post'
 
-    const documentWithTransition = document as Document & {
-      startViewTransition?: (update: () => void) => unknown
-    }
-    const startViewTransition = documentWithTransition.startViewTransition
+    // the installed dom types already describe the api; a browser without it
+    // leaves the direct path in place
+    const startViewTransition = document.startViewTransition
 
-    if (startViewTransition !== undefined && !reduceMotion) {
-      startViewTransition.call(documentWithTransition, () => {
+    if (typeof startViewTransition === 'function' && !reduceMotion) {
+      startViewTransition.call(document, () => {
         flushSync(() => {
           onActivate?.(item, index)
         })

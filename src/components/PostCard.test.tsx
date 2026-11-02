@@ -1,3 +1,4 @@
+import type { Query, QueryKey } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1159,8 +1160,10 @@ describe('PostCard actions', () => {
     const invalidateFilter = invalidate.mock.calls[0]?.[0]
     const predicate = invalidateFilter?.predicate
     if (predicate === undefined) throw new Error('delete must filter its invalidation')
-    expect(predicate({ queryKey: ['feed', 'home'] } as never)).toBe(false)
-    expect(predicate({ queryKey: ['thread', 'at://x'] } as never)).toBe(true)
+    const queryFor = (queryKey: QueryKey): Query =>
+      queryClient.getQueryCache().build(queryClient, { queryKey })
+    expect(predicate(queryFor(['feed', 'home']))).toBe(false)
+    expect(predicate(queryFor(['thread', 'at://x']))).toBe(true)
   })
 
   it('disarms a delete after four seconds', () => {

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_APPVIEW, toAppViewTarget } from './appviews'
+import { isRecord } from './records'
 import {
   normalizeAppViewTarget,
   normalizePortableSettings,
@@ -165,8 +166,8 @@ export const useSettings = create<SettingsState>()(
         labelers: state.labelers,
       }),
       merge: (persisted, current) => {
-        if (typeof persisted !== 'object' || persisted === null) return current
-        const stored = persisted as Record<string, unknown>
+        if (!isRecord(persisted)) return current
+        const stored = persisted
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
         // a stored host is rebuilt from its host so its label and kind cannot
         // claim capabilities the host does not have

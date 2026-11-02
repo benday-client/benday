@@ -119,6 +119,14 @@ async function signInAsAlice(): Promise<void> {
     jsonResponse(200, { preferences: [] }),
   )
   transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getFeed`, () => jsonResponse(200, { feed: [] }))
+  // the signed-in deck hydrates viewer state and hidden authors best effort:
+  // both answer "nothing to change" here so each case keeps its own wire
+  transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfiles`, () =>
+    jsonResponse(200, { profiles: [] }),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
   routeDiscoverGenerator()
   const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
   expect(ok).toBe(true)

@@ -191,9 +191,17 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - palettes are source-pinned. canonical swatches cite the upstream version and
   every accessibility or decorative derivative is labeled as an adaptation, not
   presented as the source's own token.
-- the gate is the staged snapshot. `pnpm check` (lint, the quality scripts, both
-  suites and the build) must pass, and the committed tree is the indexed tree,
-  verified through `scripts/check-staged.mjs` as described in setup.
+- types are not laundered. `pnpm check:assertions` parses every tracked and
+  untracked source file and rejects an outer assertion whose inner assertion
+  erased the type through `unknown`, `any` or `never`, including parenthesized,
+  commented, multiline, angle and tsx forms. `suspicious.noExplicitAny` is an
+  error. there is no suppression comment, no unchecked generic conversion
+  helper and no fake-agent object standing in for a typed boundary; narrow with
+  `isRecord` or a named predicate and construct the real SDK object instead.
+- the gate is the staged snapshot. `pnpm check` (biome, the assertion gate, the
+  quality scripts, both suites and the build) must pass, and the committed tree
+  is the indexed tree, verified through `scripts/check-staged.mjs` as described
+  in setup.
 
 ## auth and privacy boundaries
 

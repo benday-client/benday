@@ -184,12 +184,12 @@ describe('usePostFeed', () => {
       ({ source }: { source: FeedSource }) => usePostFeed(source),
       {
         wrapper: wrapper(queryClient),
-        initialProps: { source: { kind: 'search', query: 'cats' } as FeedSource },
+        initialProps: { source: { kind: 'search', query: 'cats' } },
       },
     )
     await waitFor(() => expect(result.current.data).toHaveLength(1))
 
-    rerender({ source: { kind: 'search', query: ' cats ' } as FeedSource })
+    rerender({ source: { kind: 'search', query: ' cats ' } })
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20))
     })

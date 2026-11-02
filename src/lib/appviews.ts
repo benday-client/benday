@@ -1,3 +1,4 @@
+import { isRecord } from './records'
 import type { AppViewCapabilities, AppViewKind, AppViewPreset, AppViewTarget } from './types'
 
 const PRESETS = [
@@ -107,9 +108,8 @@ export function appViewHostname(target: AppViewTarget): string {
 }
 
 export function isAppViewTarget(value: unknown): value is AppViewTarget {
-  if (typeof value !== 'object' || value === null) return false
-  const record = value as Record<string, unknown>
-  const { id, label, host, kind, note } = record
+  if (!isRecord(value)) return false
+  const { id, label, host, kind, note } = value
 
   return (
     typeof id === 'string' &&

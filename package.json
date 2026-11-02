@@ -15,11 +15,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
+    "check:assertions": "node scripts/check-assertions.mjs",
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:quality": "node --test scripts/*.test.mjs",
-    "check": "pnpm lint && pnpm test:quality && pnpm test && pnpm test:browser && pnpm build",
+    "check": "pnpm lint && pnpm check:assertions && pnpm test:quality && pnpm test && pnpm test:browser && pnpm build",
     "test:browser": "vitest run --config vitest.browser.config.ts"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "zustand": "5.0.16"
   },
   "devDependencies": {
+    "@babel/parser": "8.1.0",
     "@biomejs/biome": "2.6.4",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

@@ -1,3 +1,4 @@
+import { isRecord } from './records'
 import type { ComposeMode } from './ui'
 
 const DRAFTS_KEY = 'benday:drafts'
@@ -14,11 +15,10 @@ type DraftMap = Record<string, DraftRecord>
 // a stored entry is only trusted when every field a draft needs is intact;
 // arrays and junk values are dropped before they can reach an eviction count
 function isDraftRecord(value: unknown): value is DraftRecord {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const record = value as Record<string, unknown>
-  if (typeof record['text'] !== 'string') return false
-  if (typeof record['updatedAt'] !== 'number' || !Number.isFinite(record['updatedAt'])) return false
-  if (record['revision'] !== undefined && typeof record['revision'] !== 'string') return false
+  if (!isRecord(value)) return false
+  if (typeof value['text'] !== 'string') return false
+  if (typeof value['updatedAt'] !== 'number' || !Number.isFinite(value['updatedAt'])) return false
+  if (value['revision'] !== undefined && typeof value['revision'] !== 'string') return false
   return true
 }
 
@@ -27,7 +27,7 @@ function readMap(): DraftMap {
     const raw = localStorage.getItem(DRAFTS_KEY)
     if (raw === null) return {}
     const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    if (!isRecord(parsed)) return {}
 
     const drafts: DraftMap = {}
     for (const [key, value] of Object.entries(parsed)) {

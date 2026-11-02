@@ -1,5 +1,6 @@
 import { Agent } from '@atproto/api'
 import type { BrowserOAuthClient, OAuthSession } from '@atproto/oauth-client-browser'
+import { isRecord } from './records'
 
 const HANDLE_RESOLVER = 'https://public.api.bsky.app'
 const RESOLVE_HANDLE_URL = 'https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle'
@@ -129,10 +130,8 @@ async function resolveOAuthIdentifier(identifier: string): Promise<string> {
   if (!response.ok) throw new Error('could not resolve that handle for the portal')
 
   const body: unknown = await response.json()
-  if (typeof body !== 'object' || body === null) {
-    throw new Error('could not resolve that handle for the portal')
-  }
-  const did = (body as Record<string, unknown>)['did']
+  if (!isRecord(body)) throw new Error('could not resolve that handle for the portal')
+  const did = body['did']
   if (typeof did !== 'string' || !did.startsWith('did:')) {
     throw new Error('could not resolve that handle for the portal')
   }

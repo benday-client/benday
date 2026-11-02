@@ -71,6 +71,10 @@ beforeEach(async () => {
   transport.route('POST', `${PDS}/xrpc/com.atproto.server.deleteSession`, () =>
     jsonResponse(200, {}),
   )
+  // subject hydration is best effort and these cases never read the preview
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
   await useAuthStore.getState().signOut()
   transport.calls.length = 0
 })

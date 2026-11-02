@@ -6,6 +6,7 @@ import {
   makeCustomAppView,
   toAppViewTarget,
 } from './appviews'
+import { isRecord } from './records'
 import { isTheme, THEME_SCHEMES } from './themes'
 import type { AppViewTarget, Theme } from './types'
 
@@ -103,8 +104,8 @@ function portableAppearance(
   'appearance' | 'lightTheme' | 'darkTheme' | 'imageEffects' | 'highContrast'
 > {
   const scheme = THEME_SCHEMES[theme]
-  const lightTheme = normalizeTheme(lightValue) ?? (scheme === 'light' ? theme : ('bone' as Theme))
-  const darkTheme = normalizeTheme(darkValue) ?? (scheme === 'dark' ? theme : ('void' as Theme))
+  const lightTheme: Theme = normalizeTheme(lightValue) ?? (scheme === 'light' ? theme : 'bone')
+  const darkTheme: Theme = normalizeTheme(darkValue) ?? (scheme === 'dark' ? theme : 'void')
   return {
     appearance: normalizeAppearance(appearanceValue) ?? scheme,
     lightTheme,
@@ -127,26 +128,25 @@ export function normalizeAppViewTarget(value: unknown): AppViewTarget | null {
 
 /** Validates and normalizes a bare portable settings snapshot. */
 export function normalizePortableSettings(value: unknown): PortableSettings | null {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
-  const record = value as Record<string, unknown>
+  if (!isRecord(value)) return null
   // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
-  const theme = normalizeTheme(record['theme'])
+  const theme = normalizeTheme(value['theme'])
   if (theme === null) return null
-  const appView = normalizeAppViewTarget(record['appView'])
+  const appView = normalizeAppViewTarget(value['appView'])
   if (appView === null) return null
-  const rawLabelers = record['labelers']
+  const rawLabelers = value['labelers']
   if (!Array.isArray(rawLabelers)) return null
   return {
     theme,
     ...portableAppearance(
       theme,
-      record['appearance'],
-      record['lightTheme'],
-      record['darkTheme'],
-      record['imageEffects'],
-      record['highContrast'],
+      value['appearance'],
+      value['lightTheme'],
+      value['darkTheme'],
+      value['imageEffects'],
+      value['highContrast'],
     ),
-    keyboardShortcuts: normalizeBoolean(record['keyboardShortcuts'], true),
+    keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
     appView,
     labelers: sanitizeLabelers(rawLabelers),
   }
@@ -193,12 +193,9 @@ function fail(error: string): SettingsParseResult {
  * never widen the applied state beyond the portable preferences.
  */
 export function parseSettingsFile(value: unknown): SettingsParseResult {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return fail('settings file is not a json object')
-  }
-  const record = value as Record<string, unknown>
+  if (!isRecord(value)) return fail('settings file is not a json object')
 
-  const version = record['version']
+  const version = value['version']
   if (version !== SETTINGS_FILE_VERSION) {
     if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
       return fail('settings file has no valid version')
@@ -206,13 +203,13 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
     return fail(`unsupported settings file version ${version}`)
   }
 
-  const theme = normalizeTheme(record['theme'])
+  const theme = normalizeTheme(value['theme'])
   if (theme === null) return fail('settings file has an invalid theme')
 
-  const appView = normalizeAppViewTarget(record['appView'])
+  const appView = normalizeAppViewTarget(value['appView'])
   if (appView === null) return fail('settings file has an invalid appview')
 
-  const rawLabelers = record['labelers']
+  const rawLabelers = value['labelers']
   if (!Array.isArray(rawLabelers)) return fail('settings file has an invalid labeler list')
 
   return {
@@ -221,13 +218,13 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
       theme,
       ...portableAppearance(
         theme,
-        record['appearance'],
-        record['lightTheme'],
-        record['darkTheme'],
-        record['imageEffects'],
-        record['highContrast'],
+        value['appearance'],
+        value['lightTheme'],
+        value['darkTheme'],
+        value['imageEffects'],
+        value['highContrast'],
       ),
-      keyboardShortcuts: normalizeBoolean(record['keyboardShortcuts'], true),
+      keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
       appView,
       labelers: sanitizeLabelers(rawLabelers),
     },
