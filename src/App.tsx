@@ -13,7 +13,7 @@ import { KeyHints } from './components/KeyHints'
 import { LoginDialog } from './components/LoginDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { TopBar } from './components/TopBar'
-import { EmptyState } from './components/ui'
+import { EmptyState, ErrorNotice } from './components/ui'
 import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
 import { getAuthAgent, useAuthStore } from './lib/auth'
@@ -157,6 +157,7 @@ function AppShell() {
   const previousTabRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
   const authStatus = useAuthStore((state) => state.status)
+  const restoreError = useAuthStore((state) => state.restoreError)
   const labelers = useSettings((state) => state.labelers)
   const labelerKey = labelers.join('\n')
   const lastLabelerKeyRef = useRef(labelerKey)
@@ -479,6 +480,11 @@ function AppShell() {
       <TopBar onSearch={focusSearch} />
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
+        {/* a failed portal restore is reported above the route, not inside the
+            login dialog the reader did not ask for */}
+        {restoreError === null ? null : (
+          <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
+        )}
         <Switch>
           <Route path="/" component={FeedView} />
           <Route path="/search" component={SearchView} />

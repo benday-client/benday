@@ -224,6 +224,12 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   `benday:session` and resets per-post action state. a stale restore must not
   overwrite a newer sign-in; keep the `authEpoch` guard and the action-store
   subscription in `src/lib/actionStore.ts`.
+- a restore keeps the session the sdk retained: transient, network and
+  non-expiry failures leave the session in place, only a rejected refresh token
+  clears it, and a retained session is committed as authenticated. a failed
+  portal restore is reported as its own `restoreError` notice above the route
+  and cleared by an explicit sign-in, sign-out or `clearError`; a successful
+  password fallback never erases it, and it never opens a dialog.
 - reads go to the selected appview with the configured labeler dids through the
   `accept-labelers` header. search terms and labeler dids are therefore visible
   to that appview. writes and viewer-state reads go through the account's pds.

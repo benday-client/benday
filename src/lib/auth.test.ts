@@ -1,7 +1,26 @@
 import { AtpAgent, type AtpBaseClient, type AtpSessionData } from '@atproto/api'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
 import { AUTH_STORAGE_KEY, getAuthAgent, useAuthStore } from './auth'
+
+const oauthControl = vi.hoisted(() => ({
+  portalError: 'portal sign in needs a loopback address' as string | null,
+  restoreError: null as string | null,
+}))
+
+// the portal is external I/O: its failures are steered here, and everything the
+// auth store owns (epochs, stored sessions, the agent) stays real
+vi.mock('./oauth', () => ({
+  canUseOAuth: () => false,
+  restoreOAuth: async () => {
+    if (oauthControl.restoreError !== null) throw new Error(oauthControl.restoreError)
+    return null
+  },
+  signInOAuth: async () => {
+    if (oauthControl.portalError !== null) throw new Error(oauthControl.portalError)
+  },
+  signOutOAuth: async () => {},
+}))
 
 function deferred<T>() {
   return Promise.withResolvers<T>()
@@ -45,6 +64,8 @@ let transport: TestTransport
 let currentRefresh: AtpSessionData = ALICE
 
 beforeEach(async () => {
+  oauthControl.portalError = 'portal sign in needs a loopback address'
+  oauthControl.restoreError = null
   transport = installTransport()
   transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
     jsonResponse(200, {}),
@@ -262,7 +283,7 @@ describe('sign-in transitions', () => {
   it('leaves the committed account alone when the portal path fails', async () => {
     await signInAs(ALICE)
 
-    await expect(useAuthStore.getState().signInWithPortal('bob.test')).resolves.toBe(false)
+    await expect(useAuthStore.getState().signInWithPortal('bob.test')).resolves.toBeUndefined()
 
     const state = useAuthStore.getState()
     expect(state).toMatchObject({
@@ -368,6 +389,44 @@ describe('restore', () => {
     expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', account: null })
     expect(getAuthAgent()).toBeNull()
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('reports a portal restore failure without dropping the password session', async () => {
+    storeSession()
+    oauthControl.restoreError = 'could not reach the portal'
+    transport.route('POST', REFRESH, () =>
+      jsonResponse(200, { ...ALICE, accessJwt: 'alice-access-2' }),
+    )
+
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'authenticated',
+      account: { did: 'did:plc:alice' },
+      error: null,
+      restoreError: 'could not reach the portal',
+    })
+  })
+
+  it('clears the portal restore failure when a sign-in starts', async () => {
+    oauthControl.restoreError = 'could not reach the portal'
+    await useAuthStore.getState().restore()
+    expect(useAuthStore.getState().restoreError).toBe('could not reach the portal')
+
+    await signInAs(BOB)
+
+    expect(useAuthStore.getState().restoreError).toBeNull()
+  })
+
+  it('clears the portal restore failure on sign-out and on clearError', async () => {
+    oauthControl.restoreError = 'could not reach the portal'
+    await useAuthStore.getState().restore()
+    useAuthStore.getState().clearError()
+    expect(useAuthStore.getState().restoreError).toBeNull()
+
+    useAuthStore.setState({ restoreError: 'could not reach the portal' })
+    await useAuthStore.getState().signOut()
+    expect(useAuthStore.getState().restoreError).toBeNull()
   })
 
   it('does not let a stale restore replace a newer sign-in', async () => {

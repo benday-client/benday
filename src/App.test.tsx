@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { useAuthStore } from './lib/auth'
 import { appHistoryDepth, withAppHistory } from './lib/history'
 import { useSettings } from './lib/store'
 import { useUiStore } from './lib/ui'
@@ -486,6 +487,39 @@ describe('app history', () => {
       expect(appHistoryDepth()).toBe(0)
     } finally {
       view.unmount()
+    }
+  })
+})
+
+describe('portal restore notice', () => {
+  it('reports a failed portal restore outside the dialog and clears when login opens', async () => {
+    const transport = installTransport()
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [] }),
+    )
+    routeDiscoverMetadata(transport)
+    window.history.pushState({}, '', '/feed')
+    useAuthStore.setState({ restoreError: 'could not reach the portal' })
+
+    const view = render(<App />)
+    try {
+      expect(await screen.findByText('could not restore portal sign-in')).toBeInTheDocument()
+      expect(screen.getByText('could not reach the portal')).toBeInTheDocument()
+      // the notice is not a modal: the reader was not interrupted
+      const login = document.querySelector<HTMLDialogElement>('dialog.b-auth')
+      if (login === null) throw new Error('login dialog shell missing')
+      expect(login.open).toBe(false)
+
+      act(() => {
+        useUiStore.getState().openDialog('login')
+      })
+
+      await waitFor(() => expect(login.open).toBe(true))
+      // opening login is an explicit new attempt, so the old notice is gone
+      expect(screen.queryByText('could not restore portal sign-in')).toBeNull()
+    } finally {
+      view.unmount()
+      useAuthStore.setState({ restoreError: null })
     }
   })
 })

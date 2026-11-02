@@ -28,9 +28,12 @@ interface AuthState {
   account: AuthAccount | null
   pending: boolean
   error: string | null
+  // a portal restore failure is its own ephemeral message: it explains why the
+  // portal path was skipped without pretending the credential attempt failed
+  restoreError: string | null
   restore: () => Promise<void>
   signIn: (identifier: string, password: string, pds?: string) => Promise<boolean>
-  signInWithPortal: (identifier: string) => Promise<boolean>
+  signInWithPortal: (identifier: string) => Promise<void>
   signOut: () => Promise<void>
   clearError: () => void
 }
@@ -248,8 +251,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
   account: null,
   pending: false,
   error: null,
+  restoreError: null,
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, restoreError: null }),
 
   restore: async () => {
     if (activeAgent !== null) return
@@ -279,9 +283,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
           })
           return
         }
-      } catch {
-        // portal sessions are optional; password sessions remain the fallback
+      } catch (caught) {
+        // portal sessions are optional and the password path continues, but the
+        // portal failure is reported rather than silently dropped
         if (epoch !== authEpoch) return
+        set({ restoreError: errorInfo(caught).detail })
       }
 
       const stored = readStoredAuth()
@@ -340,7 +346,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     pendingAuthEpoch = epoch
     // The committed account and its agent stay paired until a replacement is
     // actually committed, so a failed switch leaves the current session alone.
-    set({ pending: true, error: null })
+    set({ pending: true, error: null, restoreError: null })
 
     const release = () => {
       if (pendingAuthEpoch === epoch) pendingAuthEpoch = null
@@ -405,30 +411,30 @@ export const useAuthStore = create<AuthState>()((set) => ({
     const cleaned = identifier.trim().replace(/^@/, '')
     if (cleaned.length === 0) {
       set({ error: 'a handle or did is required', pending: false })
-      return false
+      return
     }
 
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = epoch
     // the redirect may still land; until it does the committed pair is intact
-    set({ pending: true, error: null })
+    set({ pending: true, error: null, restoreError: null })
 
     const release = () => {
       if (pendingAuthEpoch === epoch) pendingAuthEpoch = null
     }
 
     try {
+      // starting the redirect never settles into a signed-in state; the portal
+      // owns the rest of the flow
       await signInOAuth(cleaned)
-      if (epoch !== authEpoch) return false
+      if (epoch !== authEpoch) return
       release()
       set({ pending: false })
-      return false
     } catch (error) {
-      if (epoch !== authEpoch) return false
+      if (epoch !== authEpoch) return
       release()
       set({ pending: false, error: errorInfo(error).detail })
-      return false
     }
   },
 
@@ -442,7 +448,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     // leave the account looking signed in.
     activeAgent = null
     clearStoredAuth()
-    set({ status: 'anonymous', account: null, pending: true, error: null })
+    set({ status: 'anonymous', account: null, pending: true, error: null, restoreError: null })
 
     // Revoke both mechanisms when present, not only whichever one is active.
     try {
