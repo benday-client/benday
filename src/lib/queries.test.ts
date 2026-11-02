@@ -12,7 +12,7 @@ const GENERATOR = 'at://did:plc:gen/app.bsky.feed.generator/cats'
 const STABLE_KEYS = [
   ['feed', HOST, 'discover', VIEWER],
   ['pinned-feeds', VIEWER],
-  ['feed-generator', HOST, GENERATOR],
+  ['feed-generator', GENERATOR],
   ['labeler-details', HOST, 'did:plc:lab,did:plc:lab2'],
 ] as const
 

@@ -99,6 +99,17 @@ describe('useTopComments', () => {
     expect(result.current.comments).toEqual([])
   })
 
+  it('does not report pending for an enabled card without a usable uri', async () => {
+    const queryClient = createTestQueryClient()
+
+    const { result } = renderHook(() => useTopComments('', true), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.isPending).toBe(false)
+    expect(result.current.comments).toEqual([])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(fetchTopComments).not.toHaveBeenCalled()
+  })
+
   it('reads nothing while the card is not asking', async () => {
     const queryClient = createTestQueryClient()
 
