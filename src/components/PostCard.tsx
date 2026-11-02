@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react'
 import { Link, useLocation } from 'wouter'
+import { isEditableTarget, isInteractiveTarget } from '../hooks/useHotkeys'
 import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
@@ -108,6 +109,11 @@ export function PostCard({
   const accountDid = useAuthStore((state) => state.account?.did ?? null)
   const queryClient = useQueryClient()
   const cardRef = useRef<HTMLElement>(null)
+  // a control in the top bar or another card keeps its own keys: only this
+  // card's own controls may lose their keys to its shortcuts
+  const ownsOutsideCard = (target: EventTarget | null): boolean =>
+    isInteractiveTarget(target) &&
+    !(target instanceof Node && cardRef.current?.contains(target) === true)
   const [inView, setInView] = useState(false)
   // a labelled post hides its media until the reader asks for it
   const [revealed, setRevealed] = useState(false)
@@ -309,11 +315,11 @@ export function PostCard({
       // an IME composition owns its keystrokes; never treat them as shortcuts
       if (event.isComposing) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-        if (event.target.closest('a') !== null) return
-      }
+      // an editable field owns its keys, and so does any interactive control
+      // outside this card; a link inside it keeps its own activation too
+      if (isEditableTarget(event.target)) return
+      if (ownsOutsideCard(event.target)) return
+      if (event.target instanceof HTMLElement && event.target.closest('a') !== null) return
 
       if (uiOwnsKeyboard()) return
       if (document.querySelector('dialog[open]') !== null) return
@@ -479,11 +485,11 @@ export function PostCard({
       if (event.defaultPrevented || event.repeat) return
       if (event.isComposing) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-        if (event.target.closest('a') !== null) return
-      }
+      // an editable field owns its keys, and so does any interactive control
+      // outside this card; a link inside it keeps its own activation too
+      if (isEditableTarget(event.target)) return
+      if (ownsOutsideCard(event.target)) return
+      if (event.target instanceof HTMLElement && event.target.closest('a') !== null) return
 
       if (uiOwnsKeyboard()) return
       if (document.querySelector('dialog[open]') !== null) return

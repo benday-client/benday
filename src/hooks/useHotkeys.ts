@@ -8,6 +8,19 @@ export interface Hotkey {
   ctrlOrMeta?: boolean
 }
 
+/**
+ * Whether the event target is an interactive control: a link, button, form
+ * field or editable surface. A surface that owns a card or a thread uses this
+ * together with a containment check, so a control inside the surface keeps its
+ * own keys while an unrelated control elsewhere never loses its native
+ * Enter/Space/arrow behaviour to the surface's shortcuts.
+ */
+export function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  return target.closest('a, button, input, textarea, select, [contenteditable="true"]') !== null
+}
+
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true

@@ -958,6 +958,60 @@ describe('PostCard actions', () => {
     expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
   })
 
+  it('keeps a shortcut while a control inside the card has focus', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const post = postFixture()
+    const location = memoryLocation({ path: '/' })
+    const queryClient = createTestQueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={post} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    const replyButton = screen.getByRole('button', { name: 'reply' })
+    act(() => replyButton.focus())
+    fireEvent.keyDown(replyButton, { key: 'r' })
+
+    // an in-card control keeps its own activation, and the card still answers
+    expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
+  })
+
+  it('leaves its shortcuts to an interactive control outside the card', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const location = memoryLocation({ path: '/' })
+    const queryClient = createTestQueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <div>
+            <button type="button">topbar action</button>
+            <PostCard post={postFixture()} focused />
+          </div>
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    const outside = screen.getByRole('button', { name: 'topbar action' })
+    act(() => outside.focus())
+    fireEvent.keyDown(outside, { key: 'r' })
+
+    // the card never answers a shortcut aimed at an unrelated control
+    expect(useUiStore.getState().compose).toBeNull()
+  })
+
   it('arms deletion from the focused-card shortcut without deleting', () => {
     useAuthStore.setState({
       status: 'authenticated',

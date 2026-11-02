@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react'
 import { flushSync } from 'react-dom'
+import { isInteractiveTarget } from '../hooks/useHotkeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { bindingFor, characterShortcutAllowed, matchesBinding } from '../lib/keymap'
 import { scrollCardBody } from '../lib/scroll'
@@ -187,11 +188,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
   return target.closest('input, textarea, select, [contenteditable="true"]') !== null
-}
-
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return target.closest('a, button, input, textarea, select, [contenteditable="true"]') !== null
 }
 
 export function Deck<T>({

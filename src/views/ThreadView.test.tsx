@@ -257,6 +257,29 @@ describe('ThreadView parent navigation', () => {
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
+  it('leaves navigation to an interactive control outside the thread', () => {
+    const focusPost = parentedPost('at://focus', 'at://parent')
+    threadState.data = threadWith(focusPost)
+    const { memory } = renderThread(focusPost.uri)
+    const outside = document.createElement('button')
+    outside.type = 'button'
+    outside.textContent = 'topbar action'
+    document.body.append(outside)
+    try {
+      outside.focus()
+
+      // up would open the parent, and 1 would focus a reply: both belong to the
+      // control while it has focus, which keeps its own native keys
+      fireEvent.keyDown(outside, { key: 'ArrowUp' })
+      fireEvent.keyDown(outside, { key: '1' })
+
+      expect(memory.history).toEqual([threadUrl('at://focus')])
+      expect(document.activeElement).toBe(outside)
+    } finally {
+      outside.remove()
+    }
+  })
+
   it('ignores a p another layer already handled', () => {
     const focusPost = parentedPost('at://focus', 'at://parent')
     threadState.data = threadWith(focusPost)

@@ -7,7 +7,7 @@ import { PostCard } from '../components/PostCard'
 import { RelativeTime } from '../components/RelativeTime'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { useThread } from '../hooks/useBskyQueries'
-import { isImeComposing } from '../hooks/useHotkeys'
+import { isEditableTarget, isImeComposing, isInteractiveTarget } from '../hooks/useHotkeys'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { useAuthStore } from '../lib/auth'
 import { type ErrorInfo, errorInfo } from '../lib/errors'
@@ -45,6 +45,13 @@ export default function ThreadView() {
     info: ErrorInfo
   } | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
+  // a control outside this thread keeps its own Enter/Space/arrow behaviour;
+  // inside it the existing link and button exceptions still apply
+  const interactiveOutsideThread = (target: EventTarget | null): boolean => {
+    if (!isInteractiveTarget(target)) return false
+    const root = mainRef.current
+    return root === null || !(target instanceof Node) || !root.contains(target)
+  }
   const replyRefs = useRef<(HTMLElement | null)[]>([])
   const appViewHost = useSettings((state) => state.appView.host)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
@@ -128,10 +135,8 @@ export default function ThreadView() {
       const isPage = event.key === 'PageDown' || event.key === 'PageUp'
       const isShiftArrow = event.shiftKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')
       if (!isPage && !isShiftArrow) return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-      }
+      if (interactiveOutsideThread(event.target)) return
+      if (isEditableTarget(event.target)) return
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
       const direction = event.key === 'PageUp' || event.key === 'ArrowUp' ? -1 : 1
@@ -168,10 +173,8 @@ export default function ThreadView() {
         key === 'Home' ||
         key === 'End'
       if (!isLeave && !isTreeKey) return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-      }
+      if (interactiveOutsideThread(event.target)) return
+      if (isEditableTarget(event.target)) return
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
 
@@ -228,10 +231,8 @@ export default function ThreadView() {
       if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey || event.repeat) return
       if (event.key !== 'p') return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-      }
+      if (interactiveOutsideThread(event.target)) return
+      if (isEditableTarget(event.target)) return
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
       const parentUri = threadParentTarget(focusPost, focusedReplyPost)
@@ -252,11 +253,9 @@ export default function ThreadView() {
       if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       if (event.shiftKey || event.repeat) return
       if (!/^[1-9]$/.test(event.key)) return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-        if (event.target.closest('a, button') !== null) return
-      }
+      if (interactiveOutsideThread(event.target)) return
+      if (isEditableTarget(event.target)) return
+      if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) return
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
       const thread = document.querySelector('.b-thread')
@@ -336,7 +335,7 @@ export default function ThreadView() {
     }
     // enter is the only activation key; space keeps its native page scroll
     if (event.key !== 'Enter') return
-    if ((event.target as HTMLElement).closest('a, button') !== null) return
+    if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) return
     const entry = replies[index]
     if (entry === undefined) return
     event.preventDefault()
@@ -368,7 +367,12 @@ export default function ThreadView() {
               setFocusedReply(null)
             }}
             onClick={(event) => {
-              if ((event.target as HTMLElement).closest('a, button') !== null) return
+              if (
+                event.target instanceof HTMLElement &&
+                event.target.closest('a, button') !== null
+              ) {
+                return
+              }
               event.currentTarget.focus()
             }}
             onKeyDown={(event) => {

@@ -606,13 +606,19 @@ there are five key layers, and they must not fight:
    as an alias, `c` compose, `a` appviews, `,` settings. `?` is not a hotkey: the
    hold-to-reveal overlay in `src/components/KeyHints.tsx` owns it (tap opens
    help). settings and help each own a `/`-focused search field. escape is not
-   one of these; it has its own listener in `AppShell` (see 5).
+   one of these; it has its own listener in `AppShell` (see 6).
 2. tab switching is a separate capture listener in `App.tsx` for the platform
    primary modifier + left/right (meta on macOS, ctrl elsewhere), and it refuses
    editable targets so caret word-jumps keep working. tabs are `/feed` and
    `/notifications`; a `/profile/…` route is appended as a temporary tab while it
    is open. search is a route reached by `/` or `s`, not a tab.
-3. `Deck` listens on window and owns card movement. arrows follow the deck axis:
+3. a shortcut that belongs to a card or a thread yields to any interactive
+   control **outside** that surface: `isInteractiveTarget` from
+   `src/hooks/useHotkeys.ts` plus a containment check, so a focused top-bar
+   button or link keeps its native Enter/Space/arrows. a control inside the
+   surface keeps its existing exceptions (a link or an editor suppresses the
+   shortcut; an in-card button does not).
+4. `Deck` listens on window and owns card movement. arrows follow the deck axis:
    on a wide deck `←`/`→` are previous/next and `↓` opens; on a narrow deck
    `↑`/`↓` are previous/next and `→` opens. `j`/`k` are reading-order aliases on
    either axis, and `h`/`l` are wide-deck previous/next aliases that clamp at the
@@ -628,7 +634,7 @@ there are five key layers, and they must not fight:
    the root. `j`/`k` keep flat reading order. page
    up/down and shift-arrows scroll the focused post body; shift-arrows stay owned
    at a boundary, plain page keys release.
-4. view-local handlers add the rest: `PostCard` handles `f`, `b`, `r`, `q`, `y`,
+5. view-local handlers add the rest: `PostCard` handles `f`, `b`, `r`, `q`, `y`,
    `m`, `v`, `x`, `o` (with `0` as an alias), `+`, `-` and the `d` delete arm
    (confirm with `enter` or `d`, 4s disarm, `esc` cancels) only while focused and
    unmodalled; `FeedView` owns a single `R`; `ThreadView` owns reply focus with
@@ -638,7 +644,7 @@ there are five key layers, and they must not fight:
    `event.defaultPrevented` and repeats. the hold-`?` overlay only reads
    `data-keyhint` attributes, never passes a key through, and hides on any other
    keydown.
-5. escape has one precedence stack, top to bottom: an IME composition claims
+6. escape has one precedence stack, top to bottom: an IME composition claims
    nothing; an open native dialog closes; the composer's suggestion list closes
    only itself; the inline dock closes and keeps its draft; a mode switcher
    closes and keeps the route; the search field clears its query and then blurs
