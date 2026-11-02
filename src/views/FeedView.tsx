@@ -17,25 +17,20 @@ import { useFeedGenerator, usePostFeed } from '../hooks/useBskyQueries'
 import { isEditableTarget, isImeComposing } from '../hooks/useHotkeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
+import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { type FeedFeedbackEvent, sendFeedFeedback } from '../lib/actions'
 import { capabilitiesFor } from '../lib/appviews'
 import { DISCOVER_FEED_URI } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
-import { type ErrorInfo, errorInfo } from '../lib/errors'
+import { errorInfo } from '../lib/errors'
 import { feedbackTargetFor } from '../lib/feedFeedback'
 import { chooseFeedUri } from '../lib/feedSelection'
 import { bindingFor, characterShortcutAllowed, matchesBinding } from '../lib/keymap'
 import { useSettings } from '../lib/store'
 import type { PostModel } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
-
-/** A first-page failure captured across its own retry, so the notice stays put. */
-interface FeedFailure {
-  key: string
-  info: ErrorInfo
-}
 
 export default function FeedView() {
   const [, navigate] = useLocation()
@@ -102,7 +97,6 @@ export default function FeedView() {
     : ({ kind: 'discover' } as const)
   const feed = usePostFeed(source, !pinnedUnresolved)
   const feedKey = JSON.stringify([appView.host, viewerDid ?? 'anonymous', activeUri || 'discover'])
-  const [feedFailure, setFeedFailure] = useState<FeedFailure | null>(null)
   // Refresh is a read, so one explicit press is enough. It drops the loaded
   // pages and reloads exactly the first one; a press while that is already in
   // flight has nothing to add, and nothing else refreshes implicitly.
@@ -127,25 +121,22 @@ export default function FeedView() {
   const discoverGenerator = useFeedGenerator(source.kind === 'discover' ? DISCOVER_FEED_URI : '')
   const feedbackTarget = feedbackTargetFor(source, pinned.feeds, discoverGenerator)
   useViewerSync(posts)
-  const info = pinnedUnresolved || feed.error === null ? null : errorInfo(feed.error)
   // a retry drops the failed page before its replacement arrives, so the shown
   // failure is captured while that same request has nothing else to report
-  const capturedFailure =
-    feedFailure !== null && feedFailure.key === feedKey && posts.length === 0 && feed.isFetching
-      ? feedFailure.info
-      : null
-  const shownInfo = info ?? capturedFailure
+  const feedFailure = useRetainedError(
+    feedKey,
+    posts.length > 0,
+    feed.error ?? null,
+    feed.isFetching,
+  )
+  const info = pinnedUnresolved || feed.error === null ? null : errorInfo(feed.error)
+  const shownInfo = info ?? (feedFailure.error === null ? null : errorInfo(feedFailure.error))
   const retryFeed = () => {
-    if (info !== null) setFeedFailure({ key: feedKey, info })
-    refreshFeed()
+    feedFailure.retry(refreshFeed)
   }
   const retryPinned = () => {
     pinned.reload()
   }
-  const feedHasData = feed.data !== null
-  useEffect(() => {
-    if (feedHasData && !pinnedUnresolved) setFeedFailure(null)
-  }, [feedHasData, pinnedUnresolved])
   // a shown failure stays visible through an automatic reread too
   useEffect(() => {
     if (pinned.error !== null) setPinnedFailure(pinned.error)
@@ -156,7 +147,6 @@ export default function FeedView() {
 
   useEffect(() => {
     setDismissed(new Set())
-    setFeedFailure(null)
     setPinnedFailure(null)
     refreshPendingRef.current = false
   }, [activeUri, appView.host, viewerDid])

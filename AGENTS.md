@@ -60,6 +60,11 @@ ownership by concern:
   optimistic like/repost state.
 - `src/lib/queries.ts` owns invalidation policy; `src/hooks/useBskyQueries.ts`
   owns query keys and paging. changing cache behavior means changing both.
+- `src/hooks/useRetainedError.ts` owns the first-load retry notice retention
+  shared by search, feed, profile and thread: a visible failure stays mounted
+  (and keeps its focused retry control) while its own retry runs, a repeat press
+  during that fetch is ignored, and a changed request identity or successful
+  data drops the capture.
 - `src/lib/notifications.ts` owns notification mapping and seen updates;
   `src/hooks/useNotifications.ts` owns the notifications query.
 - `src/lib/markdown.ts` and `src/lib/facets.ts` own composer marker parsing and

@@ -8,9 +8,10 @@ import { RelativeTime } from '../components/RelativeTime'
 import { EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { useThread } from '../hooks/useBskyQueries'
 import { isEditableTarget, isImeComposing, isInteractiveTarget } from '../hooks/useHotkeys'
+import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { useAuthStore } from '../lib/auth'
-import { type ErrorInfo, errorInfo } from '../lib/errors'
+import { errorInfo } from '../lib/errors'
 import { goBackOrFallback, THREAD_FALLBACK_VIEW } from '../lib/history'
 import { characterShortcutAllowed } from '../lib/keymap'
 import { scrollCardBody, scrollThreadPage } from '../lib/scroll'
@@ -40,10 +41,6 @@ export default function ThreadView() {
   const [searchParams] = useSearchParams()
   const uri = (searchParams.get('uri') ?? '').trim()
   const [focusedReply, setFocusedReply] = useState<number | null>(null)
-  const [capturedFailure, setCapturedFailure] = useState<{
-    requestKey: string
-    info: ErrorInfo
-  } | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   // a control outside this thread keeps its own Enter/Space/arrow behaviour;
   // inside it the existing link and button exceptions still apply
@@ -85,33 +82,23 @@ export default function ThreadView() {
   }
   const focusedReplyPost = focusedReply === null ? null : (replies[focusedReply]?.post ?? null)
   useViewerSync(entries.map((entry) => entry.post))
-  const info = thread.error !== null ? errorInfo(thread.error) : null
   // tanstack clears the error while a refetch has no data yet; the failure the
   // reader is retrying has to stay on screen while that request runs
-  let shownInfo = info
-  if (shownInfo === null && capturedFailure !== null) {
-    const sameRequest = capturedFailure.requestKey === requestKey
-    if (sameRequest && thread.data === null && thread.isFetching) {
-      shownInfo = capturedFailure.info
-    }
-  }
+  const threadFailure = useRetainedError(
+    requestKey,
+    thread.data !== null,
+    thread.error ?? null,
+    thread.isFetching,
+  )
+  const shownInfo = threadFailure.error === null ? null : errorInfo(threadFailure.error)
   const retryThread = () => {
-    if (shownInfo !== null) setCapturedFailure({ requestKey, info: shownInfo })
-    thread.retry()
+    threadFailure.retry(thread.retry)
   }
   const loadingReplies = (
     <div className="b-thread__replies">
       <Progress label="loading replies" indeterminate />
     </div>
   )
-
-  useEffect(() => {
-    setCapturedFailure(null)
-  }, [requestKey])
-
-  useEffect(() => {
-    if (thread.data !== null) setCapturedFailure(null)
-  }, [thread.data])
 
   useEffect(() => {
     setFocusedReply(null)

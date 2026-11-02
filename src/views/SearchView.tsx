@@ -21,6 +21,7 @@ import {
 } from '../hooks/useActorSuggestions'
 import { useActorSearch, useFeedSearch, usePostFeed } from '../hooks/useBskyQueries'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useRetainedError } from '../hooks/useRetainedError'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { capabilitiesFor } from '../lib/appviews'
@@ -88,52 +89,6 @@ function FeedResultCard({ feed }: { feed: SearchFeedModel }) {
       </div>
     </article>
   )
-}
-
-interface RetainedFailure {
-  requestKey: string
-  error: Error
-}
-
-/**
- * Keeps the failure a reader is looking at while its own retry is running.
- * TanStack clears `error` as soon as a fetch starts when nothing is cached, so
- * the mounted ErrorNotice would otherwise unmount and drop focus. Failures
- * with cached rows stay in query state and need no capture.
- */
-function useRetainedError(
-  requestKey: string,
-  hasData: boolean,
-  error: Error | null,
-  isFetching: boolean,
-): { error: Error | null; retrying: boolean; retry: (run: () => void) => void } {
-  const captureRef = useRef<RetainedFailure | null>(null)
-  const captured = captureRef.current
-
-  useEffect(() => {
-    if (captured === null) return
-    // the remembered failure is stale once the request identity changes or a
-    // load succeeds; a repeated failure refreshes it on the next retry press
-    if (captured.requestKey !== requestKey || (hasData && error === null)) {
-      captureRef.current = null
-    }
-  }, [captured, requestKey, hasData, error])
-
-  const retained =
-    error ??
-    (!hasData && isFetching && captured !== null && captured.requestKey === requestKey
-      ? captured.error
-      : null)
-
-  return {
-    error: retained,
-    retrying: isFetching,
-    retry: (run) => {
-      if (isFetching) return
-      captureRef.current = !hasData && error !== null ? { requestKey, error } : null
-      run()
-    },
-  }
 }
 
 export default function SearchView() {

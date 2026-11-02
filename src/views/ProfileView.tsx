@@ -16,10 +16,11 @@ import {
 } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
-import { type ErrorInfo, errorInfo } from '../lib/errors'
+import { errorInfo } from '../lib/errors'
 import {
   cardCountLabel,
   PROFILE_MODES,
@@ -71,17 +72,6 @@ type ProfileDeckItem =
   | { kind: 'status' }
   | { kind: 'refresh' }
 
-/**
- * A failure the reader already sees, kept on screen while its own retry is in
- * flight. TanStack clears `error` as soon as the refetch starts, so without
- * this capture the recovery notice would be swapped for a spinner and lose the
- * focused retry button.
- */
-interface RetainedFailure {
-  requestIdentity: string
-  info: ErrorInfo
-}
-
 export default function ProfileView() {
   const [, navigate] = useLocation()
   const params = useParams<{ actor?: string }>()
@@ -104,8 +94,6 @@ export default function ProfileView() {
   const dealTimerRef = useRef<number | null>(null)
   const viewRef = useRef<HTMLElement>(null)
   const focusSwapRef = useRef<(() => void) | null>(null)
-  const [retainedProfile, setRetainedProfile] = useState<RetainedFailure | null>(null)
-  const [retainedFeed, setRetainedFeed] = useState<RetainedFailure | null>(null)
 
   const profileDeckKey = JSON.stringify([
     'profile-deck',
@@ -123,36 +111,28 @@ export default function ProfileView() {
     focusSwapRef.current = focusDeckAfterSwap(viewRef.current)
   }
 
-  const profileInfo =
-    profile.error !== null
-      ? errorInfo(profile.error)
-      : profile.data === null &&
-          profile.isFetching &&
-          retainedProfile !== null &&
-          retainedProfile.requestIdentity === requestIdentity
-        ? retainedProfile.info
-        : null
-  const feedInfo =
-    feed.error !== null
-      ? errorInfo(feed.error)
-      : posts.length === 0 &&
-          feed.isFetching &&
-          retainedFeed !== null &&
-          retainedFeed.requestIdentity === requestIdentity
-        ? retainedFeed.info
-        : null
+  // a different actor, host or viewer is a different request; the hook drops
+  // the capture instead of letting an older notice carry over
+  const profileFailure = useRetainedError(
+    requestIdentity,
+    profile.data !== null,
+    profile.error ?? null,
+    profile.isFetching,
+  )
+  const feedFailure = useRetainedError(
+    requestIdentity,
+    posts.length > 0,
+    feed.error ?? null,
+    feed.isFetching,
+  )
+  const profileInfo = profileFailure.error === null ? null : errorInfo(profileFailure.error)
+  const feedInfo = feedFailure.error === null ? null : errorInfo(feedFailure.error)
 
   const retryProfile = () => {
-    if (profileInfo !== null && profile.data === null) {
-      setRetainedProfile({ requestIdentity, info: profileInfo })
-    }
-    profile.retry()
+    profileFailure.retry(profile.retry)
   }
   const retryFeed = () => {
-    if (feedInfo !== null && posts.length === 0) {
-      setRetainedFeed({ requestIdentity, info: feedInfo })
-    }
-    feed.retry()
+    feedFailure.retry(feed.retry)
   }
   const handle = actor.replace(/^@/, '')
   const authorDid = profile.data?.did ?? null
@@ -208,20 +188,6 @@ export default function ProfileView() {
       focusSwapRef.current?.()
     }
   }, [])
-
-  // a new actor, host or viewer is a new request: no older notice carries over
-  useEffect(() => {
-    setRetainedProfile(null)
-    setRetainedFeed(null)
-  }, [requestIdentity])
-
-  useEffect(() => {
-    if (profile.data !== null) setRetainedProfile(null)
-  }, [profile.data])
-
-  useEffect(() => {
-    if (posts.length > 0) setRetainedFeed(null)
-  }, [posts.length])
 
   useEffect(() => {
     if (!wide) setModeDeck(false)
