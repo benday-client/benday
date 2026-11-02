@@ -3,6 +3,18 @@ import { resolveSrgbColor } from '../test/colors'
 import { THEMES, themeColor } from './themes'
 import type { Theme } from './types'
 
+/** A token resolved inside one scope, as the pixels it paints. */
+function paintedScopeToken(scope: Element, name: string) {
+  const probe = document.createElement('span')
+  probe.style.color = `var(${name})`
+  scope.append(probe)
+  try {
+    return resolveSrgbColor(getComputedStyle(probe).color)
+  } finally {
+    probe.remove()
+  }
+}
+
 /** A theme token as the page actually paints it. */
 function paintedToken(name: string) {
   const probe = document.createElement('span')
@@ -155,5 +167,58 @@ describe('benday original palettes', () => {
       expect(buckets[theme], theme).toBeGreaterThan(1)
     }
     expect(buckets['truth-to-materials']).toBe(1)
+  })
+})
+
+describe('nested theme scopes', () => {
+  function scope(theme: Theme, parent?: Theme): Element {
+    const node = document.createElement('div')
+    node.className = 'b-theme-preview__half'
+    node.dataset['theme'] = theme
+    if (parent !== undefined) {
+      const wrapper = document.createElement('div')
+      wrapper.dataset['theme'] = parent
+      wrapper.append(node)
+      document.body.append(wrapper)
+      return node
+    }
+    document.body.append(node)
+    return node
+  }
+
+  function signature(node: Element): Record<string, string> {
+    const style = getComputedStyle(node)
+    const tokens = [
+      '--head-image',
+      '--head-rule',
+      '--head-glow',
+      '--card-edge-style',
+      '--body-inset',
+      '--card-shadow',
+      '--frame-rule',
+      '--surface-texture',
+      '--theme-radius',
+      '--theme-clip',
+      '--accent-2',
+    ]
+    const result: Record<string, string> = {}
+    for (const token of tokens) result[token] = style.getPropertyValue(token).trim()
+    return result
+  }
+
+  it('computes the same signature standalone and nested in another theme', () => {
+    for (const theme of ['void', 'bone', 'cottagecore', 'github-light', 'cyberpunk'] as const) {
+      const standalone = scope(theme)
+      const nested = scope(theme, 'cyberpunk')
+      try {
+        expect(signature(nested), theme).toEqual(signature(standalone))
+        expect(paintedScopeToken(nested, '--paper')).toEqual(
+          paintedScopeToken(standalone, '--paper'),
+        )
+      } finally {
+        standalone.remove()
+        nested.parentElement?.remove()
+      }
+    }
   })
 })

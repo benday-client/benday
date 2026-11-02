@@ -581,8 +581,12 @@ the october set in a pre-hydration script; update both together.
   `github light` use `clean`; `truth to materials` uses `industrial` and
   `bluesky` uses `none`. `DitherImage` honors the persisted `imageEffects`
   toggle by forcing `none`.
-- `tokens.css` defines `--surface-texture`, `--theme-radius` and `--theme-clip`
-  per theme. texture is per-theme: the root provides the scanline, cyberpunk
+- the shared effect and signature defaults live in one
+  `:root, [data-theme]` rule before the theme blocks, so a preview nested inside
+  any other theme computes the same head, shadow, texture and corner tokens as
+  a standalone one; individual theme blocks still win, and root-only typography,
+  spacing and layout stay in `:root`. `tokens.css` defines `--surface-texture`,
+  `--theme-radius` and `--theme-clip` per theme. texture is per-theme: the root provides the scanline, cyberpunk
   layers two horizontal scanline passes, the seasonal themes substitute their
   own weaves, and
   `truth to materials` and `bluesky` set none. cyberpunk cuts its top left and
@@ -591,6 +595,9 @@ the october set in a pre-hydration script; update both together.
   and `dead leaves` 2px; the rest are square. `theme-effects.css` hides the
   square frame ticks on shaped themes and keeps clip paths off focusable
   controls.
+- high contrast's `--line` is `light-dark(#3a3a3a, #c8c8c8)`, so the frame and
+  interactive boundaries stay above 3:1 against both the card sheet and the page
+  while black/white surfaces and the ≥7:1 text policy are unchanged.
 - high contrast is an opt-in pass over the chosen theme, never a theme itself:
   `data-contrast="high"` on the root (and on each preview half) re-declares the
   surface, ink, line and accent tokens with `light-dark()` in

@@ -168,7 +168,7 @@
 }
 
 .b-card-back__index {
-  color: var(--text-link);
+  color: var(--ink);
   font-size: var(--step-5);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;

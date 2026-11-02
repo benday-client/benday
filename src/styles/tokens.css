@@ -41,17 +41,37 @@
   --blue-deep: oklch(0.343251 0.106106 268.4206);
   --rust: oklch(0.587724 0.13924 37.9482);
   --acid: oklch(0.826716 0.118573 122.8326);
+  --shadow: oklch(0 0 none);
+  --noise-opacity: 0.055;
+  --scan-opacity: 0.2;
+  --selection-ink: oklch(0.138644 0.007745 255.5217);
+
+  --topbar-height: 42px;
+  --card-width: 100%;
+  --card-min-height: 320px;
+  --deck-gap: var(--space-3);
+  --page-gutter: var(--space-4);
+  --radius: 0;
+
+  --z-base: 1;
+  --z-topbar: 20;
+  --z-dialog: 100;
+}
+
+/* shared effect and signature defaults: one rule for the document and every
+   nested theme scope, placed before the individual theme blocks so a family's
+   own values (and the preview half's theme) still win. root-only typography,
+   spacing and layout stay in :root above. */
+:root,
+[data-theme] {
+  /* a family that names no second accent pair keeps these, and a nested scope
+     resets to them before its own block */
   --accent-2: var(--blue);
   --accent-3: var(--acid);
   --accent-4: var(--blue-hot);
   --accent-5: var(--rust);
-  --shadow: oklch(0 0 none);
   --neon: transparent;
   --neon-alt: transparent;
-
-  --noise-opacity: 0.055;
-  --scan-opacity: 0.2;
-  --selection-ink: oklch(0.138644 0.007745 255.5217);
 
   /* shared surface texture: the paper scanline every card starts from */
   --surface-texture: repeating-linear-gradient(
@@ -65,10 +85,10 @@
   --theme-clip: none;
 
   /* theme signature plumbing: one head hatch, one head rule, one edge style
-     per family. the base frame head ships this hatch; a theme family restates
-     only the tokens whose mark it changes, so a card reads as itself without a
-     second component. everything here mixes palette tokens, never raw colours,
-     so high contrast can strip the decoration without losing the palette. */
+     per family. a theme family restates only the tokens whose mark it changes,
+     so a card reads as itself without a second component. everything here mixes
+     palette tokens, never raw colours, so high contrast can strip the
+     decoration without losing the palette. */
   --head-image: repeating-linear-gradient(
     90deg,
     transparent 0 5px,
@@ -80,17 +100,6 @@
   --body-inset: none;
   --card-shadow: 0 0 0 0 transparent;
   --frame-rule: 1px solid var(--line);
-
-  --topbar-height: 42px;
-  --card-width: 100%;
-  --card-min-height: 320px;
-  --deck-gap: var(--space-3);
-  --page-gutter: var(--space-4);
-  --radius: 0;
-
-  --z-base: 1;
-  --z-topbar: 20;
-  --z-dialog: 100;
 }
 
 /* void owns the root defaults, but a nested void scope (the system preview)
@@ -529,12 +538,12 @@
   color-scheme: light;
 
   --void: oklch(0.940471 0.026153 90.1529);
-  --paper: oklch(0.911846 0.031131 86.4932);
-  --panel: oklch(0.879519 0.038697 85.3632);
-  --panel-raised: oklch(0.94182 0.028078 86.6808);
   --ink: oklch(0.290064 0.018302 88.8327);
   --ink-dim: oklch(0.403542 0.028592 88.2966);
   --ink-faint: oklch(0.480922 0.033964 87.5556);
+  --paper: oklch(0.911846 0.031131 86.4932);
+  --panel: oklch(0.879519 0.038697 85.3632);
+  --panel-raised: oklch(0.94182 0.028078 86.6808);
   --line: oklch(0.800766 0.044482 83.1874);
   --line-strong: oklch(0.579097 0.05553 81.2061);
   --shadow: oklch(0.501716 0.040832 83.5429);

@@ -233,7 +233,7 @@ for (const theme of THEMES) {
  * may be a `var()` alias, so a probe element is the only way to read what the
  * cascade actually computed for that scope.
  */
-function scopedRoleColor(scope: Element, property: '--text-muted' | '--text-link'): string {
+function scopedRoleColor(scope: Element, property: string): string {
   const probe = document.createElement('span')
   probe.style.color = `var(${property})`
   scope.append(probe)
@@ -587,3 +587,48 @@ function notificationRow(id: string): NotificationModel {
     indexedAt: '2026-10-29T12:00:00.000Z',
   }
 }
+
+/* high contrast boundaries ------------------------------------------- */
+
+describe('high contrast boundaries', () => {
+  it('draws the frame and the outline control at 3:1 on their surfaces', () => {
+    for (const [theme, scheme] of [
+      ['bone', 'light'],
+      ['void', 'dark'],
+    ] as const) {
+      document.documentElement.dataset['theme'] = theme
+      document.documentElement.dataset['contrast'] = 'high'
+      const { container, unmount } = render(
+        <Frame label="frame" meta="now">
+          <Button variant="outline" onClick={() => {}}>
+            action
+          </Button>
+        </Frame>,
+      )
+      try {
+        const frame = must(container.querySelector('.b-frame'))
+        const frameStyle = getComputedStyle(frame)
+        const border = parseColor(frameStyle.borderTopColor)
+        // the frame edge sits between the card sheet and the page behind it
+        for (const role of ['--paper', '--void']) {
+          const surface = parseColor(scopedRoleColor(frame, role))
+          expect(
+            contrast(border, surface),
+            `${scheme}: frame edge on ${role}`,
+          ).toBeGreaterThanOrEqual(3)
+        }
+
+        const button = must(container.querySelector('.b-button--outline'))
+        const buttonBorder = parseColor(getComputedStyle(button).borderTopColor)
+        const buttonSurface = parseColor(scopedRoleColor(button, '--paper'))
+        expect(
+          contrast(buttonBorder, buttonSurface),
+          `${scheme}: outline edge`,
+        ).toBeGreaterThanOrEqual(3)
+      } finally {
+        unmount()
+      }
+    }
+    document.documentElement.dataset['contrast'] = 'normal'
+  })
+})

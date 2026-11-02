@@ -2,40 +2,6 @@
    load after the base sheets: these are token-driven overrides, not a new
    component convention. */
 
-/* system preview is two theme scopes inside the active theme's html.
-   reset inherited custom properties here; each half's [data-theme] block
-   overrides what that theme actually defines. */
-:where(.b-theme-preview__half) {
-  --accent-2: var(--blue);
-  --accent-3: var(--acid);
-  --accent-4: var(--blue-hot);
-  --accent-5: var(--rust);
-  --neon: transparent;
-  --neon-alt: transparent;
-  --surface-texture: repeating-linear-gradient(
-    0deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
-  );
-  --theme-radius: 0px;
-  --theme-clip: none;
-  /* signature tokens reset to the base mark, so the half's own [data-theme]
-     block decides what it adds and the embedding page never stamps it */
-  --head-image: repeating-linear-gradient(
-    90deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--line) 55%, transparent) 5px 6px
-  );
-  --head-rule: 1px solid var(--line);
-  --head-glow: none;
-  --card-edge-style: solid;
-  --body-inset: none;
-  /* a zero shadow, not none: family rules append to this value, and `none`
-     would make the whole composed shadow list invalid */
-  --card-shadow: 0 0 0 0 transparent;
-  --frame-rule: 1px solid var(--line);
-}
-
 /* motion language ----------------------------------------------------
    one transition, per-family values. the paper themes rise, the quiet dark
    themes sit still and fade, the seasonal four settle with a tilt, truth to
@@ -109,16 +75,8 @@
    fallbacks. only borders, fills and marks keep the raw accent: text uses
    the readable roles, so a quiet accent never becomes quiet copy. */
 
-.b-post-card__comments-label {
-  color: var(--ink);
-}
-
 .b-post-card__comment-author:hover {
   color: var(--text-link);
-}
-
-.b-post-card__comment-likes {
-  color: var(--ink);
 }
 
 .b-embed--quote {
@@ -139,15 +97,6 @@
 
 .b-tag--accent {
   border-color: color-mix(in srgb, var(--accent-4) 55%, var(--line));
-  color: var(--ink);
-}
-
-.b-card-back__hint {
-  color: var(--ink);
-}
-
-.b-card-back__index {
-  color: var(--ink);
 }
 
 .b-theme-preview__link {
@@ -490,7 +439,7 @@
   --ink: light-dark(#000000, #ffffff);
   --ink-dim: light-dark(#3a3a3a, #c8c8c8);
   --ink-faint: light-dark(#4f4f4f, #b0b0b0);
-  --line: #767676;
+  --line: light-dark(#3a3a3a, #c8c8c8);
   --line-strong: light-dark(#000000, #ffffff);
   --blue: light-dark(#003a8c, #9ecbff);
   --blue-hot: light-dark(#002b66, #b7dbff);
