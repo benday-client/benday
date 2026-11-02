@@ -451,7 +451,7 @@ route semantics without adding chrome.
 
 ## verification
 
-- 513 offline unit tests across 54 files cover byte-offset facets and anchor
+- `pnpm test` runs the offline jsdom suite (vitest), which covers byte-offset facets and anchor
   composition, post/embed/profile model mapping, hidden-author moderation
   pruning (nested quotes, reply contexts, whole reply subtrees, and the entry cap
   counted after pruning), viewer-scoped author and search page chains,
@@ -466,8 +466,8 @@ route semantics without adding chrome.
   guard, per-account read privacy, notification mapping and seen cursors, the
   viewer-state proxy and feed feedback, theme schemes, and settings file
   import/export including high contrast
-- 29 native-browser tests across 7 files drive real chromium with trusted keys
-  and real layout: deck focus and scroll memory across axes, shifted-arrow
+- `pnpm test:browser` drives real chromium through `vitest.browser.config.ts` with
+  trusted keys and real layout: deck focus and scroll memory across axes, shifted-arrow
   consumption with native text selection at both boundaries, the thread's outer
   versus card scrolling, mode-card and card-back geometry at desktop and mobile
   widths, the split theme preview, media fallbacks keeping their declared space,
