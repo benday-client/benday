@@ -7,6 +7,7 @@ import { memoryLocation } from 'wouter/memory-location'
 import { useSettings } from '../lib/store'
 import type { PostModel, ThreadModel } from '../lib/types'
 import { useUiStore } from '../lib/ui'
+import { resolveSrgbColor } from '../test/colors'
 import { longPostFixture, postFixture, threadFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
 import { renderStage } from '../test/stage'
@@ -434,7 +435,12 @@ describe('ThreadView inline reply', () => {
     const rail = getComputedStyle(nested, '::before')
     expect(rail.content).not.toBe('none')
     expect(rail.width).toBe('1px')
-    expect(rail.backgroundColor).toBe('rgb(41, 48, 57)')
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--line)'
+    document.body.append(probe)
+    const lineColor = getComputedStyle(probe).color
+    probe.remove()
+    expect(resolveSrgbColor(rail.backgroundColor)).toEqual(resolveSrgbColor(lineColor))
     expect(rail.left).toBe('-8px')
     expect(Number.parseFloat(getComputedStyle(nested).marginLeft)).toBeGreaterThan(0)
   })

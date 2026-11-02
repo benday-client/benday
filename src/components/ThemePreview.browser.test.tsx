@@ -614,14 +614,21 @@ function clipOf(selector: string, root: ParentNode = document): string {
   return styleOf(selector, root).clipPath
 }
 
-/** A theme token as the `rgb()` serialization a computed gradient contains. */
-function paintedTokenCss(name: string, scope: Element = document.documentElement): string {
+/** A theme token as the pixels it paints, in any real scope. */
+function paintedThemeToken(name: string, scope: Element = document.documentElement): SrgbColor {
   const probe = document.createElement('span')
   probe.style.color = `var(${name})`
   scope.append(probe)
   const color = getComputedStyle(probe).color
   probe.remove()
-  return cssRgb(color)
+  return resolveSrgbColor(color)
+}
+
+/** Every colour a computed gradient carries, as painted pixels. */
+function gradientColors(value: string): SrgbColor[] {
+  return [...value.matchAll(/(?:oklch|rgba?|color)\([^)]*\)|#[0-9a-f]{3,8}/gi)].map((match) =>
+    resolveSrgbColor(match[0]),
+  )
 }
 
 /** Compares two colours as painted pixels, never as a serialization format. */
@@ -923,8 +930,7 @@ describe('cyberpunk corner language', () => {
     const bracket = getComputedStyle(frame, '::after')
     expect(bracket.content).not.toBe('none')
     expect(positions(bracket.backgroundPosition)).toEqual(['100 0', '100 0', '0 100', '0 100'])
-    const accent = paintedTokenCss('--blue')
-    expect(bracket.backgroundImage).toContain(accent)
+    expect(gradientColors(bracket.backgroundImage)).toContainEqual(paintedThemeToken('--blue'))
     expect(bracket.backgroundImage).not.toContain('light-dark')
     expect(bracket.backgroundImage).not.toContain('var(')
 
@@ -1050,8 +1056,9 @@ describe('cyberpunk corner language', () => {
     expect(positions(diagonal.backgroundPosition)).toEqual(['0 0', '100 100'])
     const bracket = getComputedStyle(cyberHalf, '::after')
     expect(positions(bracket.backgroundPosition)).toEqual(['100 0', '100 0', '0 100', '0 100'])
-    const accent = paintedTokenCss('--blue', cyberHalf)
-    expect(bracket.backgroundImage).toContain(accent)
+    expect(gradientColors(bracket.backgroundImage)).toContainEqual(
+      paintedThemeToken('--blue', cyberHalf),
+    )
   })
 
   it('leaves the focusable chrome and the settings rows square', () => {
@@ -1183,9 +1190,10 @@ describe('cyberpunk corner language', () => {
       'transparent',
     )
     expect(getComputedStyle(frame, '::before').content).not.toBe('none')
-    const accent = cssRgb('#9ecbff')
-    expect(getComputedStyle(frame, '::after').backgroundImage).toContain(accent)
-    expect(getComputedStyle(frame, '::after').backgroundImage).not.toContain('rgb(255, 42, 109)')
+    const corners = getComputedStyle(frame, '::after').backgroundImage
+    expect(gradientColors(corners)).toContainEqual(painted('#9ecbff'))
+    // the neon left the palette, so no corner may paint it any more
+    expect(gradientColors(corners)).not.toContainEqual(painted('#ff2a6d'))
 
     // the browser context asks for reduced motion, so the boot never runs
     const body = must(container.querySelector<HTMLElement>('.b-dialog__body'))

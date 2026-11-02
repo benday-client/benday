@@ -480,6 +480,14 @@ still owns the surface.
 
 ## themes and seasonal availability
 
+the eleven benday originals express their literal colours in oklch at whole
+8-bit paint equivalence, and keep each family's measured surface order rather
+than one flattened ramp — cottagecore's panel is below its paper, cyberpunk's
+page and paper are the same black, truth to materials keeps wider achromatic
+steps. exactly neutral source colours use C=0 with hue none, and low-chroma
+tints are never rounded to neutral. sourced palettes, aliases, transparency and
+`color-mix()` stay in their own notation.
+
 `src/lib/themes.ts` is the source of truth for the eighteen themes: display
 order, lowercase labels, dark/light scheme, october-only season, image effect,
 meta colour and the picker groups. a sourced palette names its pinned upstream
