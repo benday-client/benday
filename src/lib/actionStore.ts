@@ -218,34 +218,34 @@ function readViewer(uris: readonly string[], session: number): Promise<void> {
   return Promise.all(shared).then(() => undefined)
 }
 
-export const useActionStore = create<ActionState>()((set, get) => ({
-  byUri: {},
-
-  syncViewer: async (uris) => {
-    const session = generation
-    const now = Date.now()
-    const stale = [...new Set(uris)].filter((uri) => needsViewerRead(entryFor(get(), uri), now))
-    if (stale.length === 0) return
-
-    try {
-      await readViewer(stale, session)
-    } catch {
-      // viewer state is an enhancement here; a toggle reports its own failure
-    }
-  },
-
-  toggleLike: async (post) => {
+export const useActionStore = create<ActionState>()((set, get) => {
+  /**
+   * One side of the interaction state. Both sides share the canonical read,
+   * the one-write-per-uri lock and the freshness policy, but each keeps its own
+   * fields and its own write, branch by branch, so neither drifts into the
+   * other's patch.
+   */
+  const toggleSide = async (post: PostModel, side: Side): Promise<void> => {
     const session = generation
     const entry = entryFor(get(), post.uri)
     if (entry.pending !== null || inFlight.has(post.uri)) return
 
     // only the requested kind is captured before awaiting; the uri comes from
     // the entry once its state is confirmed
-    const intent: ActionPending = entry.likeUri === null ? 'like' : 'unlike'
+    const entryUri = side === 'like' ? entry.likeUri : entry.repostUri
+    const intent: ActionPending =
+      side === 'like'
+        ? entryUri === null
+          ? 'like'
+          : 'unlike'
+        : entryUri === null
+          ? 'repost'
+          : 'unrepost'
     const token = startBusy(inFlight, post.uri)
 
     try {
-      if (sideStale(entry.likeCheckedAt, Date.now())) {
+      const checkedAt = side === 'like' ? entry.likeCheckedAt : entry.repostCheckedAt
+      if (sideStale(checkedAt, Date.now())) {
         try {
           await readViewer([post.uri], session)
         } catch {
@@ -259,7 +259,9 @@ export const useActionStore = create<ActionState>()((set, get) => ({
         if (generation !== session) return
 
         const refreshed = entryFor(get(), post.uri)
-        if (sideStale(refreshed.likeCheckedAt, Date.now())) {
+        const refreshedChecked =
+          side === 'like' ? refreshed.likeCheckedAt : refreshed.repostCheckedAt
+        if (sideStale(refreshedChecked, Date.now())) {
           set((state) => ({
             byUri: withEntry(state, post.uri, { pending: null, error: UNCONFIRMED_STATE }),
           }))
@@ -269,8 +271,8 @@ export const useActionStore = create<ActionState>()((set, get) => ({
       }
 
       const current = entryFor(get(), post.uri)
-      const likeUri = current.likeUri
-      const satisfied = intent === 'like' ? likeUri !== null : likeUri === null
+      const uri = side === 'like' ? current.likeUri : current.repostUri
+      const satisfied = intent === 'like' || intent === 'repost' ? uri !== null : uri === null
       if (satisfied) {
         // the requested state already holds, so there is nothing to write. A
         // failure alert from an earlier attempt must not outlive the click
@@ -281,19 +283,33 @@ export const useActionStore = create<ActionState>()((set, get) => ({
         return
       }
 
-      const rebased = rebaseCount(current.likeBaseCount, current.likeDelta, post.likeCount)
+      const rebased =
+        side === 'like'
+          ? rebaseCount(current.likeBaseCount, current.likeDelta, post.likeCount)
+          : rebaseCount(current.repostBaseCount, current.repostDelta, post.repostCount)
       set((state) => ({
-        byUri: withEntry(state, post.uri, {
-          pending: intent,
-          error: null,
-          likeBaseCount: rebased.base,
-          likeDelta: rebased.delta,
-        }),
+        byUri: withEntry(
+          state,
+          post.uri,
+          side === 'like'
+            ? {
+                pending: intent,
+                error: null,
+                likeBaseCount: rebased.base,
+                likeDelta: rebased.delta,
+              }
+            : {
+                pending: intent,
+                error: null,
+                repostBaseCount: rebased.base,
+                repostDelta: rebased.delta,
+              },
+        ),
       }))
 
       if (intent === 'unlike') {
-        if (likeUri === null) return
-        await unlikePost(likeUri)
+        if (uri === null) return
+        await unlikePost(uri)
         if (generation !== session) return
         const now = Date.now()
         set((state) => ({
@@ -308,86 +324,9 @@ export const useActionStore = create<ActionState>()((set, get) => ({
         return
       }
 
-      const result = await likePost(post)
-      if (generation !== session) return
-      const now = Date.now()
-      set((state) => ({
-        byUri: withEntry(state, post.uri, {
-          likeUri: result.uri,
-          likeDelta: entryFor(state, post.uri).likeDelta + 1,
-          pending: null,
-          likeCheckedAt: now,
-          likeWrittenAt: now,
-        }),
-      }))
-    } catch (error) {
-      if (generation !== session) return
-      set((state) => ({
-        byUri: withEntry(state, post.uri, {
-          pending: null,
-          error: errorInfo(error).detail,
-        }),
-      }))
-    } finally {
-      endBusy(inFlight, post.uri, token)
-    }
-  },
-
-  toggleRepost: async (post) => {
-    const session = generation
-    const entry = entryFor(get(), post.uri)
-    if (entry.pending !== null || inFlight.has(post.uri)) return
-
-    const intent: ActionPending = entry.repostUri === null ? 'repost' : 'unrepost'
-    const token = startBusy(inFlight, post.uri)
-
-    try {
-      if (sideStale(entry.repostCheckedAt, Date.now())) {
-        try {
-          await readViewer([post.uri], session)
-        } catch {
-          if (generation === session) {
-            set((state) => ({
-              byUri: withEntry(state, post.uri, { pending: null, error: UNCONFIRMED_STATE }),
-            }))
-          }
-          return
-        }
-        if (generation !== session) return
-
-        const refreshed = entryFor(get(), post.uri)
-        if (sideStale(refreshed.repostCheckedAt, Date.now())) {
-          set((state) => ({
-            byUri: withEntry(state, post.uri, { pending: null, error: UNCONFIRMED_STATE }),
-          }))
-          return
-        }
-        if (refreshed.pending !== null) return
-      }
-
-      const current = entryFor(get(), post.uri)
-      const repostUri = current.repostUri
-      const satisfied = intent === 'repost' ? repostUri !== null : repostUri === null
-      if (satisfied) {
-        if (current.error !== null) {
-          set((state) => ({ byUri: withEntry(state, post.uri, { error: null }) }))
-        }
-        return
-      }
-
-      const rebased = rebaseCount(current.repostBaseCount, current.repostDelta, post.repostCount)
-      set((state) => ({
-        byUri: withEntry(state, post.uri, {
-          pending: intent,
-          error: null,
-          repostBaseCount: rebased.base,
-          repostDelta: rebased.delta,
-        }),
-      }))
-
       if (intent === 'unrepost') {
-        if (repostUri === null) return
-        await unrepostPost(repostUri)
+        if (uri === null) return
+        await unrepostPost(uri)
         if (generation !== session) return
         const now = Date.now()
         set((state) => ({
@@ -402,17 +341,29 @@ export const useActionStore = create<ActionState>()((set, get) => ({
         return
       }
 
-      const result = await repostPost(post)
+      const result = side === 'like' ? await likePost(post) : await repostPost(post)
       if (generation !== session) return
       const now = Date.now()
       set((state) => ({
-        byUri: withEntry(state, post.uri, {
-          repostUri: result.uri,
-          repostDelta: entryFor(state, post.uri).repostDelta + 1,
-          pending: null,
-          repostCheckedAt: now,
-          repostWrittenAt: now,
-        }),
+        byUri: withEntry(
+          state,
+          post.uri,
+          side === 'like'
+            ? {
+                likeUri: result.uri,
+                likeDelta: entryFor(state, post.uri).likeDelta + 1,
+                pending: null,
+                likeCheckedAt: now,
+                likeWrittenAt: now,
+              }
+            : {
+                repostUri: result.uri,
+                repostDelta: entryFor(state, post.uri).repostDelta + 1,
+                pending: null,
+                repostCheckedAt: now,
+                repostWrittenAt: now,
+              },
+        ),
       }))
     } catch (error) {
       if (generation !== session) return
@@ -425,15 +376,40 @@ export const useActionStore = create<ActionState>()((set, get) => ({
     } finally {
       endBusy(inFlight, post.uri, token)
     }
-  },
+  }
 
-  reset: () => {
-    generation += 1
-    inFlight.clear()
-    reads.clear()
-    set({ byUri: {} })
-  },
-}))
+  return {
+    byUri: {},
+
+    syncViewer: async (uris) => {
+      const session = generation
+      const now = Date.now()
+      const stale = [...new Set(uris)].filter((uri) => needsViewerRead(entryFor(get(), uri), now))
+      if (stale.length === 0) return
+
+      try {
+        await readViewer(stale, session)
+      } catch {
+        // viewer state is an enhancement here; a toggle reports its own failure
+      }
+    },
+
+    toggleLike: async (post) => {
+      await toggleSide(post, 'like')
+    },
+
+    toggleRepost: async (post) => {
+      await toggleSide(post, 'repost')
+    },
+
+    reset: () => {
+      generation += 1
+      inFlight.clear()
+      reads.clear()
+      set({ byUri: {} })
+    },
+  }
+})
 
 useAuthStore.subscribe((state, previous) => {
   const signedOut = previous.status === 'authenticated' && state.status !== 'authenticated'

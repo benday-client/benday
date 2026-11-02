@@ -238,6 +238,46 @@ describe('action store freshness', () => {
     expect(entry()?.error).toBeNull()
   })
 
+  it('keeps the count honest after a rejected repost and lets another attempt succeed', async () => {
+    vi.mocked(fetchViewerStates).mockResolvedValue(viewerState({}))
+    vi.mocked(repostPost).mockRejectedValueOnce(new Error('repost refused'))
+
+    await useActionStore.getState().toggleRepost(POST)
+
+    expect(entry()?.repostUri).toBeNull()
+    expect(entry()?.repostDelta).toBe(0)
+    expect(entry()?.pending).toBeNull()
+    expect(entry()?.error).toBe('repost refused')
+
+    vi.mocked(repostPost).mockResolvedValue({ uri: 'at://repost/1', cid: 'cid' })
+    await useActionStore.getState().toggleRepost(POST)
+
+    expect(entry()?.repostUri).toBe('at://repost/1')
+    expect(entry()?.repostDelta).toBe(1)
+    expect(entry()?.error).toBeNull()
+  })
+
+  it('locks the repost side against a repeated click while a write is in flight', async () => {
+    vi.mocked(fetchViewerStates).mockResolvedValue(viewerState({}))
+    const gate = Promise.withResolvers<{ uri: string; cid: string }>()
+    vi.mocked(repostPost).mockReturnValue(gate.promise)
+
+    const first = useActionStore.getState().toggleRepost(POST)
+    await vi.waitFor(() => expect(repostPost).toHaveBeenCalledTimes(1))
+
+    // the write is in flight, so a second click has nothing to add
+    await useActionStore.getState().toggleRepost(POST)
+
+    expect(repostPost).toHaveBeenCalledTimes(1)
+    expect(entry()?.pending).toBe('repost')
+
+    gate.resolve({ uri: 'at://repost/1', cid: 'cid' })
+    await first
+
+    expect(entry()?.repostUri).toBe('at://repost/1')
+    expect(entry()?.pending).toBeNull()
+  })
+
   it('keeps the count honest after a rejected like and lets another attempt succeed', async () => {
     vi.mocked(fetchViewerStates).mockResolvedValue(viewerState({}))
     vi.mocked(likePost).mockRejectedValueOnce(new Error('like refused'))

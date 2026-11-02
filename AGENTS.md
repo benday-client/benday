@@ -62,7 +62,9 @@ ownership by concern:
 - `src/lib/actions.ts` owns writes: like, repost, reply, quote, post, delete and
   feed feedback. `src/lib/profileActions.ts` owns follow, mute, hide reposts,
   block and per-account activity subscriptions. `src/lib/actionStore.ts` owns
-  optimistic like/repost state.
+  optimistic like/repost state through one shared side transition: the same
+  canonical read, one-write-per-uri lock and freshness policy, with side-specific
+  fields and writes.
 - `src/lib/queries.ts` owns invalidation policy; `src/hooks/useBskyQueries.ts`
   owns query keys and paging. changing cache behavior means changing both.
 - `src/hooks/useRetainedError.ts` owns the first-load retry notice retention
