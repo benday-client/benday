@@ -271,7 +271,8 @@
   font-size: var(--step--2);
 }
 
-.b-compose__suggestion-note {
+.b-compose__suggestion-note,
+.b-compose__storage {
   margin: 0;
   padding: var(--space-1) var(--space-2);
   color: var(--text-muted);

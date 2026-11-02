@@ -33,6 +33,9 @@ import { useTagSuggestions } from './useTagSuggestions'
 export const MAX_GRAPHEMES = 300
 const EXCERPT_LENGTH = 120
 const SAVE_DELAY = 250
+// the draft never claims durability it does not have
+const STORAGE_WARNING = 'draft storage unavailable · keep a copy before closing'
+const SENT_WARNING = 'post sent · stored draft could not be cleared'
 
 // the composer reads its own chords from the registry so the keys it claims
 // and the hints it prints can never disagree
@@ -94,6 +97,9 @@ export interface ComposeFormState {
   count: number
   overLimit: boolean
   disabled: boolean
+  sent: boolean
+  storageWarning: string | null
+  storageWarningId: string
   applySuggestion: (value: string) => void
   handleChange: (event: ChangeEvent<HTMLTextAreaElement>) => void
   handleSelect: (event: SyntheticEvent<HTMLTextAreaElement>) => void
@@ -109,24 +115,42 @@ export interface UseComposeFormOptions {
 }
 
 /**
- * One open composition owns its draft key, latest text and revision. The
- * object stays behind after the UI closes so a send that finishes late can
- * only clear the exact draft it wrote.
+ * One open composition owns its draft key, latest text and the exact snapshot
+ * it last wrote. The object stays behind after the UI closes so a send that
+ * finishes late can only clear the draft it actually owns.
  */
 interface Composition {
   key: string | null
   request: ComposeRequest | null
   text: string
-  revision: string | null
+  // the record this composition last wrote successfully
+  saved: { revision: string; text: string } | null
+  // what was on disk when it opened, kept even when a later claim fails
+  readSnapshot: { revision: string | null; text: string } | null
+  // false when the store could not be read at all
+  readAvailable: boolean
   closed: boolean
   submitted: boolean
   timer: number | null
+  // reports a write outcome to the surface that still owns this composition
+  report: (ok: boolean) => void
 }
 
 function flushComposition(composition: Composition): void {
   if (composition.closed || composition.submitted) return
   if (composition.key === null) return
-  composition.revision = writeDraft(composition.key, composition.text)
+
+  const result = writeDraft(composition.key, composition.text)
+  if (!result.ok) {
+    composition.report(false)
+    return
+  }
+
+  composition.readAvailable = true
+  // a failed write preserves the older snapshot; an accepted deletion clears it
+  composition.saved =
+    result.revision === null ? null : { revision: result.revision, text: composition.text }
+  composition.report(true)
 }
 
 function closeComposition(composition: Composition | null): void {
@@ -160,6 +184,8 @@ export function useComposeForm({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cursor, setCursor] = useState(0)
+  const [sent, setSent] = useState(false)
+  const [storageWarning, setStorageWarning] = useState<string | null>(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const [limitStatus, setLimitStatus] = useState('')
@@ -169,6 +195,7 @@ export function useComposeForm({
   const listboxId = useId()
   const countId = useId()
   const errorId = useId()
+  const storageWarningId = useId()
   const compositionRef = useRef<Composition | null>(null)
   const draftKey =
     request === null ? null : draftKeyFor(request.mode, request.post?.uri ?? null, accountDid)
@@ -178,29 +205,57 @@ export function useComposeForm({
     // switches before the autosave delay elapses
     closeComposition(compositionRef.current)
 
-    const nextText = open && draftKey !== null ? readDraft(draftKey) : ''
+    const draft = open && draftKey !== null ? readDraft(draftKey) : null
+    const nextText = draft?.text ?? ''
     const composition: Composition | null = open
       ? {
           key: draftKey,
           request,
           text: nextText,
-          revision: null,
+          saved: null,
+          readSnapshot:
+            draft?.available === true && nextText.trim().length > 0
+              ? { revision: draft.revision, text: nextText }
+              : null,
+          readAvailable: draft === null || draft.available,
           closed: false,
           submitted: false,
           timer: null,
+          report: () => undefined,
         }
       : null
 
-    // claiming a fresh revision on open keeps a late send from clearing a
-    // draft that was reopened after it, even with identical text
-    if (composition !== null && composition.key !== null && nextText.trim().length > 0) {
-      composition.revision = writeDraft(composition.key, nextText)
+    let warning: string | null = null
+    if (composition !== null && draft !== null) {
+      const owner = composition
+      // only the composition still on screen may say anything about storage
+      owner.report = (ok) => {
+        if (compositionRef.current !== owner || owner.closed) return
+        setStorageWarning(ok ? null : STORAGE_WARNING)
+      }
+      if (!draft.available) warning = STORAGE_WARNING
+
+      // claiming a fresh revision on open keeps a late send from clearing a
+      // draft that was reopened after it, even with identical text; a failed
+      // claim keeps the read snapshot as the pair cleanup may clear later
+      if (owner.key !== null && owner.readSnapshot !== null) {
+        const claimed = writeDraft(owner.key, owner.text)
+        if (claimed.ok) {
+          owner.readAvailable = true
+          owner.saved =
+            claimed.revision === null ? null : { revision: claimed.revision, text: owner.text }
+        } else {
+          warning = STORAGE_WARNING
+        }
+      }
     }
     compositionRef.current = composition
 
     setText(nextText)
     setPending(false)
+    setSent(false)
     setError(null)
+    setStorageWarning(warning)
     setCursor(nextText.length)
     setSuggestOpen(false)
     setSelectedSuggestion(0)
@@ -281,7 +336,7 @@ export function useComposeForm({
   const empty = mode !== 'quote' && plain.trim().length === 0
   const overLimit = count > MAX_GRAPHEMES
   const missingTarget = mode !== 'post' && target === null
-  const disabled = pending || empty || overLimit || missingTarget
+  const disabled = pending || sent || empty || overLimit || missingTarget
 
   // the counter prints the number on every keystroke; only crossing the limit
   // is worth a spoken status, so the live region tracks the transition alone
@@ -296,7 +351,13 @@ export function useComposeForm({
   }, [overLimit])
 
   const invalid = overLimit || error !== null
-  const describedBy = error === null ? countId : `${countId} ${errorId}`
+  const describedBy = [
+    countId,
+    error === null ? null : errorId,
+    storageWarning === null ? null : storageWarningId,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(' ')
 
   const applySuggestion = (value: string) => {
     const activeToken = suggestionAt(text, cursor)
@@ -368,6 +429,9 @@ export function useComposeForm({
     event.preventDefault()
     const composition = compositionRef.current
     if (request === null || disabled || composition === null) return
+    // a form submit is not the only path here; a sent composition never sends
+    // a second post even when its primary action is disabled
+    if (composition.submitted) return
 
     const submittedRequest = request
     const sentText = composition.text
@@ -402,14 +466,34 @@ export function useComposeForm({
         await createQuote(sentText, submittedRequest.post)
       }
 
+      // the post exists now: nothing from here may send it again, and the
+      // server-derived reads are refreshed whether or not the UI survives
       composition.submitted = true
-      if (composition.key !== null) {
-        // only the exact revision this composition wrote may be cleared
-        clearDraft(composition.key, composition.revision ?? '', sentText)
-      }
       void invalidateNonFeedQueries(queryClient)
 
+      // clear the exact snapshot this composition owns. The text that was sent
+      // is not the same thing: an older autosave may carry a different body,
+      // and a failed opening claim leaves only its read snapshot behind.
+      const snapshot = composition.saved ?? composition.readSnapshot
+      let cleared = false
+      if (composition.key === null) {
+        cleared = true
+      } else if (snapshot !== null) {
+        cleared = clearDraft(composition.key, snapshot.revision, snapshot.text)
+      } else {
+        // no record was ever visible, which only proves there is none when the
+        // opening read could actually reach storage
+        cleared = composition.readAvailable
+      }
+
       active = owns()
+      if (!cleared) {
+        if (active) {
+          setSent(true)
+          setStorageWarning(SENT_WARNING)
+        }
+        return
+      }
       if (active) onClose()
     } catch (caught) {
       active = owns()
@@ -431,6 +515,9 @@ export function useComposeForm({
     text,
     pending,
     error,
+    sent,
+    storageWarning,
+    storageWarningId,
     textareaRef,
     formId,
     listboxId,

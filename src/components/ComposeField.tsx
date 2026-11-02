@@ -54,10 +54,10 @@ export function ComposeActions({ form, label }: ComposeActionsProps) {
         {form.count}/{MAX_GRAPHEMES}
       </span>
       <Button variant="ghost" onClick={form.close}>
-        cancel
+        {form.sent ? 'close' : 'cancel'}
       </Button>
       <Button type="submit" form={form.formId} variant="solid" disabled={form.disabled}>
-        {label}
+        {form.sent ? 'sent' : label}
       </Button>
     </div>
   )
@@ -108,7 +108,7 @@ export function ComposeField({ form, inputClassName }: ComposeFieldProps) {
           }
           aria-describedby={form.describedBy}
           aria-invalid={form.invalid ? true : undefined}
-          readOnly={form.pending}
+          readOnly={form.pending || form.sent}
           placeholder={composePlaceholder(form.mode)}
           value={form.text}
           onChange={form.handleChange}
@@ -163,6 +163,12 @@ export function ComposeField({ form, inputClassName }: ComposeFieldProps) {
           </span>
         </div>
       </form>
+
+      {form.storageWarning === null ? null : (
+        <p id={form.storageWarningId} className="b-compose__storage" role="status">
+          {form.storageWarning}
+        </p>
+      )}
 
       {form.error !== null ? (
         <p id={form.errorId} className="b-compose__error" role="alert">

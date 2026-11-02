@@ -136,6 +136,58 @@ function submit() {
   fireEvent.submit(form)
 }
 
+const STORAGE_WARNING = 'draft storage unavailable · keep a copy before closing'
+const SENT_WARNING = 'post sent · stored draft could not be cleared'
+
+/** Fails storage reads while the switch says so, delegating to real storage otherwise. */
+function stubStorageReads() {
+  const original = Storage.prototype.getItem
+  let failing = true
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key: string) {
+    if (failing) throw new Error('storage read denied')
+    return original.call(this, key)
+  })
+  return {
+    deny: () => {
+      failing = true
+    },
+    allow: () => {
+      failing = false
+    },
+  }
+}
+
+/** Fails `count` writes, then delegates to real storage; Infinity keeps failing. */
+function failWrites(count = Number.POSITIVE_INFINITY) {
+  const original = Storage.prototype.setItem
+  let remaining = count
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+    this: Storage,
+    key: string,
+    value: string,
+  ) {
+    if (remaining > 0) {
+      remaining -= 1
+      throw new Error('storage write denied')
+    }
+    original.call(this, key, value)
+  })
+  return {
+    allow: () => {
+      remaining = 0
+    },
+  }
+}
+
+/** Lets the autosave delay elapse, including the write it attempts. */
+async function settleAutosave() {
+  const elapsed = Promise.withResolvers<void>()
+  setTimeout(elapsed.resolve, 300)
+  await act(async () => {
+    await elapsed.promise
+  })
+}
+
 beforeEach(() => {
   useUiStore.setState({ compose: null, inlineCompose: null, dialog: null, openingPost: null })
 })
@@ -186,8 +238,10 @@ describe('ComposeDialog', () => {
     open({ mode: 'quote', post })
     type('quote draft')
 
-    expect(readDraft(draftKeyFor('reply', post.uri, null))).toBe('reply draft')
-    await waitFor(() => expect(readDraft(draftKeyFor('quote', post.uri, null))).toBe('quote draft'))
+    expect(readDraft(draftKeyFor('reply', post.uri, null)).text).toBe('reply draft')
+    await waitFor(() =>
+      expect(readDraft(draftKeyFor('quote', post.uri, null)).text).toBe('quote draft'),
+    )
   })
 
   it('restores independent drafts when the same target comes back', () => {
@@ -216,16 +270,30 @@ describe('ComposeDialog', () => {
 
     fireEvent.click(screen.getByText('cancel'))
     expect(useUiStore.getState().compose).toBeNull()
-    expect(readDraft(key)).toBe('same text')
+    const dismissed = readDraft(key)
+    expect(dismissed.available).toBe(true)
+    expect(dismissed.text).toBe('same text')
+    expect(dismissed.revision).not.toBeNull()
 
     open({ mode: 'reply', post })
     expect(screen.getByRole('textbox')).toHaveValue('same text')
+    // claiming a fresh revision on open is what protects the reopened draft
+    const reopened = readDraft(key)
+    expect(reopened.text).toBe('same text')
+    expect(reopened.revision).not.toBeNull()
+    expect(reopened.revision).not.toBe(dismissed.revision)
 
     await act(async () => {
       gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
     })
 
-    expect(readDraft(key)).toBe('same text')
+    // the late send still owns only the pair it saved, never this newer revision
+    expect(readDraft(key)).toEqual({
+      text: 'same text',
+      revision: reopened.revision,
+      available: true,
+    })
+    expect(screen.getByRole('textbox')).toHaveValue('same text')
   })
 
   it('keeps the draft and shows the failure when a send is rejected', async () => {
@@ -240,7 +308,131 @@ describe('ComposeDialog', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('pds said no')
     expect(useUiStore.getState().compose).not.toBeNull()
-    expect(readDraft(key)).toBe('keep me')
+    expect(readDraft(key).text).toBe('keep me')
+  })
+
+  it('clears a differently worded autosave after a failed flush and a successful send', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    type('old text')
+    await waitFor(() => expect(readDraft(key).text).toBe('old text'))
+    const stored = readDraft(key)
+
+    const writes = failWrites()
+    type('new text')
+    await settleAutosave()
+    // the failed save kept the older record instead of deleting or rewriting it
+    expect(readDraft(key)).toEqual(stored)
+
+    const gate = awaitingGate()
+    submit()
+    await waitFor(() => expect(createReply).toHaveBeenCalledWith('new text', post))
+
+    writes.allow()
+    await act(async () => {
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+    })
+
+    await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
+    expect(readDraft(key)).toEqual({ text: '', revision: null, available: true })
+  })
+
+  it('clears the original read snapshot when the claim and the final flush both fail', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    localStorage.setItem(
+      'benday:drafts',
+      JSON.stringify({ [key]: { text: 'seeded draft', updatedAt: 1, revision: 'known-revision' } }),
+    )
+    const writes = failWrites(2)
+
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    expect(screen.getByRole('textbox')).toHaveValue('seeded draft')
+    expect(screen.getByText(STORAGE_WARNING)).toHaveAttribute('role', 'status')
+
+    const gate = awaitingGate()
+    type('submitted text')
+    submit()
+    await waitFor(() => expect(createReply).toHaveBeenCalledWith('submitted text', post))
+    // no write was accepted, so the original record is still what cleanup owns
+    expect(readDraft(key).text).toBe('seeded draft')
+
+    writes.allow()
+    await act(async () => {
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+    })
+
+    await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
+    expect(readDraft(key)).toEqual({ text: '', revision: null, available: true })
+  })
+
+  it('warns while storage is unreadable, then clears the warning after a later save', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    const reads = stubStorageReads()
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    const warning = screen.getByText(STORAGE_WARNING)
+    expect(warning).toHaveAttribute('role', 'status')
+    const input = screen.getByRole('textbox')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
+
+    type('held copy')
+    await settleAutosave()
+    expect(useUiStore.getState().compose).not.toBeNull()
+    expect(screen.getByText(STORAGE_WARNING)).toBeInTheDocument()
+
+    reads.allow()
+    type('held copy and more')
+    await waitFor(() => expect(screen.queryByText(STORAGE_WARNING)).toBeNull())
+    expect(readDraft(key).text).toBe('held copy and more')
+
+    // storage failed again before closing; closing stays allowed regardless
+    reads.deny()
+    fireEvent.click(screen.getByText('cancel'))
+    expect(useUiStore.getState().compose).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('keeps a sent composition open without a second post when cleanup fails', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    renderComposer()
+    open({ mode: 'reply', post })
+
+    type('outbox')
+    await waitFor(() => expect(readDraft(key).text).toBe('outbox'))
+    const stored = readDraft(key)
+
+    failWrites()
+    submit()
+    const warning = await screen.findByText(SENT_WARNING)
+    expect(warning).toHaveAttribute('role', 'status')
+    expect(useUiStore.getState().compose).not.toBeNull()
+
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox')
+    expect(input.readOnly).toBe(true)
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
+    expect(screen.getByRole('button', { name: 'sent' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'close' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'reply' })).toBeNull()
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    await act(async () => undefined)
+    expect(createReply).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+    expect(useUiStore.getState().compose).toBeNull()
+    await act(async () => undefined)
+    // closing a submitted composition never autosaves it again
+    expect(createReply).toHaveBeenCalledTimes(1)
+    expect(readDraft(key)).toEqual(stored)
   })
 
   it('counts graphemes for the submission boundary', async () => {

@@ -1,11 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { clearDraft, draftKeyFor, readDraft, writeDraft } from './drafts'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { clearDraft, type DraftWrite, draftKeyFor, readDraft, writeDraft } from './drafts'
 
 const KEY = 'benday:drafts'
 
 function stored(): Record<string, unknown> {
   const raw = localStorage.getItem(KEY)
   return raw === null ? {} : (JSON.parse(raw) as Record<string, unknown>)
+}
+
+/** The revision a successful write returned, or a failed fixture. */
+function revisionOf(write: DraftWrite): string {
+  if (!write.ok || write.revision === null) throw new Error('draft was not written')
+  return write.revision
 }
 
 describe('drafts', () => {
@@ -23,9 +29,13 @@ describe('drafts', () => {
     writeDraft(reply, 'a reply')
     writeDraft(quote, 'a quote')
 
-    expect(readDraft(post)).toBe('a post')
-    expect(readDraft(reply)).toBe('a reply')
-    expect(readDraft(quote)).toBe('a quote')
+    expect(readDraft(post)).toEqual({
+      text: 'a post',
+      revision: expect.any(String),
+      available: true,
+    })
+    expect(readDraft(reply).text).toBe('a reply')
+    expect(readDraft(quote).text).toBe('a quote')
   })
 
   it('scopes drafts by account', () => {
@@ -35,44 +45,74 @@ describe('drafts', () => {
     writeDraft(first, 'first account')
     writeDraft(second, 'second account')
 
-    expect(readDraft(first)).toBe('first account')
-    expect(readDraft(second)).toBe('second account')
-    expect(readDraft(draftKeyFor('post', null, 'did:plc:third'))).toBe('')
+    expect(readDraft(first).text).toBe('first account')
+    expect(readDraft(second).text).toBe('second account')
+    expect(readDraft(draftKeyFor('post', null, 'did:plc:third'))).toEqual({
+      text: '',
+      revision: null,
+      available: true,
+    })
   })
 
   it('returns a fresh lowercase hex revision per write', () => {
-    const first = writeDraft('post', 'hello')
-    const second = writeDraft('post', 'hello')
+    const first = revisionOf(writeDraft('post', 'hello'))
+    const second = revisionOf(writeDraft('post', 'hello'))
 
     expect(first).toMatch(/^[0-9a-f]{32}$/)
     expect(second).toMatch(/^[0-9a-f]{32}$/)
     expect(first).not.toBe(second)
   })
 
-  it('removes empty drafts without leaving a revision', () => {
+  it('accepts an empty deletion and reports the deletion revision as null', () => {
     writeDraft('post', 'hello')
-    expect(writeDraft('post', '   ')).toBeNull()
-    expect(readDraft('post')).toBe('')
+    expect(writeDraft('post', '   ')).toEqual({ ok: true, revision: null })
+    expect(readDraft('post')).toEqual({ text: '', revision: null, available: true })
+
+    // deleting an entry that is not there has nothing to fail about
+    expect(writeDraft('missing', '')).toEqual({ ok: true, revision: null })
   })
 
   it('clears only the exact revision and text it wrote', () => {
-    const revision = writeDraft('post', 'hello')
-    if (revision === null) throw new Error('draft was not written')
+    const revision = revisionOf(writeDraft('post', 'hello'))
 
-    clearDraft('post', revision, 'different text')
-    expect(readDraft('post')).toBe('hello')
+    // a mismatched body or revision leaves the newer record alone, and counts
+    // as nothing left to clear
+    expect(clearDraft('post', revision, 'different text')).toBe(true)
+    expect(readDraft('post').text).toBe('hello')
 
-    clearDraft('post', 'f'.repeat(32), 'hello')
-    expect(readDraft('post')).toBe('hello')
+    expect(clearDraft('post', 'f'.repeat(32), 'hello')).toBe(true)
+    expect(readDraft('post').text).toBe('hello')
 
     writeDraft('post', 'newer draft')
-    clearDraft('post', revision, 'hello')
-    expect(readDraft('post')).toBe('newer draft')
+    expect(clearDraft('post', revision, 'hello')).toBe(true)
+    expect(readDraft('post').text).toBe('newer draft')
 
-    const latest = writeDraft('post', 'newer draft')
-    if (latest === null) throw new Error('draft was not written')
-    clearDraft('post', latest, 'newer draft')
-    expect(readDraft('post')).toBe('')
+    const latest = revisionOf(writeDraft('post', 'newer draft'))
+    expect(clearDraft('post', latest, 'newer draft')).toBe(true)
+    expect(readDraft('post').text).toBe('')
+    // an absent record is already clear
+    expect(clearDraft('post', null, 'anything')).toBe(true)
+  })
+
+  it('normalizes a legacy draft without a revision to null', () => {
+    localStorage.setItem(KEY, JSON.stringify({ post: { text: 'legacy draft', updatedAt: 1 } }))
+
+    expect(readDraft('post')).toEqual({ text: 'legacy draft', revision: null, available: true })
+    expect(clearDraft('post', null, 'legacy draft')).toBe(true)
+    expect(readDraft('post').text).toBe('')
+  })
+
+  it('treats malformed json and a wrong top-level value as an empty map', () => {
+    localStorage.setItem(KEY, '{not json')
+    expect(readDraft('post')).toEqual({ text: '', revision: null, available: true })
+    expect(writeDraft('post', 'fresh')).toEqual({ ok: true, revision: expect.any(String) })
+    expect(readDraft('post').text).toBe('fresh')
+
+    localStorage.setItem(KEY, JSON.stringify([{ text: 'nope', updatedAt: 1 }]))
+    expect(readDraft('0')).toEqual({ text: '', revision: null, available: true })
+    writeDraft('post', 'again')
+    expect(readDraft('post').text).toBe('again')
+    expect(Array.isArray(stored())).toBe(false)
   })
 
   it('drops malformed entries before eviction and keeps the newest drafts', () => {
@@ -94,19 +134,48 @@ describe('drafts', () => {
 
     const kept = stored()
     expect(Object.keys(kept)).toHaveLength(20)
-    expect(readDraft('draft-0')).toBe('')
-    expect(readDraft('draft-1')).toBe('')
-    expect(readDraft('draft-3')).toBe('text-3')
-    expect(readDraft('draft-22')).toBe('text-22')
+    expect(readDraft('draft-0').text).toBe('')
+    expect(readDraft('draft-1').text).toBe('')
+    expect(readDraft('draft-3').text).toBe('text-3')
+    expect(readDraft('draft-22').text).toBe('text-22')
     expect(kept['null-entry']).toBeUndefined()
     expect(kept['array-entry']).toBeUndefined()
   })
 
-  it('ignores a stored array instead of treating it as drafts', () => {
-    localStorage.setItem(KEY, JSON.stringify([{ text: 'nope', updatedAt: 1 }]))
-    expect(readDraft('0')).toBe('')
-    writeDraft('post', 'fresh')
-    expect(readDraft('post')).toBe('fresh')
-    expect(Array.isArray(stored())).toBe(false)
+  it('reports an unreadable store instead of inventing an empty map', () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage blocked')
+    })
+
+    expect(readDraft('post')).toEqual({ text: '', revision: null, available: false })
+    expect(writeDraft('post', 'hello')).toEqual({ ok: false })
+    expect(clearDraft('post', null, 'hello')).toBe(false)
+    // a write must never replace every other account's drafts with an empty map
+    expect(setItem).not.toHaveBeenCalled()
+  })
+
+  it('reports a write the store rejects and leaves the previous record intact', () => {
+    writeDraft('post', 'kept')
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    expect(writeDraft('post', 'replacement')).toEqual({ ok: false })
+    expect(writeDraft('other', '')).toEqual({ ok: true, revision: null })
+
+    vi.restoreAllMocks()
+    expect(readDraft('post').text).toBe('kept')
+  })
+
+  it('reports a deletion the store rejects', () => {
+    const revision = revisionOf(writeDraft('post', 'hello'))
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    expect(clearDraft('post', revision, 'hello')).toBe(false)
+    vi.restoreAllMocks()
+    expect(readDraft('post').text).toBe('hello')
   })
 })

@@ -401,11 +401,26 @@ card when the appview supplied a parent.
 
 draft keys are `${owner}:post` or `${owner}:${mode}:${targetUri}` with
 `owner = accountDid ?? 'signed-out'`; at most 20 drafts are retained, oldest
-evicted first. each write returns a fresh 32-hex `revision`, and a successful
-send only removes the record when both revision and text still match what that
-composition wrote. every open composition owns its own key, text, revision and
-timer, so switching request, closing or unmounting flushes the text it holds and
-a dismissed send cannot clear a draft that was reopened after it.
+evicted first. `readDraft` returns `{ text, revision, available }` and
+`writeDraft` returns `{ ok: true, revision }` or `{ ok: false }`:
+`src/lib/drafts.ts` never reports an inaccessible store as an empty map,
+because a following write would then erase every other account's drafts.
+malformed json or a wrong top-level value stays an available empty map, and a
+map write that storage rejects reports failure instead of pretending success.
+
+every open composition owns its key, text, timer and two snapshots: `saved`
+(the revision and text of its last accepted write) and `readSnapshot` (what was
+on disk when it opened, kept even when the opening claim fails). a successful
+send clears exactly `saved ?? readSnapshot`, never the submitted text, so an
+older autosave with different wording is still removed and a same-text reopened
+draft is not. when no snapshot exists, cleanup succeeds only if the opening
+read was available. cleanup failure keeps the composition open with `sent`:
+the textarea is read-only, submission never sends twice, the primary action
+reads `sent`, the ghost action reads `close`, and closing it never autosaves
+again. a storage read or save failure shows
+`draft storage unavailable · keep a copy before closing` and a successful save
+clears it; state from a storage result is only reported while that composition
+still owns the surface.
 
 ## dialogs and form ownership
 

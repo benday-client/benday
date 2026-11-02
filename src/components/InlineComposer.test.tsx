@@ -73,6 +73,52 @@ function composeForm(): HTMLFormElement {
   return form
 }
 
+const STORAGE_WARNING = 'draft storage unavailable · keep a copy before closing'
+const SENT_WARNING = 'post sent · stored draft could not be cleared'
+
+/** Fails storage reads while the switch says so, delegating to real storage otherwise. */
+function stubStorageReads() {
+  const original = Storage.prototype.getItem
+  let failing = true
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key: string) {
+    if (failing) throw new Error('storage read denied')
+    return original.call(this, key)
+  })
+  return {
+    allow: () => {
+      failing = false
+    },
+  }
+}
+
+/** Fails every write until the switch allows real storage again. */
+function failWrites() {
+  const original = Storage.prototype.setItem
+  let failing = true
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+    this: Storage,
+    key: string,
+    value: string,
+  ) {
+    if (failing) throw new Error('storage write denied')
+    original.call(this, key, value)
+  })
+  return {
+    allow: () => {
+      failing = false
+    },
+  }
+}
+
+/** Lets the autosave delay elapse, including the write it attempts. */
+async function settleAutosave() {
+  const elapsed = Promise.withResolvers<void>()
+  setTimeout(elapsed.resolve, 300)
+  await act(async () => {
+    await elapsed.promise
+  })
+}
+
 beforeEach(() => {
   useUiStore.setState({ compose: null, inlineCompose: null, dialog: null })
 })
@@ -92,7 +138,7 @@ describe('InlineComposer', () => {
       </QueryClientProvider>,
     )
 
-    expect(readDraft(draftKeyFor('reply', first.uri, null))).toBe('for the first')
+    expect(readDraft(draftKeyFor('reply', first.uri, null)).text).toBe('for the first')
     expect(screen.getByRole('textbox')).toHaveValue('')
   })
 
@@ -103,7 +149,7 @@ describe('InlineComposer', () => {
 
     view.unmount()
 
-    expect(readDraft(draftKeyFor('quote', post.uri, null))).toBe('unfinished')
+    expect(readDraft(draftKeyFor('quote', post.uri, null)).text).toBe('unfinished')
   })
 
   it('wears the shared composer head and actions', () => {
@@ -199,7 +245,7 @@ describe('InlineComposer', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('pds said no')
     expect(onClose).not.toHaveBeenCalled()
-    expect(readDraft(key)).toBe('keep me')
+    expect(readDraft(key).text).toBe('keep me')
   })
 
   it.each(ALL_MODES)('exposes a native %s dock textbox', (mode) => {
@@ -256,5 +302,60 @@ describe('InlineComposer', () => {
 
     fireEvent.keyDown(dock, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('warns while dock storage is unreadable and clears it after a later save', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('reply', post.uri, null)
+    const reads = stubStorageReads()
+    const { onClose } = renderDock({ mode: 'reply', post })
+
+    const input = screen.getByRole('textbox')
+    const warning = screen.getByText(STORAGE_WARNING)
+    expect(warning).toHaveAttribute('role', 'status')
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
+
+    fireEvent.change(input, { target: { value: 'held copy' } })
+    await settleAutosave()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByText(STORAGE_WARNING)).toBeInTheDocument()
+
+    reads.allow()
+    fireEvent.change(input, { target: { value: 'held copy and more' } })
+    await waitFor(() => expect(screen.queryByText(STORAGE_WARNING)).toBeNull())
+    expect(readDraft(key).text).toBe('held copy and more')
+  })
+
+  it('keeps a sent dock open without a second quote when cleanup fails', async () => {
+    const post = postFixture()
+    const key = draftKeyFor('quote', post.uri, null)
+    const { onClose } = renderDock({ mode: 'quote', post })
+    const input = screen.getByRole('textbox')
+    if (!(input instanceof HTMLTextAreaElement)) throw new Error('missing dock textarea')
+
+    fireEvent.change(input, { target: { value: 'outbox' } })
+    await waitFor(() => expect(readDraft(key).text).toBe('outbox'))
+    const stored = readDraft(key)
+
+    failWrites()
+    fireEvent.submit(composeForm())
+
+    const warning = await screen.findByText(SENT_WARNING)
+    expect(warning).toHaveAttribute('role', 'status')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(input.readOnly).toBe(true)
+    expect(screen.getByRole('button', { name: 'sent' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'close' })).toBeInTheDocument()
+
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
+    await act(async () => undefined)
+    expect(createQuote).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    await act(async () => undefined)
+    // closing a submitted dock never autosaves it again
+    expect(createQuote).toHaveBeenCalledTimes(1)
+    expect(readDraft(key)).toEqual(stored)
   })
 })

@@ -12,6 +12,16 @@ interface DraftRecord {
 
 type DraftMap = Record<string, DraftRecord>
 
+/** What a stored draft actually says, and whether storage could be read at all. */
+export interface DraftRead {
+  text: string
+  revision: string | null
+  available: boolean
+}
+
+/** A write that storage accepted, with its revision (null for a deletion). */
+export type DraftWrite = { ok: true; revision: string | null } | { ok: false }
+
 // a stored entry is only trusted when every field a draft needs is intact;
 // arrays and junk values are dropped before they can reach an eviction count
 function isDraftRecord(value: unknown): value is DraftRecord {
@@ -22,21 +32,35 @@ function isDraftRecord(value: unknown): value is DraftRecord {
   return true
 }
 
-function readMap(): DraftMap {
+/**
+ * The stored map, or null when storage itself cannot be read. A malformed json
+ * body or a wrong top-level shape is an available empty map: there are no
+ * readable entries to preserve, and a following write must not be blocked by
+ * them. Null is reserved for an inaccessible store, because treating that as
+ * empty would let a save erase every other account's draft.
+ */
+function readMap(): DraftMap | null {
+  let raw: string | null
   try {
-    const raw = localStorage.getItem(DRAFTS_KEY)
-    if (raw === null) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed)) return {}
+    raw = localStorage.getItem(DRAFTS_KEY)
+  } catch {
+    return null
+  }
+  if (raw === null) return {}
 
-    const drafts: DraftMap = {}
-    for (const [key, value] of Object.entries(parsed)) {
-      if (isDraftRecord(value)) drafts[key] = value
-    }
-    return drafts
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
   } catch {
     return {}
   }
+  if (!isRecord(parsed)) return {}
+
+  const drafts: DraftMap = {}
+  for (const [key, value] of Object.entries(parsed)) {
+    if (isDraftRecord(value)) drafts[key] = value
+  }
+  return drafts
 }
 
 function writeMap(drafts: DraftMap): boolean {
@@ -74,39 +98,55 @@ export function draftKeyFor(
   return mode === 'post' ? `${owner}:post` : `${owner}:${mode}:${targetUri ?? ''}`
 }
 
-export function readDraft(key: string): string {
-  const record = readMap()[key]
-  return typeof record?.text === 'string' ? record.text : ''
+/** Reads one entry, reporting an unreadable store instead of pretending it is empty. */
+export function readDraft(key: string): DraftRead {
+  const drafts = readMap()
+  if (drafts === null) return { text: '', revision: null, available: false }
+
+  const record = drafts[key]
+  if (record === undefined) return { text: '', revision: null, available: true }
+  // a legacy entry has no revision; null is the honest snapshot of that
+  return { text: record.text, revision: record.revision ?? null, available: true }
 }
 
 /**
- * Writes nonempty text under a fresh revision and returns it once storage
- * accepts the write. Empty text deletes the entry and returns null.
+ * Writes nonempty text under a fresh revision. Empty text deletes the entry.
+ * A deletion of an already absent entry is accepted without storage access
+ * beyond the read, and a failed read or write is reported rather than hidden.
  */
-export function writeDraft(key: string, text: string): string | null {
+export function writeDraft(key: string, text: string): DraftWrite {
   const drafts = readMap()
+  if (drafts === null) return { ok: false }
+
   if (text.trim().length === 0) {
-    if (!(key in drafts)) return null
+    if (!(key in drafts)) return { ok: true, revision: null }
     delete drafts[key]
-    writeMap(drafts)
-    return null
+    return writeMap(drafts) ? { ok: true, revision: null } : { ok: false }
   }
 
   const revision = freshRevision()
   drafts[key] = { text, updatedAt: Date.now(), revision }
   evictOldest(drafts)
-  return writeMap(drafts) ? revision : null
+  return writeMap(drafts) ? { ok: true, revision } : { ok: false }
 }
 
 /**
  * Removes the draft only when it is still the exact record this composition
- * wrote. A newer revision or different text means someone else owns it now.
+ * wrote. An absent, newer or nonmatching entry has nothing left to clear, so
+ * it counts as a success; false means storage could not be read or written.
  */
-export function clearDraft(key: string, expectedRevision: string, expectedText: string): void {
+export function clearDraft(
+  key: string,
+  expectedRevision: string | null,
+  expectedText: string,
+): boolean {
   const drafts = readMap()
+  if (drafts === null) return false
+
   const current = drafts[key]
-  if (current === undefined) return
-  if (current.revision !== expectedRevision || current.text !== expectedText) return
+  if (current === undefined) return true
+  if ((current.revision ?? null) !== expectedRevision || current.text !== expectedText) return true
+
   delete drafts[key]
-  writeMap(drafts)
+  return writeMap(drafts)
 }
