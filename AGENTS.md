@@ -492,8 +492,10 @@ the october set in a pre-hydration script; update both together.
 - motion beyond the theme tokens: route swaps crossfade by wrapping navigation
   in `Router aroundNav` + `document.startViewTransition` with a `flushSync`
   commit, skipped entirely when the api is missing or reduced motion is
-  preferred; a superseded transition is skipped so two quick navigations settle
-  on the newest route. the media viewer stage fades and lifts in, and deck items
+  preferred; every navigation — animated, direct, or the router unmounting —
+  increments the transition sequence and skips the queued one, so two quick
+  navigations settle on the newest route and a released update callback can
+  never commit a superseded route. the media viewer stage fades and lifts in, and deck items
   fade in when they replace skeletons. every one of them lives inside
   `prefers-reduced-motion: no-preference`.
 - per-family motion lives in `theme-effects.css` as tokens: `--motion-lift`,

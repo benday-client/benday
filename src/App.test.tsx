@@ -523,3 +523,89 @@ describe('portal restore notice', () => {
     }
   })
 })
+
+describe('route transitions', () => {
+  interface TransitionStub {
+    updates: Array<() => void>
+    skips: number
+  }
+
+  function stubTransitions(): TransitionStub {
+    const stub: TransitionStub = { updates: [], skips: 0 }
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (update: () => void) => {
+        stub.updates.push(update)
+        return {
+          skipTransition: () => {
+            stub.skips += 1
+          },
+          finished: Promise.resolve(),
+        }
+      },
+    })
+    return stub
+  }
+
+  function clearTransitions(): void {
+    Reflect.deleteProperty(document, 'startViewTransition')
+  }
+
+  function feedRoutes(): void {
+    const transport = installTransport()
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [] }),
+    )
+    routeDiscoverMetadata(transport)
+  }
+
+  it('drops a queued transition update when a newer direct navigation arrives', async () => {
+    const stub = stubTransitions()
+    feedRoutes()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      await screen.findByLabelText('discover cards')
+
+      fireEvent.click(screen.getByLabelText('search'))
+      expect(stub.updates).toHaveLength(1)
+      // the animated update is queued, so the route has not moved yet
+      expect(window.location.pathname).toBe('/feed')
+
+      // the brand link navigates to the route already on screen: a direct nav
+      fireEvent.click(screen.getByLabelText('benday home'))
+      expect(stub.skips).toBe(1)
+
+      act(() => {
+        stub.updates[0]?.()
+      })
+
+      // the superseded callback cannot commit the search route over the feed
+      expect(window.location.pathname).toBe('/feed')
+    } finally {
+      view.unmount()
+      clearTransitions()
+    }
+  })
+
+  it('invalidates a queued transition update on unmount', async () => {
+    const stub = stubTransitions()
+    feedRoutes()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      await screen.findByLabelText('discover cards')
+      fireEvent.click(screen.getByLabelText('search'))
+      expect(stub.updates).toHaveLength(1)
+
+      view.unmount()
+      act(() => {
+        stub.updates[0]?.()
+      })
+
+      expect(window.location.pathname).toBe('/feed')
+    } finally {
+      clearTransitions()
+    }
+  })
+})

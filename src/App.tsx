@@ -65,6 +65,14 @@ function TransitionRouter({ children }: { children: ReactNode }) {
   const sequenceRef = useRef(0)
 
   const aroundNav = useCallback<AroundNavHandler>((navigate, to, options) => {
+    // every navigation, animated or direct, invalidates the transition it
+    // supersedes: a queued update callback must not commit an older route on
+    // top of the one that replaced it
+    const sequence = ++sequenceRef.current
+    const superseded = pendingRef.current
+    pendingRef.current = null
+    superseded?.skipTransition()
+
     const target = to.split('?')[0] ?? to
     const animates =
       target !== window.location.pathname &&
@@ -79,10 +87,6 @@ function TransitionRouter({ children }: { children: ReactNode }) {
       return
     }
 
-    const sequence = ++sequenceRef.current
-    // a newer navigation owns the screen, so the older snapshot is dropped
-    // instead of finishing on top of the route that replaced it
-    pendingRef.current?.skipTransition()
     const transition = document.startViewTransition(() => {
       if (sequence !== sequenceRef.current) return
       // the commit has to happen inside the transition, or the browser
@@ -92,9 +96,20 @@ function TransitionRouter({ children }: { children: ReactNode }) {
       })
     })
     pendingRef.current = transition
-    void transition.finished.then(() => {
+    const release = () => {
       if (pendingRef.current === transition) pendingRef.current = null
-    })
+    }
+    // a skipped transition normally fulfills; settle the slot either way
+    void transition.finished.then(release, release)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      // an unmounted router must not let a queued update commit a dead route
+      sequenceRef.current += 1
+      pendingRef.current?.skipTransition()
+      pendingRef.current = null
+    }
   }, [])
 
   return <Router aroundNav={aroundNav}>{children}</Router>
