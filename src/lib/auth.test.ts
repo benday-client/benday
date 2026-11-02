@@ -308,6 +308,87 @@ describe('sign-out', () => {
   })
 })
 
+describe('restore', () => {
+  const REFRESH = 'https://pds.test/xrpc/com.atproto.server.refreshSession'
+
+  function storeSession(session: AtpSessionData = ALICE): void {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ service: 'https://pds.test', session }))
+  }
+
+  it('keeps a session the sdk retained through a transient server failure', async () => {
+    storeSession()
+    transport.route('POST', REFRESH, () =>
+      jsonResponse(500, { error: 'InternalServerError', message: 'pds fell over' }),
+    )
+
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'authenticated',
+      account: { did: 'did:plc:alice', handle: 'alice.test' },
+      pending: false,
+    })
+    expect(getAuthAgent()?.did).toBe('did:plc:alice')
+    expect(storedSession()).toEqual(ALICE)
+  })
+
+  it('keeps a session when the refresh throws without a response', async () => {
+    storeSession()
+    transport.route('POST', REFRESH, () => {
+      throw new Error('offline')
+    })
+
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState().status).toBe('authenticated')
+    expect(getAuthAgent()?.did).toBe('did:plc:alice')
+    expect(storedSession()).toEqual(ALICE)
+  })
+
+  it('keeps a session on a non-expiry rejection', async () => {
+    storeSession()
+    transport.route('POST', REFRESH, () =>
+      jsonResponse(400, { error: 'InvalidRequest', message: 'try later' }),
+    )
+
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState().status).toBe('authenticated')
+    expect(storedSession()).toEqual(ALICE)
+  })
+
+  it('clears the stored auth the sdk reports as expired', async () => {
+    storeSession()
+    transport.route('POST', REFRESH, () =>
+      jsonResponse(401, { error: 'ExpiredToken', message: 'expired' }),
+    )
+
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', account: null })
+    expect(getAuthAgent()).toBeNull()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+  })
+
+  it('does not let a stale restore replace a newer sign-in', async () => {
+    storeSession()
+    const gate = deferred<Response>()
+    transport.route('POST', REFRESH, () => gate.promise)
+
+    const restoring = useAuthStore.getState().restore()
+    await signInAs(BOB)
+    gate.resolve(jsonResponse(200, { ...ALICE, accessJwt: 'alice-access-2' }))
+    await restoring
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'authenticated',
+      account: { did: 'did:plc:bob' },
+    })
+    expect(getAuthAgent()?.did).toBe('did:plc:bob')
+    expect(storedSession()?.did).toBe('did:plc:bob')
+  })
+})
+
 describe('did discovery', () => {
   function serveDocument(
     id: string,

@@ -294,23 +294,31 @@ export const useAuthStore = create<AuthState>()((set) => ({
       const candidate = makeAgent(stored.service)
       try {
         await candidate.resumeSession(stored.session)
-        if (epoch !== authEpoch) return
-        const session = candidate.session
-        activeAgent = candidate
-        if (session !== undefined) writeStoredAuth(stored.service, session)
-        set({
-          status: 'authenticated',
-          account: session ? { did: session.did, handle: session.handle } : null,
-          pending: false,
-          error: null,
-        })
-      } catch (error) {
-        if (epoch !== authEpoch) return
-        const info = errorInfo(error)
-        if (info.status === 400 || info.status === 401) clearStoredAuth()
+      } catch {
+        // The sdk decides validity, not this caller: a transient, network or
+        // non-expiry server failure leaves its session in place, and only a
+        // rejected refresh token clears it. A 400 is not proof of expiry.
+      }
+      if (epoch !== authEpoch) return
+
+      // A retained session is still a usable session: commit the same agent so
+      // a later refresh can succeed instead of turning the account anonymous.
+      const session = candidate.session
+      if (session === undefined) {
+        clearStoredAuth()
         activeAgent = null
         set({ status: 'anonymous', account: null, pending: false, error: null })
+        return
       }
+
+      activeAgent = candidate
+      writeStoredAuth(stored.service, session)
+      set({
+        status: 'authenticated',
+        account: { did: session.did, handle: session.handle },
+        pending: false,
+        error: null,
+      })
     })()
 
     try {
