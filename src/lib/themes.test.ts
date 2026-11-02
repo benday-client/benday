@@ -6,7 +6,6 @@ import {
   resolveTheme,
   SEASON_MONTHS,
   SEASONAL_THEMES,
-  THEME_COLORS,
   THEME_EFFECTS,
   THEME_GROUPS,
   THEME_LABELS,
@@ -155,36 +154,6 @@ describe('themes', () => {
     for (const theme of HALLOWEEN_THEMES) {
       expect(THEME_EFFECTS[theme]).toBe('grunge')
     }
-  })
-
-  it('maps every theme to a browser meta color', () => {
-    expect(THEME_COLORS).toEqual({
-      void: '#07090c',
-      bone: '#ddd6c6',
-      oxide: '#0b0705',
-      phosphor: '#040906',
-      'catppuccin-mocha': '#1e1e2e',
-      'catppuccin-latte': '#eff1f5',
-      dracula: '#282a36',
-      atom: '#282c34',
-      'github-dark': '#0d1117',
-      'github-light': '#ffffff',
-      cyberpunk: '#05030d',
-      cottagecore: '#f2ebd8',
-      'truth-to-materials': '#858585',
-      bluesky: '#fbfdff',
-      'pumpkin-ember': '#160b06',
-      'toxic-midnight': '#05100b',
-      'candy-crypt': '#1a0a1e',
-      'dead-leaves': '#120f08',
-    })
-    expect(Object.keys(THEME_COLORS)).toHaveLength(THEMES.length)
-  })
-
-  it('keeps the meta colors distinct and well formed', () => {
-    const colors = THEMES.map((theme) => THEME_COLORS[theme])
-    for (const color of colors) expect(color).toMatch(/^#[0-9a-f]{6}$/)
-    expect(new Set(colors).size).toBe(THEMES.length)
   })
 })
 

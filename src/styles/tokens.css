@@ -225,7 +225,7 @@
 [data-theme="catppuccin-mocha"] {
   color-scheme: dark;
 
-  /* catppuccin mocha, upstream palette: base is the pane and card surface,
+  /* catppuccin mocha, upstream palette 1.8.0: base is the pane and card surface,
      mantle/crust are the recessed chrome, surface0-2 the raised trim, and
      text/subtext0/overlay1 the three text steps. links/functions are blue,
      the active border is lavender and the default accent pair is mauve/pink. */
@@ -266,7 +266,7 @@
 [data-theme="catppuccin-latte"] {
   color-scheme: light;
 
-  /* catppuccin latte, upstream light palette. the same roles as mocha, read
+  /* catppuccin latte, upstream palette 1.8.0. the same roles as mocha, read
      from the light end: text/subtext for type, blue for links, mauve for the
      accent pair, red for errors and green for success. */
   --void: #eff1f5;
@@ -306,7 +306,8 @@
 [data-theme="dracula"] {
   color-scheme: dark;
 
-  /* dracula classic, upstream palette and UI variants: background is both the
+  /* dracula classic, the canonical swatches from the dracula contribute page
+     (selection #44475A, not the page's inconsistent current-line label): background is both the
      page and the editor pane, BGDark is the sidebar/status chrome, BGLight the
      floating interaction surface and BGDarker the shadow. purple is the primary
      accent, pink the secondary; comment is the muted text/line-number tone.
@@ -340,6 +341,11 @@
 [data-theme="atom"] {
   color-scheme: dark;
 
+  /* atom one dark: background, foreground and the core syntax accents come
+     from the one-dark-syntax color file. --ink is the existing benday UI
+     adaptation #d7dae0, one step brighter than upstream's #abb2bf for reading
+     contrast; upstream's foreground is kept as --ink-dim. the surface steps
+     and decoration tokens are benday derivations, not upstream swatches. */
   --void: #282c34;
   --ink: #d7dae0;
   --ink-dim: #abb2bf;
@@ -371,21 +377,25 @@
 [data-theme="github-dark"] {
   color-scheme: dark;
 
+  /* github: roles below follow the functional theme of @primer/primitives
+     11.10.0 (commit 3f51f80), the pinned release this palette was checked
+     against. blue-deep is a benday derivative of --blue, not an upstream
+     swatch; the decoration tokens further down are adaptations too. */
   --void: #0d1117;
-  --ink: #e6edf3;
-  --ink-dim: #8b949e;
-  --ink-faint: #6e7681;
+  --ink: #f0f6fc;
+  --ink-dim: #9198a1;
+  --ink-faint: #656c76;
   --paper: #010409;
-  --panel: #161b22;
-  --panel-raised: #21262d;
-  --line: #30363d;
-  --line-strong: #484f58;
+  --panel: #151b23;
+  --panel-raised: #212830;
+  --line: #3d444d;
+  --line-strong: #656c76;
   --blue: #58a6ff;
   --blue-hot: #79c0ff;
-  --blue-deep: #173b64;
+  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
   --rust: #f85149;
   --acid: #3fb950;
-  --accent-2: #bc8cff;
+  --accent-2: #be8fff;
   --accent-3: #d29922;
   --accent-4: #39c5cf;
   --accent-5: #db61a2;
@@ -406,15 +416,17 @@
 [data-theme="github-light"] {
   color-scheme: light;
 
+  /* github: the same pinned @primer/primitives 11.10.0 release, read from its
+     light functional theme. */
   --void: #ffffff;
   --ink: #1f2328;
-  --ink-dim: #57606a;
+  --ink-dim: #59636e;
   --ink-faint: #818b98;
   --paper: #f6f8fa;
   --panel: #f6f8fa;
-  --panel-raised: #eaeef2;
-  --line: #d0d7de;
-  --line-strong: #8c959f;
+  --panel-raised: #eff2f5;
+  --line: #d1d9e0;
+  --line-strong: #818b98;
   --blue: #0969da;
   --blue-hot: #0550ae;
   --blue-deep: #ddf4ff;
@@ -607,25 +619,30 @@
 [data-theme="bluesky"] {
   color-scheme: light;
 
-  --void: #fbfdff;
+  /* bluesky: roles are @bsky.app/alf 0.2.1's light palette (palette.ts), mapped
+     contrast_25/0/50/100/1000 for the surfaces and type, contrast_800/600/300
+     for the muted steps, primary_500/600/100/300 for the action roles and
+     negative_600/positive_700 for state. the selection foreground stays white
+     and the geometry stays flat. */
+  --void: #f9fafb;
   --ink: #000000;
-  --ink-dim: #3c4b5d;
-  --ink-faint: #64748b;
+  --ink-dim: #313f54;
+  --ink-faint: #526580;
   --paper: #ffffff;
-  --panel: #f1f5f9;
-  --panel-raised: #e8eef5;
-  --line: #d0d9e3;
-  --line-strong: #99a8b8;
-  --blue: #0085ff;
-  --blue-hot: #0066cc;
-  --blue-deep: #cce6ff;
-  --rust: #d43b2f;
-  --acid: #1f7a4d;
-  --accent-2: #0085ff;
-  --accent-3: #0a7ea4;
-  --accent-4: #00a8e8;
-  --accent-5: #5b7083;
-  --shadow: #b7c5d0;
+  --panel: #eff2f6;
+  --panel-raised: #dce2ea;
+  --line: #dce2ea;
+  --line-strong: #a5b2c5;
+  --blue: #006aff;
+  --blue-hot: #0059d6;
+  --blue-deep: #cce1ff;
+  --rust: #ca123d;
+  --acid: #036d38;
+  --accent-2: #006aff;
+  --accent-3: #0059d6;
+  --accent-4: #75afff;
+  --accent-5: #405168;
+  --shadow: #c0cad8;
 
   --noise-opacity: 0;
   --scan-opacity: 0;

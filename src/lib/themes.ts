@@ -132,6 +132,8 @@ export const THEME_GROUPS: readonly {
   { scheme: 'light', themes: THEMES.filter((theme) => THEME_SCHEMES[theme] === 'light') },
 ]
 
+// the chrome colour each theme's page paints. it is the same value as that
+// theme's --void; keep index.html's pre-hydration table in step with it.
 export const THEME_COLORS: Record<Theme, string> = {
   void: '#07090c',
   bone: '#ddd6c6',
@@ -143,10 +145,10 @@ export const THEME_COLORS: Record<Theme, string> = {
   atom: '#282c34',
   'github-dark': '#0d1117',
   'github-light': '#ffffff',
-  cyberpunk: '#05030d',
+  cyberpunk: '#000000',
   cottagecore: '#f2ebd8',
   'truth-to-materials': '#858585',
-  bluesky: '#fbfdff',
+  bluesky: '#f9fafb',
   'pumpkin-ember': '#160b06',
   'toxic-midnight': '#05100b',
   'candy-crypt': '#1a0a1e',

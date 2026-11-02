@@ -482,7 +482,12 @@ still owns the surface.
 
 `src/lib/themes.ts` is the source of truth for the eighteen themes: display
 order, lowercase labels, dark/light scheme, october-only season, image effect,
-meta colour and the picker groups. `index.html` duplicates the colour table and
+meta colour and the picker groups. a sourced palette names its pinned upstream
+in `tokens.css` (catppuccin palette 1.8.0, dracula classic, one-dark-syntax,
+primer 11.10.0, bluesky ALF 0.2.1) and every adaptation (one dark's brighter
+`--ink`, github dark's `--blue-deep`, decoration tokens) is labelled as a benday
+derivative rather than an upstream swatch; the chrome colour is the painted
+`--void` and is checked against it in the browser suite. `index.html` duplicates the colour table and
 the october set in a pre-hydration script; update both together.
 
 - appearance is `light`, `dark` or `system`; `lightTheme` and `darkTheme` hold
