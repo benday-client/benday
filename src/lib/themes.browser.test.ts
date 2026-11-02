@@ -167,6 +167,26 @@ describe('benday original palettes', () => {
       expect(buckets[theme], theme).toBeGreaterThan(1)
     }
     expect(buckets['truth-to-materials']).toBe(1)
+
+    // truth to materials keeps its achromatic accents exactly neutral; only
+    // its rust/accent-3 pair carries chroma
+    for (const name of ['--blue', '--acid', '--accent-2', '--accent-4', '--accent-5']) {
+      const parsed = parseOklch(tokenValue('truth-to-materials', name))
+      expect(parsed?.c, name).toBe(0)
+      expect(parsed?.hue, name).toBeNull()
+    }
+    for (const name of ['--rust', '--accent-3']) {
+      const parsed = parseOklch(tokenValue('truth-to-materials', name))
+      expect(parsed?.c ?? 0, name).toBeGreaterThan(0)
+    }
+
+    // every original still paints at least two distinct accent colours
+    for (const theme of ORIGINALS) {
+      const painted = ['--blue', '--rust', '--acid', '--accent-3'].map((name) =>
+        JSON.stringify(paintedTokenValue(theme, name)),
+      )
+      expect(new Set(painted).size, theme).toBeGreaterThan(1)
+    }
   })
 })
 
@@ -199,7 +219,20 @@ describe('nested theme scopes', () => {
       '--surface-texture',
       '--theme-radius',
       '--theme-clip',
+      '--neon',
+      '--neon-alt',
       '--accent-2',
+      '--accent-3',
+      '--accent-4',
+      '--accent-5',
+      '--ink',
+      '--ink-dim',
+      '--ink-faint',
+      '--line',
+      '--line-strong',
+      '--paper',
+      '--void',
+      '--shadow',
     ]
     const result: Record<string, string> = {}
     for (const token of tokens) result[token] = style.getPropertyValue(token).trim()
@@ -207,14 +240,19 @@ describe('nested theme scopes', () => {
   }
 
   it('computes the same signature standalone and nested in another theme', () => {
-    for (const theme of ['void', 'bone', 'cottagecore', 'github-light', 'cyberpunk'] as const) {
+    for (const theme of THEMES) {
+      // never parent a theme under itself: cyberpunk nests under bone, every
+      // other theme nests under cyberpunk so a leaked reset token shows up
+      const parent: Theme = theme === 'cyberpunk' ? 'bone' : 'cyberpunk'
       const standalone = scope(theme)
-      const nested = scope(theme, 'cyberpunk')
+      const nested = scope(theme, parent)
       try {
-        expect(signature(nested), theme).toEqual(signature(standalone))
-        expect(paintedScopeToken(nested, '--paper')).toEqual(
-          paintedScopeToken(standalone, '--paper'),
-        )
+        expect(signature(nested), `${theme} under ${parent}`).toEqual(signature(standalone))
+        for (const token of ['--paper', '--void', '--ink', '--line', '--accent-2']) {
+          expect(paintedScopeToken(nested, token), `${theme} ${token}`).toEqual(
+            paintedScopeToken(standalone, token),
+          )
+        }
       } finally {
         standalone.remove()
         nested.parentElement?.remove()

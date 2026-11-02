@@ -1654,6 +1654,51 @@ describe('PostCard identity ownership', () => {
     expect(screen.getByRole('button', { name: 'more like this' })).toBeEnabled()
   })
 
+  it('drops clipboard and feedback completions when the same post changes account', async () => {
+    signIn()
+    const pending = Promise.withResolvers<void>()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn(() => pending.promise) },
+    })
+    const post = postFixture()
+    const { rerender } = render(cardTree(post))
+    fireEvent.keyDown(window, { key: 'y' })
+    expect(screen.queryByRole('button', { name: 'copied' })).toBeNull()
+
+    // the uri is unchanged; only the signed-in account moves, which is still a
+    // different owner for this surface
+    act(() => {
+      useAuthStore.setState({ account: { did: 'did:plc:other', handle: 'other.test' } })
+    })
+    pending.resolve()
+    await act(async () => undefined)
+    expect(screen.queryByRole('button', { name: 'copied' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'copy link' })).toBeInTheDocument()
+
+    const gate = Promise.withResolvers<void>()
+    const onFeedback = vi.fn((_post: PostModel, _event: FeedFeedbackEvent) => gate.promise)
+    const onDismiss = vi.fn()
+    rerender(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={post} focused onFeedback={onFeedback} onDismiss={onDismiss} />
+        </Router>
+      </QueryClientProvider>,
+    )
+    fireEvent.keyDown(window, { key: '-' })
+    await vi.waitFor(() => expect(onFeedback).toHaveBeenCalledTimes(1))
+    act(() => {
+      useAuthStore.setState({ account: { did: 'did:plc:test', handle: 'test.bsky.social' } })
+    })
+    gate.resolve()
+    await act(async () => undefined)
+
+    // a less signal that lands after the owner changed never dismisses
+    expect(onDismiss).not.toHaveBeenCalled()
+    expect(document.querySelector('.b-post-card__feedback-sent')).toBeNull()
+  })
+
   it('drops a delete completion from a replaced card but still invalidates reads', async () => {
     signIn()
     const gate = Promise.withResolvers<void>()

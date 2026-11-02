@@ -168,9 +168,9 @@ describe('sign-in transitions', () => {
       if (identifier === 'bob.test') return bobGate.promise
       return jsonResponse(200, sessionFor(typeof identifier === 'string' ? identifier : ''))
     })
-    const revocations: string[] = []
+    const revocations: Array<{ url: string; authorization: string | undefined }> = []
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', (request) => {
-      revocations.push(request.url)
+      revocations.push({ url: request.url, authorization: request.headers['authorization'] })
       return jsonResponse(200, {})
     })
 
@@ -179,8 +179,10 @@ describe('sign-in transitions', () => {
     bobGate.resolve(jsonResponse(200, BOB))
 
     await expect(stale).resolves.toBe(false)
-    // only the losing candidate is revoked; the committed login stays
+    // only the losing candidate is revoked; the committed login stays, which
+    // the bearer token proves: it is BOB's refresh token, not ALICE's
     expect(revocations).toHaveLength(1)
+    expect(revocations[0]?.authorization).toBe(`Bearer ${BOB.refreshJwt}`)
     expect(useAuthStore.getState()).toMatchObject({
       status: 'authenticated',
       account: { did: 'did:plc:alice' },

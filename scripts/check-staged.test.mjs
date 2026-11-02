@@ -130,6 +130,17 @@ test('rejects intent-to-add entries before installing', async () => {
   assert.match(result.stderr, /stage or remove intent-to-add entries before checking/)
 })
 
+test('checks the staged copy even when the worktree copy is valid', async () => {
+  const root = await makeRepo()
+  await writeFile(join(root, 'dep.mjs'), 'export const present = (\n')
+  stage(root, 'dep.mjs')
+  // the worktree now holds a valid file; only the broken indexed copy may run
+  await writeFile(join(root, 'dep.mjs'), 'export const present = true\n')
+
+  const result = await runChecker(root)
+  assert.notEqual(result.code, 0)
+})
+
 test('leaves the original index and worktree alone', async () => {
   const root = await makeRepo()
   stage(root, 'dep.mjs')

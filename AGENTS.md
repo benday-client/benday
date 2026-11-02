@@ -310,7 +310,7 @@ query keys and policy:
 ['search-actors', host, query]
 ['search-feeds', host, query]
 ['profile', host, actor, viewerDid | 'anonymous']
-['thread', host, uri]
+['thread', host, viewerDid | 'anonymous', uri]
 ['pinned-feeds', did]
 ['notifications', 'list', did | 'anonymous']
 ['top-comments', host, viewerDid | 'anonymous', uri]
