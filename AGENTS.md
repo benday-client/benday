@@ -458,6 +458,11 @@ still owns the surface.
   the composer and the search field: it preserves the suffix byte-for-byte,
   reuses an existing leading whitespace run (never splitting CRLF) and only adds
   a space at the end of the text.
+- `useActorSuggestions.buildSuggestions` is the single shaping rule for the
+  composer, the search field and the palette: fetched actors or tags when they
+  answered, a nonempty literal token otherwise, and nothing for an empty mention
+  or tag. arrow steps start from the clamped active row, so a settled list that
+  shrinks never wraps from an index the reader cannot see.
 
 ## themes and seasonal availability
 

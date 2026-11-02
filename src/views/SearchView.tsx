@@ -13,7 +13,12 @@ import {
   ModeCard,
   TextInput,
 } from '../components/ui'
-import { insertSuggestion, suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
+import {
+  buildSuggestions,
+  insertSuggestion,
+  suggestionAt,
+  useActorSuggestions,
+} from '../hooks/useActorSuggestions'
 import { useActorSearch, useFeedSearch, usePostFeed } from '../hooks/useBskyQueries'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
@@ -179,36 +184,7 @@ export default function SearchView() {
     token?.kind === 'tag',
   )
 
-  const suggestions =
-    token?.kind === 'tag'
-      ? (tagSuggestions.tags.length > 0
-          ? tagSuggestions.tags
-          : token.query.length > 0
-            ? [token.query]
-            : []
-        ).map((tag) => ({
-          key: `tag:${tag}`,
-          value: tag,
-          label: `#${tag}`,
-          detail: 'tag',
-        }))
-      : token?.kind === 'mention' && token.query.length > 0
-        ? actorSuggestions.suggestions.length > 0
-          ? actorSuggestions.suggestions.map((actor) => ({
-              key: actor.did,
-              value: actor.handle,
-              label: `@${actor.handle}`,
-              detail: actor.displayName,
-            }))
-          : [
-              {
-                key: 'literal-handle',
-                value: token.query,
-                label: `@${token.query}`,
-                detail: 'handle',
-              },
-            ]
-        : []
+  const suggestions = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
 
   const suggestionsPending =
     token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
@@ -518,14 +494,16 @@ export default function SearchView() {
               if (!showSuggestions) return
 
               const count = suggestions.length
+              // step from the row that is actually highlighted, not from a
+              // stale index left by a longer list
               if (event.key === 'ArrowDown' && count > 0) {
                 event.preventDefault()
-                setSelectedSuggestion((index) => (index + 1) % count)
+                setSelectedSuggestion((activeSuggestion + 1) % count)
                 return
               }
               if (event.key === 'ArrowUp' && count > 0) {
                 event.preventDefault()
-                setSelectedSuggestion((index) => (index - 1 + count) % count)
+                setSelectedSuggestion((activeSuggestion - 1 + count) % count)
                 return
               }
               if ((event.key === 'Enter' || event.key === 'Tab') && count > 0) {

@@ -8,7 +8,12 @@ import {
   useState,
 } from 'react'
 import { useLocation } from 'wouter'
-import { suggestionAt, useActorSuggestions } from '../hooks/useActorSuggestions'
+import {
+  buildSuggestions,
+  type SuggestionItem,
+  suggestionAt,
+  useActorSuggestions,
+} from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { APPVIEW_PRESETS, toAppViewTarget } from '../lib/appviews'
@@ -105,11 +110,7 @@ interface PaletteCommand {
   run: () => void
 }
 
-interface PaletteSuggestion {
-  key: string
-  value: string
-  label: string
-  detail: string
+interface PaletteSuggestion extends SuggestionItem {
   kind: 'mention' | 'tag'
 }
 
@@ -151,39 +152,11 @@ export function CommandPalette({
     token?.kind === 'tag',
   )
 
+  const shaped = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
+  // the palette is the one surface that also labels which marker an item came
+  // from, so its rows keep their own discriminant
   const suggestions: PaletteSuggestion[] =
-    token?.kind === 'tag'
-      ? (tagSuggestions.tags.length > 0
-          ? tagSuggestions.tags
-          : token.query.length > 0
-            ? [token.query]
-            : []
-        ).map((tag) => ({
-          key: `tag:${tag}`,
-          value: tag,
-          label: `#${tag}`,
-          detail: 'tag',
-          kind: 'tag' as const,
-        }))
-      : token?.kind === 'mention' && token.query.length > 0
-        ? actorSuggestions.suggestions.length > 0
-          ? actorSuggestions.suggestions.map((actor) => ({
-              key: actor.did,
-              value: actor.handle,
-              label: `@${actor.handle}`,
-              detail: actor.displayName,
-              kind: 'mention' as const,
-            }))
-          : [
-              {
-                key: 'literal-handle',
-                value: token.query,
-                label: `@${token.query}`,
-                detail: 'handle',
-                kind: 'mention' as const,
-              },
-            ]
-        : []
+    token === null ? [] : shaped.map((item) => ({ ...item, kind: token.kind }))
 
   const suggestionsPending =
     token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending

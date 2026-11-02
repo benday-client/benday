@@ -22,7 +22,9 @@ import { invalidateNonFeedQueries } from '../lib/queries'
 import type { PostModel } from '../lib/types'
 import { type ComposeMode, type ComposeRequest, useUiStore } from '../lib/ui'
 import {
+  buildSuggestions,
   insertSuggestion,
+  type SuggestionItem,
   type SuggestionToken,
   suggestionAt,
   useActorSuggestions,
@@ -66,13 +68,6 @@ function composeExcerpt(text: string): string {
   return `${excerpt}...`
 }
 
-export interface ComposeSuggestion {
-  key: string
-  value: string
-  label: string
-  detail: string
-}
-
 export interface ComposeFormState {
   mode: ComposeMode
   target: PostModel | null
@@ -90,7 +85,7 @@ export interface ComposeFormState {
   invalid: boolean
   limitStatus: string
   token: SuggestionToken | null
-  suggestions: ComposeSuggestion[]
+  suggestions: SuggestionItem[]
   suggestionsPending: boolean
   showSuggestions: boolean
   activeSuggestion: number
@@ -294,36 +289,7 @@ export function useComposeForm({
     token?.kind === 'tag',
   )
 
-  const suggestions =
-    token?.kind === 'tag'
-      ? (tagSuggestions.tags.length > 0
-          ? tagSuggestions.tags
-          : token.query.length > 0
-            ? [token.query]
-            : []
-        ).map((tag) => ({
-          key: `tag:${tag}`,
-          value: tag,
-          label: `#${tag}`,
-          detail: 'tag',
-        }))
-      : token?.kind === 'mention' && token.query.length > 0
-        ? actorSuggestions.suggestions.length > 0
-          ? actorSuggestions.suggestions.map((actor) => ({
-              key: actor.did,
-              value: actor.handle,
-              label: `@${actor.handle}`,
-              detail: actor.displayName,
-            }))
-          : [
-              {
-                key: 'literal-handle',
-                value: token.query,
-                label: `@${token.query}`,
-                detail: 'handle',
-              },
-            ]
-        : []
+  const suggestions = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
 
   const suggestionsPending =
     token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
@@ -409,8 +375,10 @@ export function useComposeForm({
     const options = suggestions.length
     if (options > 0 && matchesBinding(native, SUGGEST)) {
       event.preventDefault()
+      // step from the row the reader can see: a stale raw index from a longer
+      // list would wrap from a position that is no longer highlighted
       const step = native.key === 'ArrowDown' ? 1 : -1
-      setSelectedSuggestion((index) => (index + step + options) % options)
+      setSelectedSuggestion((activeSuggestion + step + options) % options)
       return
     }
     if (options > 0 && matchesBinding(native, ACCEPT)) {

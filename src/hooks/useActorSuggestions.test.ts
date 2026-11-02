@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildSuggestions,
   insertSuggestion,
   mentionAt,
   type SuggestionToken,
@@ -138,5 +139,40 @@ describe('insertSuggestion', () => {
       text: 'look #photography ',
       cursor: 18,
     })
+  })
+})
+
+describe('buildSuggestions', () => {
+  const token = (text: string, cursor = text.length) => tokenAt(text, cursor)
+
+  it('prefers fetched actors and falls back to the literal handle', () => {
+    const actors = [
+      { did: 'did:plc:ada', handle: 'ada.test', displayName: 'ada', avatar: null },
+      { did: 'did:plc:amir', handle: 'amir.test', displayName: 'amir', avatar: null },
+    ]
+
+    expect(buildSuggestions(token('@ad'), actors, []).map((item) => item.value)).toEqual([
+      'ada.test',
+      'amir.test',
+    ])
+    expect(buildSuggestions(token('@nobody'), [], [])).toEqual([
+      { key: 'literal-handle', value: 'nobody', label: '@nobody', detail: 'handle' },
+    ])
+  })
+
+  it('never fabricates an empty mention or tag', () => {
+    expect(buildSuggestions(token('hi @'), [], [])).toEqual([])
+    expect(buildSuggestions(token('hi #'), [], [])).toEqual([])
+    expect(buildSuggestions(null, [], [])).toEqual([])
+  })
+
+  it('prefers fetched tags and falls back to the nonempty literal', () => {
+    expect(buildSuggestions(token('#ten'), [], ['tensorpunk', 'tensorfield'])).toEqual([
+      { key: 'tag:tensorpunk', value: 'tensorpunk', label: '#tensorpunk', detail: 'tag' },
+      { key: 'tag:tensorfield', value: 'tensorfield', label: '#tensorfield', detail: 'tag' },
+    ])
+    expect(buildSuggestions(token('#ten'), [], [])).toEqual([
+      { key: 'tag:ten', value: 'ten', label: '#ten', detail: 'tag' },
+    ])
   })
 })

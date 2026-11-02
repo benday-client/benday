@@ -23,6 +23,49 @@ const TOKEN_CHAR = /[\p{L}\p{N}._-]/u
 const WHITESPACE = /\s/u
 const TRAILING_TOKEN_PUNCTUATION: Record<string, true> = { '.': true, '-': true }
 
+export interface SuggestionItem {
+  key: string
+  value: string
+  label: string
+  detail: string
+}
+
+/**
+ * The one list shape every suggestion surface shows: fetched actors or tags
+ * when they answered, a nonempty literal token otherwise, and nothing for an
+ * empty mention or tag (an empty replacement would delete the marker itself).
+ */
+export function buildSuggestions(
+  token: SuggestionToken | null,
+  actors: readonly ActorSuggestion[],
+  tags: readonly string[],
+): SuggestionItem[] {
+  if (token === null) return []
+
+  if (token.kind === 'tag') {
+    const values = tags.length > 0 ? tags : token.query.length > 0 ? [token.query] : []
+    return values.map((tag) => ({
+      key: `tag:${tag}`,
+      value: tag,
+      label: `#${tag}`,
+      detail: 'tag',
+    }))
+  }
+
+  if (token.query.length === 0) return []
+  if (actors.length === 0) {
+    return [
+      { key: 'literal-handle', value: token.query, label: `@${token.query}`, detail: 'handle' },
+    ]
+  }
+  return actors.map((actor) => ({
+    key: actor.did,
+    value: actor.handle,
+    label: `@${actor.handle}`,
+    detail: actor.displayName,
+  }))
+}
+
 export function suggestionAt(text: string, cursor: number): SuggestionToken | null {
   const before = text.slice(0, cursor)
   const match = /(^|\s)([@#])([\p{L}\p{N}._-]*)$/u.exec(before)

@@ -616,6 +616,41 @@ describe('ComposeDialog', () => {
     expect(input).not.toHaveAttribute('aria-activedescendant')
   })
 
+  it('steps from the highlighted row after the list shrinks', async () => {
+    const queryClient = createTestQueryClient()
+    const actors = (handles: string[]) =>
+      handles.map((handle) => ({
+        did: `did:plc:${handle}`,
+        handle,
+        displayName: '',
+        avatar: null,
+      }))
+    const key = ['actor-suggestions', 'https://api.bsky.app', 'a']
+    queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
+    queryClient.setQueryData(key, actors(['a1.test', 'a2.test', 'a3.test', 'a4.test', 'a5.test']))
+    renderComposer(queryClient)
+    open({ mode: 'reply', post: postFixture() })
+
+    const input = composerInput('hi @a', 5)
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(5))
+    for (let press = 0; press < 4; press += 1) {
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+    }
+    expect(screen.getAllByRole('option')[4]).toHaveAttribute('aria-selected', 'true')
+
+    // the settled list shrinks under the same token: the reader now sees the
+    // clamped last row, and an arrow must step from where the highlight is
+    act(() => {
+      queryClient.setQueryData(key, actors(['a1.test', 'a2.test', 'a3.test']))
+    })
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3))
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(input.value).toBe('hi @a2.test ')
+  })
+
   it('leaves shifted and modified accept and send keys native while options are open', async () => {
     const { input, first } = await openMentionOptions()
 

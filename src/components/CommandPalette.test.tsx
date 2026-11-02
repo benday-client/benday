@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
@@ -385,4 +385,17 @@ describe('palette jump history', () => {
 
     expect(history.at(-1)).toBe('/feed?tab=1#top')
   })
+})
+
+it('falls back to the literal handle when the typeahead has no match', async () => {
+  const { history } = renderPalette()
+  const input = screen.getByLabelText('command or jump')
+  await waitFor(() => expect(document.activeElement).toBe(input))
+
+  fireEvent.change(input, { target: { value: '@nobody.test' } })
+  const option = await screen.findByRole('option')
+  expect(option.textContent).toContain('@nobody.test')
+
+  fireEvent.keyDown(input, { key: 'Enter' })
+  expect(history.at(-1)).toBe('/profile/nobody.test')
 })
