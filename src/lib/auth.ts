@@ -3,13 +3,13 @@ import { AtpAgent } from '@atproto/api'
 import { create } from 'zustand'
 import { normalizeAppViewHost } from './appviews'
 import { errorInfo } from './errors'
+import { resolveHandleDid } from './identity'
 import { applyConfiguredLabelers } from './labelers'
 import { restoreOAuth, signInOAuth, signOutOAuth } from './oauth'
 import { isRecord } from './records'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
 
-const RESOLVE_HANDLE_URL = 'https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle'
 const FALLBACK_PDS = 'https://bsky.social'
 const REQUEST_TIMEOUT = 8000
 
@@ -136,18 +136,7 @@ function didWebDocumentUrl(did: string): string | null {
 }
 
 async function resolvePds(identifier: string): Promise<{ did: string; service: string }> {
-  const cleaned = identifier.trim().replace(/^@/, '')
-  let did: string | null = cleaned.startsWith('did:') ? cleaned : null
-
-  if (did === null) {
-    const body = await fetchJson(`${RESOLVE_HANDLE_URL}?handle=${encodeURIComponent(cleaned)}`)
-    if (!isRecord(body)) throw new Error('could not resolve that handle')
-    const resolvedDid = body['did']
-    if (typeof resolvedDid !== 'string' || !resolvedDid.startsWith('did:')) {
-      throw new Error('could not resolve that handle')
-    }
-    did = resolvedDid
-  }
+  const did = await resolveHandleDid(identifier)
 
   let service = FALLBACK_PDS
   const docUrl = did.startsWith('did:plc:')

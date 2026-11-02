@@ -54,8 +54,11 @@ ownership by concern:
   probe in `src/hooks/useAppViewProbe.ts` is the one deliberate exception and
   builds a bare agent.
 - `src/lib/auth.ts` owns the active agent, session persistence, pds resolution
-  and sign-in/sign-out. `src/lib/oauth.ts` owns the loopback portal and
-  indexedDB. do not create a second session path.
+  and sign-in/sign-out. `src/lib/identity.ts` owns the one handle-to-did
+  resolution (trim, one leading `@`, a did passes through, the public resolver
+  with its timeout) used by both the password path's pds discovery and the
+  portal's login hint. `src/lib/oauth.ts` owns the loopback portal and
+  indexedDB. do not create a second session path or a second handle resolver.
 - `src/lib/actions.ts` owns writes: like, repost, reply, quote, post, delete and
   feed feedback. `src/lib/profileActions.ts` owns follow, mute, hide reposts,
   block and per-account activity subscriptions. `src/lib/actionStore.ts` owns

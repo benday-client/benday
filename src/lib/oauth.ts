@@ -1,9 +1,8 @@
 import { Agent } from '@atproto/api'
 import type { BrowserOAuthClient, OAuthSession } from '@atproto/oauth-client-browser'
-import { isRecord } from './records'
+import { resolveHandleDid } from './identity'
 
 const HANDLE_RESOLVER = 'https://public.api.bsky.app'
-const RESOLVE_HANDLE_URL = 'https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle'
 const OAUTH_SCOPE = 'atproto transition:generic'
 
 export interface OAuthAccount {
@@ -120,29 +119,11 @@ export function restoreOAuth(): Promise<OAuthAccount | null> {
   return initPromise
 }
 
-async function resolveOAuthIdentifier(identifier: string): Promise<string> {
-  const cleaned = identifier.trim().replace(/^@/, '')
-  if (cleaned.startsWith('did:')) return cleaned
-
-  const response = await fetch(`${RESOLVE_HANDLE_URL}?handle=${encodeURIComponent(cleaned)}`, {
-    signal: AbortSignal.timeout(8000),
-  })
-  if (!response.ok) throw new Error('could not resolve that handle for the portal')
-
-  const body: unknown = await response.json()
-  if (!isRecord(body)) throw new Error('could not resolve that handle for the portal')
-  const did = body['did']
-  if (typeof did !== 'string' || !did.startsWith('did:')) {
-    throw new Error('could not resolve that handle for the portal')
-  }
-  return did
-}
-
 export async function signInOAuth(identifier: string): Promise<void> {
   const client = await getClient()
   if (client === null) throw new Error('portal sign in needs a loopback address')
 
-  const did = await resolveOAuthIdentifier(identifier)
+  const did = await resolveHandleDid(identifier)
 
   // A pending restore or a previous session must not answer for the account
   // the user is signing into now; re-init once the redirect lands.
