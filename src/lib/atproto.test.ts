@@ -773,3 +773,84 @@ describe('pinnedFeedUris', () => {
     ])
   })
 })
+
+describe('opaque post records', () => {
+  it('keeps a feed page usable when a post body is malformed', async () => {
+    const malformed = {
+      ...wirePost(1),
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 42,
+        createdAt: '2026-10-29T12:00:00.000Z',
+        // a facet with no index and a reply missing its parent cid
+        facets: [{ $type: 'app.bsky.richtext.facet#link', uri: 'https://example.com' }],
+        reply: { root: { uri: 'at://did:plc:test/app.bsky.feed.post/root' } },
+      },
+    }
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: malformed }, { post: wirePost(2) }] }),
+    )
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+
+    expect(page.posts.map((post) => post.text)).toEqual(['', 'post 2'])
+    expect(page.posts[0]).toMatchObject({
+      isReply: false,
+      replyRoot: null,
+      replyParent: null,
+      facets: [],
+    })
+  })
+
+  it('keeps a quoted post with malformed content from breaking the card', async () => {
+    const quoted = {
+      ...wirePost(1),
+      embed: {
+        $type: 'app.bsky.embed.record#view',
+        record: {
+          $type: 'app.bsky.embed.record#viewRecord',
+          uri: 'at://did:plc:test/app.bsky.feed.post/quoted',
+          cid: CID,
+          author: VISIBLE_AUTHOR,
+          value: { $type: 'app.bsky.feed.post', text: 7 },
+          indexedAt: '2026-10-29T12:00:00.000Z',
+        },
+      },
+    }
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: quoted }, { post: wirePost(2) }] }),
+    )
+
+    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+
+    expect(page.posts[0]?.embed).toMatchObject({ type: 'quote', post: { text: '' } })
+    expect(page.posts[1]?.text).toBe('post 2')
+  })
+
+  it('keeps a thread usable when the focus record is malformed', async () => {
+    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+      jsonResponse(200, {
+        thread: threadViewPost(
+          {
+            ...wirePost(1),
+            record: {
+              $type: 'app.bsky.feed.post',
+              text: null,
+              reply: { root: { uri: 'at://root' }, parent: { uri: 'at://parent' } },
+            },
+          },
+          [threadViewPost(wirePost(2))],
+        ),
+      }),
+    )
+
+    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', null)
+
+    expect(thread.entries[0]?.post.text).toBe('')
+    expect(thread.entries[0]?.post.isReply).toBe(false)
+    expect(thread.entries.map((entry) => entry.post.uri)).toEqual([
+      'at://did:plc:test/app.bsky.feed.post/1',
+      'at://did:plc:test/app.bsky.feed.post/2',
+    ])
+  })
+})

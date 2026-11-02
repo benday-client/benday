@@ -258,7 +258,12 @@ reads:
    generators can answer.
 3. `mapFeedViewPost` / `mapPostView` / `mapProfile` / `flattenThread` in
    `src/lib/model.ts` produce the view models in `src/lib/types.ts`. components
-   consume only those models.
+   consume only those models. the sdk validates the outer response, but a post
+   `record` and a quoted `value` are lexicon `unknown`: `readPostRecord`
+   projects text, facets and reply refs from unknown, and `mapFacets` validates
+   the array, each byte range, the feature list and every typed payload.
+   malformed content stays empty (or its feature is skipped) and is never
+   asserted into a full SDK record.
 4. search feeds attach missing reply parents in batches through
    `app.bsky.feed.getPosts`; thread reads use `getPostThread` with depth 3,
    parent height 6 and a flattened cap of 80 entries.

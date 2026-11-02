@@ -184,6 +184,36 @@ describe('mapFacets', () => {
     ])
   })
 
+  it('ignores facet shapes that are not the lexicon structure', () => {
+    expect(mapFacets(null, 'hello')).toEqual([])
+    expect(mapFacets({ index: { byteStart: 0, byteEnd: 1 } }, 'hello')).toEqual([])
+    expect(mapFacets([null, 3, 'x'], 'hello')).toEqual([])
+    // no features array, no index, or a non-object index
+    expect(mapFacets([{ index: { byteStart: 0, byteEnd: 1 } }], 'hello')).toEqual([])
+    expect(mapFacets([{ features: [] }], 'hello')).toEqual([])
+    expect(mapFacets([{ index: 'all of it', features: [] }], 'hello')).toEqual([])
+    expect(mapFacets([{ index: { byteStart: 0, byteEnd: 1 }, features: 'bold' }], 'hello')).toEqual(
+      [],
+    )
+  })
+
+  it('keeps a valid feature beside malformed payloads in the same facet', () => {
+    const facets = [
+      {
+        index: { byteStart: 0, byteEnd: 4 },
+        features: [
+          { $type: 'app.bsky.richtext.facet#mention' },
+          { $type: 'app.bsky.richtext.facet#link' },
+          { $type: 'app.bsky.richtext.facet#tag' },
+          null,
+          { $type: 'app.bsky.richtext.facet#bold' },
+        ],
+      },
+    ]
+
+    expect(mapFacets(facets, 'bold')).toEqual([{ start: 0, end: 4, feature: { kind: 'bold' } }])
+  })
+
   it('skips invalid ranges and facets without features', () => {
     const text = 'hello'
     const facets: AppBskyRichtextFacet.Main[] = [
@@ -324,6 +354,24 @@ describe('mapPostView', () => {
     })
 
     expect(mapPostView(view).labels).toEqual(['nsfw'])
+  })
+
+  it('projects malformed record content instead of asserting the sdk record', () => {
+    const view = postView({
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: 42,
+        facets: [{ index: { byteStart: 0, byteEnd: 1 } }],
+        reply: { root: { uri: 'at://root-without-cid' } },
+      },
+    })
+
+    const model = mapPostView(view)
+    expect(model.text).toBe('')
+    expect(model.facets).toEqual([])
+    expect(model.isReply).toBe(false)
+    expect(model.replyRoot).toBeNull()
+    expect(model.replyParent).toBeNull()
   })
 
   it('treats a non-post record as empty text with no reply', () => {

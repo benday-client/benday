@@ -7,10 +7,9 @@ import {
   AppBskyEmbedRecordWithMedia,
   AppBskyEmbedVideo,
   AppBskyFeedDefs,
-  AppBskyFeedPost,
-  AppBskyRichtextFacet,
   type ComAtprotoLabelDefs,
 } from '@atproto/api'
+import { isRecord } from './records'
 import type {
   AuthorModel,
   EmbedModel,
@@ -26,6 +25,7 @@ import type {
   QuotedPostModel,
   QuoteEmbed,
   ReplyContextModel,
+  StrongRefModel,
   ThreadEntry,
   ThreadModel,
   UnavailableEmbed,
@@ -51,10 +51,49 @@ function typeNameOf(value: unknown): string {
   return rawTypeName(value) ?? 'unknown'
 }
 
-function readPostRecord(record: Record<string, unknown>): AppBskyFeedPost.Record | null {
-  if (!AppBskyFeedPost.isRecord(record)) return null
-  // the sdk guard checks $type only; appview payloads carry the lexicon shape
-  return record as AppBskyFeedPost.Record
+interface ReplyRefs {
+  root: StrongRefModel
+  parent: StrongRefModel
+}
+
+/** The only parts of a post record this client reads, narrowed from unknown. */
+interface ParsedPostRecord {
+  text: string
+  // still unknown: mapFacets owns the facet shape
+  facets: unknown
+  reply: ReplyRefs | null
+}
+
+function readStrongRef(value: unknown): StrongRefModel | null {
+  if (!isRecord(value)) return null
+  const uri = value['uri']
+  const cid = value['cid']
+  if (typeof uri !== 'string' || typeof cid !== 'string') return null
+  return { uri, cid }
+}
+
+function readReplyRefs(value: unknown): ReplyRefs | null {
+  if (!isRecord(value)) return null
+  const root = readStrongRef(value['root'])
+  const parent = readStrongRef(value['parent'])
+  // a reply needs both references; half of one is not a thread position
+  if (root === null || parent === null) return null
+  return { root, parent }
+}
+
+/**
+ * `record` and a quoted `value` are lexicon `unknown`: the sdk validates the
+ * outer response, not the post body. Project the fields this client renders and
+ * leave anything malformed empty rather than asserting the full sdk record.
+ */
+function readPostRecord(value: unknown): ParsedPostRecord | null {
+  if (!isRecord(value) || value['$type'] !== 'app.bsky.feed.post') return null
+  const text = value['text']
+  return {
+    text: typeof text === 'string' ? text : '',
+    facets: value['facets'],
+    reply: readReplyRefs(value['reply']),
+  }
 }
 
 type AuthorView = AppBskyActorDefs.ProfileViewBasic | AppBskyActorDefs.ProfileView
@@ -100,66 +139,74 @@ function domainOf(uri: string): string {
   }
 }
 
-export function mapFacets(
-  facets: AppBskyRichtextFacet.Main[] | undefined,
-  text: string,
-): FacetSpan[] {
-  if (!facets) return []
+function readFeatureSpan(
+  feature: unknown,
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+): FacetSpan | null {
+  if (!isRecord(feature)) return null
+  const type = feature['$type']
+
+  if (type === 'app.bsky.richtext.facet#mention') {
+    const did = feature['did']
+    if (typeof did !== 'string') return null
+    const slice = decoder.decode(bytes.slice(start, end))
+    const withoutPrefix = slice.startsWith('@') ? slice.slice(1) : slice
+    const handle = withoutPrefix.trim()
+    const resolved = handle.length > 0 ? handle : did
+    return { start, end, feature: { kind: 'mention', did, handle: resolved } }
+  }
+
+  if (type === 'app.bsky.richtext.facet#link') {
+    const uri = feature['uri']
+    if (typeof uri !== 'string') return null
+    return { start, end, feature: { kind: 'link', uri } }
+  }
+
+  if (type === 'app.bsky.richtext.facet#tag') {
+    const tag = feature['tag']
+    if (typeof tag !== 'string') return null
+    return { start, end, feature: { kind: 'tag', tag } }
+  }
+
+  if (type === 'app.bsky.richtext.facet#bold') return { start, end, feature: { kind: 'bold' } }
+  if (type === 'app.bsky.richtext.facet#italic') return { start, end, feature: { kind: 'italic' } }
+  if (type === 'app.bsky.richtext.facet#strikethrough') {
+    return { start, end, feature: { kind: 'strikethrough' } }
+  }
+  if (type === 'app.bsky.richtext.facet#code') return { start, end, feature: { kind: 'code' } }
+
+  // an unknown or missing type is still worth naming so the renderer can skip it
+  return { start, end, feature: { kind: 'unknown', typeName: typeNameOf(feature) } }
+}
+
+/**
+ * Facets are opaque too, so every level is checked here: the array, each
+ * facet's integer byte range and its feature list, then each typed payload.
+ * A malformed facet or feature is ignored without discarding the post text.
+ */
+export function mapFacets(facets: unknown, text: string): FacetSpan[] {
+  if (!Array.isArray(facets)) return []
   const bytes = encoder.encode(text)
   const spans: FacetSpan[] = []
 
   for (const facet of facets) {
-    const { byteStart, byteEnd } = facet.index
+    if (!isRecord(facet)) continue
+    const index = facet['index']
+    if (!isRecord(index)) continue
+    const byteStart = index['byteStart']
+    const byteEnd = index['byteEnd']
+    if (typeof byteStart !== 'number' || typeof byteEnd !== 'number') continue
     if (!Number.isInteger(byteStart) || !Number.isInteger(byteEnd)) continue
     if (byteStart < 0 || byteEnd <= byteStart || byteEnd > bytes.length) continue
 
-    for (const feature of facet.features) {
-      if (AppBskyRichtextFacet.isMention(feature)) {
-        const slice = decoder.decode(bytes.slice(byteStart, byteEnd))
-        const withoutPrefix = slice.startsWith('@') ? slice.slice(1) : slice
-        const handle = withoutPrefix.trim()
-        const resolved = handle.length > 0 ? handle : feature.did
-        spans.push({
-          start: byteStart,
-          end: byteEnd,
-          feature: { kind: 'mention', did: feature.did, handle: resolved },
-        })
-        continue
-      }
+    const features = facet['features']
+    if (!Array.isArray(features)) continue
 
-      if (AppBskyRichtextFacet.isLink(feature)) {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'link', uri: feature.uri } })
-        continue
-      }
-
-      if (AppBskyRichtextFacet.isTag(feature)) {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'tag', tag: feature.tag } })
-        continue
-      }
-
-      const typeName = typeNameOf(feature)
-      if (typeName === 'app.bsky.richtext.facet#bold') {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'bold' } })
-        continue
-      }
-      if (typeName === 'app.bsky.richtext.facet#italic') {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'italic' } })
-        continue
-      }
-      if (typeName === 'app.bsky.richtext.facet#strikethrough') {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'strikethrough' } })
-        continue
-      }
-      if (typeName === 'app.bsky.richtext.facet#code') {
-        spans.push({ start: byteStart, end: byteEnd, feature: { kind: 'code' } })
-        continue
-      }
-
-      spans.push({
-        start: byteStart,
-        end: byteEnd,
-        feature: { kind: 'unknown', typeName: typeNameOf(feature) },
-      })
+    for (const feature of features) {
+      const span = readFeatureSpan(feature, bytes, byteStart, byteEnd)
+      if (span !== null) spans.push(span)
     }
   }
 
@@ -301,6 +348,7 @@ function mapReplyContext(view: AppBskyFeedDefs.PostView): ReplyContextModel {
 export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
   const record = readPostRecord(view.record)
   const text = record?.text ?? ''
+  const reply = record?.reply ?? null
 
   return {
     uri: view.uri,
@@ -315,9 +363,9 @@ export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
     quoteCount: view.quoteCount ?? 0,
     embed: view.embed ? mapEmbed(view.embed) : null,
     reason: null,
-    isReply: record?.reply !== undefined,
-    replyRoot: record?.reply?.root ?? null,
-    replyParent: record?.reply?.parent ?? null,
+    isReply: reply !== null,
+    replyRoot: reply?.root ?? null,
+    replyParent: reply?.parent ?? null,
     replyContext: null,
     labels: readLabels(view.labels),
   }
