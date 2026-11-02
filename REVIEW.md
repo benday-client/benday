@@ -133,6 +133,17 @@ whole gate against each indexed tree before it landed.
   sees. proof: shaping unit tests, the composer shrink scenario and the palette
   literal-handle path.
 
+### deck interaction
+
+- **every move re-rendered all loaded cards.** `PostCard` is memoized and its
+  view callbacks take the captured post or uri, with the view owners memoizing
+  them, so a move re-renders only the two cards whose focus changed. measured on
+  unchanged fixtures: 1,500-card p95 fell from 141–222 ms to 30–43 ms, every
+  size and viewport now stays under 100 ms and within ~1.35× of the 32 ms
+  baseline, and isolated appends stay under the 200 ms main-thread threshold
+  (details below). browser-native containment was measured and removed because
+  it added nothing; windowing was not triggered.
+
 ### shared helpers and boundaries
 
 - `useRetainedError` owns first-load retry retention for search, feed, profile and
@@ -262,7 +273,10 @@ still 254–408 ms because it includes the new cards' full mount; only its
 main-thread block is bounded by this change.
 
 remaining structural limitation: the deck still mounts every loaded card and
-keeps its full DOM (28,501 deck nodes and 29,476 document nodes at 1,500 cards).
+keeps its full DOM. measured mounts were 30 cards / 581 deck nodes / 1,556
+document nodes, 600 cards / 11,411 deck nodes / 12,386 document nodes, and 1,500
+cards / 28,501 deck nodes / 29,476 document nodes (identical with and without the
+removed containment rule).
 history is never dropped and no page cap was introduced, but memory grows with
 the loaded history; a windowed body with pinned interaction states was not
 needed to clear the measured thresholds and is not claimed.
@@ -302,8 +316,10 @@ needed to clear the measured thresholds and is not claimed.
 
 ### production smoke
 
-the final build was served on loopback and driven in Chromium with intercepted
-XRPC fixtures and an isolated storage context. observed directly: the feed paints
+the final build was served on loopback and driven in Chromium at 1280×800 with
+intercepted XRPC fixtures and an isolated storage context. narrow (390×844)
+coverage comes from the browser suite and the long-deck measurements, not from
+this smoke run. observed directly: the feed paints
 the fixture cards; `v` activates a playable video and the held `?` overlay
 teaches that key; an unrelated focused settings control keeps ArrowRight for
 itself while the selected card stays put; a stored history jump lands on the
@@ -317,10 +333,13 @@ warning, then sent one post while storage stayed blocked: cleanup failure left
 `post sent · stored draft could not be cleared`, the primary action disabled and
 labelled `sent`, the textarea read-only, and ctrl/cmd+enter produced exactly one
 `createRecord`. not exercised in the production smoke: a portal restore failure
-(needs a portal failure the static build cannot be made to produce), the
-null-playlist video key (a validated wire video view always carries a playlist,
-so that path is model/component tested rather than wire-reachable) and nested
-preview geometry (covered by the browser suite).
+(needs a portal failure the static build cannot be made to produce; jsdom covers
+the notice), the null-playlist video key (a validated wire video view always
+carries a playlist, so that path is model/component tested rather than
+wire-reachable), a pointer activation of a mode card (the smoke used Enter;
+`ModeCard.test.tsx` covers the click), the light high-contrast scheme (the smoke
+measured the dark page; `ThemeContrast.browser.test.tsx` checks both schemes),
+nested preview geometry and the 390×844 layout (covered by the browser suite).
 
 final gate: `pnpm check` — biome clean, `pnpm check:assertions` clean,
 `pnpm test:quality` 16 passed, `pnpm test` 903 passed, `pnpm test:browser` 206
