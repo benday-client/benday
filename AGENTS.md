@@ -117,7 +117,12 @@ pnpm dev
 ```
 
 if you are already inside the toolbox, omit the `toolbox run -c benday` prefix
-and run pnpm directly.
+and run pnpm directly. outside the toolbox, `corepack enable pnpm` at the
+repository root provides the pinned pnpm, and `pnpm exec playwright install
+chromium` (or the distribution's chromium libraries) satisfies the browser
+suite. the gate has three prerequisites: node with the pinned pnpm on `PATH`,
+the playwright chromium download, and a git checkout. a missing one is a hard
+failure, never a skipped check.
 
 ```sh
 pnpm dev        # vite on 0.0.0.0:5173, strict port
@@ -126,10 +131,29 @@ pnpm preview    # static preview on 0.0.0.0:4173, strict port
 pnpm typecheck  # strict tsc pass
 pnpm lint       # biome check .
 pnpm format     # biome check --write .
+pnpm test:quality # node --test over scripts/ (the gate's own checks)
 pnpm test         # vitest run, offline jsdom tests
 pnpm test:browser # vitest browser mode in real chromium
-pnpm check        # lint, both suites, then build
+pnpm check        # lint, quality scripts, both suites, then build
 ```
+
+`node scripts/check-staged.mjs` runs that same `pnpm check` against the index
+rather than the worktree: it exports the staged tree into a temporary
+repository, installs from the frozen lockfile and gates that copy, so an
+unstaged dependency cannot make a partial commit look green. it refuses
+unmerged entries and intent-to-add paths, reads the original repository with
+`GIT_OPTIONAL_LOCKS=0`, and never resets, stashes or borrows `node_modules`.
+`.pre-commit-config.yaml` installs it as the `benday-check` hook through
+pre-commit's native node support:
+
+```sh
+python3 -m venv ~/.local/share/benday-pre-commit
+~/.local/share/benday-pre-commit/bin/pip install pre-commit
+~/.local/share/benday-pre-commit/bin/pre-commit install
+```
+
+the hook is local and bypassable; it is not remote enforcement, and no forge
+runs `pnpm check` for this repository.
 
 open the dev server at `http://127.0.0.1:5173/` or `http://[::1]:5173/` for the
 portal flow, or at `localhost` for the password form. vite and preview bind all
@@ -138,6 +162,38 @@ interfaces on purpose.
 before handing off a change, run the narrowest check that covers it, then
 `pnpm check` unless the task explicitly says not to run gates. tests are offline
 and must not require a pds, appview or network.
+
+## quality contract
+
+these rules are enforced where a check can enforce them and reviewed where it
+cannot. human review still owns design, intent and semantic readability, and the
+staged gate below is local: it can be bypassed and no remote service runs it.
+
+- render stays pure. components and hooks derive values during render and push
+  effects to browser, network and storage boundaries (subscriptions, storage
+  writes, document attributes). an effect never exists just to copy state into
+  state or to mirror a prop.
+- shared inputs are immutable. props, cached query data and store snapshots are
+  read, never mutated. mutating local state and looping over values the code
+  owns are fine.
+- async completions own their request and account. a completion checks that its
+  epoch, token, viewer or composition still owns the surface before it writes
+  state, closes a dialog, dismisses a card or clears a draft.
+- degradation is explicit and best effort. an optional read (seen marker,
+  identity display, jump history, partial hydration) may fall back, but the call
+  site says why, and a visible failure is never rewritten as a silent success.
+- tests describe behavior: outcomes, boundaries, ownership, transitions and
+  errors. they do not echo display copy, source text, default values or a
+  component tree, and a copied label or colour table is not a test.
+- spacing is semantic. blank lines separate input normalization, derived models,
+  early returns, async boundaries and the final render; they do not decorate
+  every statement.
+- palettes are source-pinned. canonical swatches cite the upstream version and
+  every accessibility or decorative derivative is labeled as an adaptation, not
+  presented as the source's own token.
+- the gate is the staged snapshot. `pnpm check` (lint, the quality scripts, both
+  suites and the build) must pass, and the committed tree is the indexed tree,
+  verified through `scripts/check-staged.mjs` as described in setup.
 
 ## auth and privacy boundaries
 
@@ -579,7 +635,8 @@ trusted keys, native selection and decoded cursor assets. `src/test/stage.tsx`
 gives them the definite-height app shell. `@vitest/browser-playwright@5.0.5`,
 `playwright@1.64.1` and the chromium download are the only browser
 prerequisites; a missing browser is a failure, never a skip. `pnpm check` runs
-lint, jsdom, browser and build in that order.
+biome, `scripts/` under node's own runner, jsdom, browser and build in that
+order, and `scripts/check-staged.mjs` runs the same chain against the index.
 
 what the suite covers, and what it does not:
 

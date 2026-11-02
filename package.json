@@ -18,7 +18,8 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "pnpm lint && pnpm test && pnpm test:browser && pnpm build",
+    "test:quality": "node --test scripts/*.test.mjs",
+    "check": "pnpm lint && pnpm test:quality && pnpm test && pnpm test:browser && pnpm build",
     "test:browser": "vitest run --config vitest.browser.config.ts"
   },
   "dependencies": {

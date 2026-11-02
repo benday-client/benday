@@ -20,7 +20,13 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     // Native-browser specs need real layout and trusted input; jsdom would
-    // measure zeros, so they only run through vitest.browser.config.ts.
-    exclude: [...configDefaults.exclude, 'src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
+    // measure zeros, so they only run through vitest.browser.config.ts. The
+    // scripts/ suite runs under node's own runner via `pnpm test:quality`.
+    exclude: [
+      ...configDefaults.exclude,
+      'src/**/*.browser.test.ts',
+      'src/**/*.browser.test.tsx',
+      'scripts/**',
+    ],
   },
 })
