@@ -42,6 +42,30 @@ export interface ComposeActionsProps {
   label: string
 }
 
+export interface ComposeTargetProps {
+  form: Pick<ComposeFormState, 'mode' | 'target' | 'handle' | 'excerpt'>
+}
+
+/**
+ * The target line both composers show above the field: which post is being
+ * answered or quoted, and the excerpt that identifies it. A post composer has
+ * no target and renders nothing.
+ */
+export function ComposeTarget({ form }: ComposeTargetProps) {
+  if (form.mode === 'post' || form.target === null) return null
+
+  return (
+    <div className="b-compose__target">
+      <span>
+        {form.mode === 'reply' ? `replying to @${form.handle}` : `quoting @${form.handle}`}
+      </span>
+      {form.excerpt.length > 0 ? (
+        <span className="b-compose__target-text">{form.excerpt}</span>
+      ) : null}
+    </div>
+  )
+}
+
 /** Counter plus the send/cancel pair; the dialog renders it inside its foot. */
 export function ComposeActions({ form, label }: ComposeActionsProps) {
   return (

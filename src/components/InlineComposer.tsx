@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useComposeForm } from '../hooks/useComposeForm'
 import { isImeComposing } from '../hooks/useHotkeys'
 import type { ComposeRequest } from '../lib/ui'
-import { ComposeActions, ComposeField, ComposeHead } from './ComposeField'
+import { ComposeActions, ComposeField, ComposeHead, ComposeTarget } from './ComposeField'
 
 export interface InlineComposerProps {
   request: ComposeRequest
@@ -38,14 +38,7 @@ export function InlineComposer({ request, onClose }: InlineComposerProps) {
     >
       <ComposeHead label={action} onClose={form.close} />
 
-      <div className="b-compose__target">
-        <span>
-          {action === 'reply' ? `replying to @${form.handle}` : `quoting @${form.handle}`}
-        </span>
-        {form.excerpt.length > 0 ? (
-          <span className="b-compose__target-text">{form.excerpt}</span>
-        ) : null}
-      </div>
+      <ComposeTarget form={form} />
 
       <ComposeField form={form} inputClassName="b-compose__input b-compose-dock__input" />
 

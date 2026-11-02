@@ -414,7 +414,8 @@ opens the dialog. `ThreadView` renders `InlineComposer` only when the request
 targets the focused post. a quote dock sits above the post and a reply dock below
 it. escape closes the dock and `ctrl`/`cmd` + `enter` submits.
 
-both paths share `useComposeForm`: 300 graphemes counted on stripped text, the
+both paths render the same target line through `ComposeTarget` in
+`ComposeField.tsx` and share `useComposeForm`: 300 graphemes counted on stripped text, the
 markdown subset from `src/lib/markdown.ts`, `@` and `#` suggestions, per-target
 drafts, the same `createPost` / `createReply` / `createQuote` helpers and the
 same post-send invalidation. reply records carry
