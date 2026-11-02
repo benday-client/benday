@@ -328,3 +328,61 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+describe('palette jump history', () => {
+  const KEY = 'benday:jump-history'
+
+  function seedHistory(entries: unknown[]): void {
+    localStorage.setItem(KEY, JSON.stringify(entries))
+  }
+
+  it('keeps only destinations this document can open', () => {
+    seedHistory([
+      {
+        href: '/thread?uri=at%3A%2F%2Fdid%3Aplc%3Atest%2Fapp.bsky.feed.post%2F1#reply-3',
+        label: 'deep thread',
+        meta: 'recent',
+      },
+      { href: '//evil.test/steal', label: 'protocol relative' },
+      { href: '/\\evil.test/steal', label: 'backslash authority' },
+      { href: `blob:${window.location.origin}/id`, label: 'blob' },
+      { href: 'javascript:alert(1)', label: 'script' },
+      { href: '/feed', label: 7 },
+      { label: 'no href' },
+      null,
+      'string',
+      { href: '/feed', label: 'saved feed', extra: 'legacy field' },
+    ])
+
+    const { history } = renderPalette()
+
+    // only the two document paths survive, in their stored order
+    expect(screen.getByText('deep thread')).toBeInTheDocument()
+    expect(screen.getByText('saved feed')).toBeInTheDocument()
+    for (const label of ['protocol relative', 'backslash authority', 'blob', 'script', 'no href']) {
+      expect(screen.queryByText(label)).toBeNull()
+    }
+
+    fireEvent.keyDown(screen.getByLabelText('command or jump'), { key: 'Enter' })
+    expect(history.at(-1)).toBe(
+      '/thread?uri=at%3A%2F%2Fdid%3Aplc%3Atest%2Fapp.bsky.feed.post%2F1#reply-3',
+    )
+  })
+
+  it('drops a stored history that is not a list', () => {
+    localStorage.setItem(KEY, JSON.stringify({ href: '/feed', label: 'stored feed' }))
+    renderPalette()
+
+    expect(screen.queryByText('stored feed')).toBeNull()
+  })
+
+  it('normalizes an absolute same-origin destination to its path', () => {
+    const absolute = `${window.location.origin}/feed?tab=1#top`
+    seedHistory([{ href: absolute, label: 'absolute' }])
+    const { history } = renderPalette()
+
+    fireEvent.keyDown(screen.getByLabelText('command or jump'), { key: 'Enter' })
+
+    expect(history.at(-1)).toBe('/feed?tab=1#top')
+  })
+})

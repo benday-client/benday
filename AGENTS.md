@@ -73,7 +73,10 @@ ownership by concern:
   dialog or the document. pointer hover may only take selection over on real
   movement (compare the event coordinates), because scrolling the list under a
   parked cursor fires mouseenter on a different row and pulls the keyboard
-  selection back.
+  selection back. stored jump history is sanitized on read: only a same-origin,
+  same-protocol destination survives, stored back as path+query+hash, so a
+  protocol-relative, backslash-authority or blob: entry is ignored instead of
+  becoming a route.
 - `src/lib/themes.ts` owns theme names, labels, schemes, seasons, groups, image
   effects and meta colours. `src/styles/tokens.css` owns per-theme values and
   `src/styles/theme-effects.css` owns shaped-corner and texture consequences.

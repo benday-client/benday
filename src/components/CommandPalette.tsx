@@ -35,7 +35,24 @@ const RUN_BINDING = bindingFor('palette-run')
 interface JumpEntry {
   href: string
   label: string
-  meta: string
+}
+
+/**
+ * A stored destination is only usable when it resolves inside this document:
+ * same origin and the same protocol it was stored under. The normalised
+ * path+query+hash is returned, so a protocol-relative or backslash authority
+ * cannot masquerade as a local path and a blob: url is never a route.
+ */
+function safeJumpHref(rawHref: string): string | null {
+  let url: URL
+  try {
+    url = new URL(rawHref, window.location.origin)
+  } catch {
+    return null
+  }
+  if (url.origin !== window.location.origin) return null
+  if (url.protocol !== window.location.protocol) return null
+  return `${url.pathname}${url.search}${url.hash}`
 }
 
 function readHistory(): JumpEntry[] {
@@ -44,14 +61,21 @@ function readHistory(): JumpEntry[] {
     if (raw === null) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter(
-        (entry): entry is JumpEntry =>
-          isRecord(entry) &&
-          typeof entry['href'] === 'string' &&
-          typeof entry['label'] === 'string',
-      )
-      .slice(0, HISTORY_LIMIT)
+
+    // construct a clean entry instead of handing the stored object back under
+    // an unsound predicate: legacy extra fields never reach the palette
+    const entries: JumpEntry[] = []
+    for (const entry of parsed) {
+      if (entries.length >= HISTORY_LIMIT) break
+      if (!isRecord(entry)) continue
+      const href = entry['href']
+      const label = entry['label']
+      if (typeof href !== 'string' || typeof label !== 'string') continue
+      const safe = safeJumpHref(href)
+      if (safe === null) continue
+      entries.push({ href: safe, label })
+    }
+    return entries
   } catch {
     return []
   }
@@ -181,10 +205,10 @@ export function CommandPalette({
 
   const remember = (href: string, label: string) => {
     setHistory((current) => {
-      const next = [
-        { href, label, meta: 'recent' },
-        ...current.filter((entry) => entry.href !== href),
-      ].slice(0, HISTORY_LIMIT)
+      const next = [{ href, label }, ...current.filter((entry) => entry.href !== href)].slice(
+        0,
+        HISTORY_LIMIT,
+      )
       writeHistory(next)
       return next
     })
