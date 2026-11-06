@@ -886,22 +886,6 @@ describe('PostCard actions', () => {
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('hides the interaction bar when signed out', () => {
-    const location = memoryLocation({ path: '/' })
-    const queryClient = createTestQueryClient()
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Router hook={location.hook}>
-          <PostCard post={postFixture()} />
-        </Router>
-      </QueryClientProvider>,
-    )
-
-    expect(screen.queryByRole('button', { name: /like/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /reply/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /re 0/ })).not.toBeInTheDocument()
-  })
-
   it('opens the reply composer when a signed-in user replies', () => {
     useAuthStore.setState({
       status: 'authenticated',
@@ -922,21 +906,6 @@ describe('PostCard actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'reply' }))
     expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
-  })
-
-  it('opens sign in from the focused-card like shortcut', () => {
-    const location = memoryLocation({ path: '/' })
-    const queryClient = createTestQueryClient()
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Router hook={location.hook}>
-          <PostCard post={postFixture()} focused />
-        </Router>
-      </QueryClientProvider>,
-    )
-
-    fireEvent.keyDown(window, { key: 'f' })
-    expect(useUiStore.getState().dialog).toBe('login')
   })
 
   it('opens the reply composer from the focused-card reply shortcut', () => {

@@ -3,7 +3,6 @@ import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, FeedCardBackButton, type FeedChoice } from '../components/FeedCard'
 import { PostCard } from '../components/PostCard'
-import { SignedOutCard } from '../components/SignedOutCard'
 import {
   Button,
   Dialog,
@@ -47,7 +46,6 @@ export default function FeedView() {
   const fetchingRef = useRef(false)
   const wide = useMediaQuery('(min-width: 900px)')
   const addOpen = useUiStore((state) => state.dialog === 'feed-add')
-  const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const openDialog = useUiStore((state) => state.openDialog)
   const openPost = useUiStore((state) => state.openPost)
@@ -82,14 +80,13 @@ export default function FeedView() {
   const appView = useSettings((state) => state.appView)
   const supported = capabilitiesFor(appView).feeds
   const pinned = usePinnedFeeds()
-  const activeUri = chooseFeedUri(uri, authenticated, pinned.feeds)
+  const activeUri = chooseFeedUri(uri, viewerDid !== null, pinned.feeds)
   const showingCustom = activeUri.length > 0
   // a failed preference read is not an empty preference list: while the pinned
   // set is unresolved the feed choice is unknown, so nothing is fetched
   const [pinnedFailure, setPinnedFailure] = useState<Error | null>(null)
   const pinnedFailureShown = pinned.error ?? (pinned.isPending ? pinnedFailure : null)
-  const pinnedUnresolved =
-    authenticated && uri.length === 0 && (pinned.isPending || pinned.error !== null)
+  const pinnedUnresolved = uri.length === 0 && (pinned.isPending || pinned.error !== null)
   // the first load shows labelled progress; a failure keeps the deck mounted
   // with its own error so the switcher, peeks and retry stay reachable
   const pinnedFirstLoad = pinnedUnresolved && pinnedFailureShown === null
@@ -175,7 +172,7 @@ export default function FeedView() {
     })
   }, [])
 
-  const canPickFeeds = authenticated && wide && supported
+  const canPickFeeds = wide && supported
   const showingFeeds = feedsMode && canPickFeeds
 
   const refreshBinding = bindingFor('refresh')
@@ -213,7 +210,7 @@ export default function FeedView() {
 
   const feedChoices: FeedChoice[] = []
   // a failed preference read must not read as an empty preference list
-  if (authenticated && !pinned.isPending && pinned.error === null) {
+  if (!pinned.isPending && pinned.error === null) {
     if (pinned.feeds.length > 0) {
       for (const item of pinned.feeds) {
         feedChoices.push({
@@ -321,7 +318,7 @@ export default function FeedView() {
   return (
     <section className="b-view" ref={viewRef}>
       <h1 className="visually-hidden">feeds</h1>
-      {authenticated && !wide ? (
+      {!wide ? (
         <div className="b-view__tools b-view__tools--feed">
           <fieldset className="b-view__pinned">
             <legend className="mono-label">pinned</legend>
@@ -441,7 +438,7 @@ export default function FeedView() {
               }
             />
           </div>
-        ) : authenticated && !supported ? (
+        ) : !supported ? (
           <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
             <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
           </Frame>
@@ -477,14 +474,8 @@ export default function FeedView() {
                       switchMode(true)
                     },
                   }
-                : !authenticated
-                  ? {
-                      onExitStart: () => {
-                        openDialog('login')
-                      },
-                    }
-                  : {})}
-              leadingPeekInteractive={canPickFeeds || !authenticated}
+                : {})}
+              leadingPeekInteractive={canPickFeeds}
               leadingPeek={
                 canPickFeeds ? (
                   <FeedCardBack
@@ -497,12 +488,6 @@ export default function FeedView() {
                     }}
                     onRefresh={pinnedUnresolved ? undefined : refreshFeed}
                     refreshing={feed.isFetching}
-                  />
-                ) : !authenticated ? (
-                  <SignedOutCard
-                    onSignIn={() => {
-                      openDialog('login')
-                    }}
                   />
                 ) : undefined
               }

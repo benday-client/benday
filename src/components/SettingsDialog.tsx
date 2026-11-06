@@ -36,7 +36,6 @@ import {
   themeSeason,
 } from '../lib/themes'
 import type { AppViewPreset } from '../lib/types'
-import { useUiStore } from '../lib/ui'
 import { ThemePreview } from './ThemePreview'
 import { Button, Dialog, Tag, TextInput } from './ui'
 
@@ -93,7 +92,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const account = useAuthStore((state) => state.account)
   const pending = useAuthStore((state) => state.pending)
   const signOut = useAuthStore((state) => state.signOut)
-  const openDialog = useUiStore((state) => state.openDialog)
   const [host, setHost] = useState('')
   const [labelerInput, setLabelerInput] = useState('')
   const [importingLabelers, setImportingLabelers] = useState(false)
@@ -203,10 +201,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     } finally {
       setImportingLabelers(false)
     }
-  }
-
-  const signIn = () => {
-    openDialog('login')
   }
 
   const handleSignOut = async () => {
@@ -650,11 +644,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         data-hidden={sectionHidden('settings-account')}
       >
         <h3 className="b-settings__heading">account</h3>
-        {account === null ? (
-          <Button variant="outline" onClick={signIn}>
-            sign in
-          </Button>
-        ) : (
+        {account === null ? null : (
           <div className="b-settings__account">
             <span className="b-settings__account-handle">@{account.handle}</span>
             <span className="b-settings__account-did">{account.did}</span>

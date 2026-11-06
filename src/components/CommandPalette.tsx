@@ -122,7 +122,6 @@ export function CommandPalette({
   onOpenSettings,
 }: CommandPaletteProps) {
   const [, navigate] = useLocation()
-  const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
   const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
@@ -193,41 +192,26 @@ export function CommandPalette({
     onClose()
   }
 
-  const authCommands: PaletteCommand[] =
-    authStatus === 'authenticated'
-      ? [
-          {
-            id: 'compose',
-            label: 'compose a post',
-            meta: 'c',
-            keywords: 'write post new',
-            run: () => {
-              openCompose({ mode: 'post', post: null })
-            },
-          },
-          {
-            id: 'account',
-            label: account ? `@${account.handle}` : 'account',
-            meta: 'login',
-            keywords: 'account sign out profile',
-            run: () => {
-              openDialog('account')
-            },
-          },
-        ]
-      : authStatus === 'anonymous'
-        ? [
-            {
-              id: 'login',
-              label: 'sign in',
-              meta: 'login',
-              keywords: 'app password auth account',
-              run: () => {
-                openDialog('login')
-              },
-            },
-          ]
-        : []
+  const authCommands: PaletteCommand[] = [
+    {
+      id: 'compose',
+      label: 'compose a post',
+      meta: 'c',
+      keywords: 'write post new',
+      run: () => {
+        openCompose({ mode: 'post', post: null })
+      },
+    },
+    {
+      id: 'account',
+      label: account ? `@${account.handle}` : 'account',
+      meta: 'account',
+      keywords: 'account sign out profile',
+      run: () => {
+        openDialog('account')
+      },
+    },
+  ]
 
   const pinnedCommands: PaletteCommand[] =
     pinned.error !== null
@@ -259,12 +243,11 @@ export function CommandPalette({
     meta: 'me',
     keywords: '@me my profile self account',
     run: () => {
-      if (account !== null) {
-        go(`/profile/${encodeURIComponent(account.handle)}`, `@${account.handle}`)
+      if (account === null) {
+        onClose()
         return
       }
-      onClose()
-      openDialog('login')
+      go(`/profile/${encodeURIComponent(account.handle)}`, `@${account.handle}`)
     },
   }
 

@@ -459,14 +459,6 @@ describe('NotificationsView states', () => {
     await waitFor(() => expect(seenBodies()).toEqual([{ seenAt: '2026-10-29T12:00:00.000Z' }]))
   })
 
-  it('asks a signed-out reader to sign in instead of rendering a deck', async () => {
-    useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
-    renderNotifications()
-
-    await screen.findByText('sign in for notifications')
-    expect(document.querySelector('.b-deck')).toBeNull()
-  })
-
   it('shows the load failure with a retry when the first page fails', async () => {
     transport.route('GET', `${PDS}/xrpc/app.bsky.notification.listNotifications`, () =>
       jsonResponse(500, { error: 'InternalServerError', message: 'nope' }),

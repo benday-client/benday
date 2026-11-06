@@ -167,6 +167,27 @@
   margin-top: var(--space-1);
 }
 
+/* the shell gate: one centered card where every route would render */
+.b-shell-gate {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--page-gutter);
+}
+
+.b-shell-gate > * {
+  width: min(100%, 40rem);
+}
+
+.b-shell-gate .b-signedout-card {
+  height: auto;
+}
+
+.b-shell-gate .b-signedout-card .b-card-back__body {
+  padding-left: var(--space-4);
+}
+
 .b-card-back__index {
   color: var(--ink);
   font-size: var(--step-5);

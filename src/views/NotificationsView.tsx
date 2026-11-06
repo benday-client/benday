@@ -15,7 +15,6 @@ import {
   notificationSubjectHref,
   postThreadHref,
 } from '../lib/notifications'
-import { useUiStore } from '../lib/ui'
 
 const PREVIEW_LIMIT = 220
 
@@ -174,12 +173,9 @@ function NotificationCard({ notification }: { notification: NotificationModel })
 }
 
 export default function NotificationsView() {
-  const status = useAuthStore((state) => state.status)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
-  const openDialog = useUiStore((state) => state.openDialog)
   const [, navigate] = useLocation()
   const notifications = useNotifications()
-  const authenticated = status === 'authenticated'
   const rows = notifications.notifications
   const unread = rows.filter((item) => !item.isRead).length
   const info = notifications.error !== null ? errorInfo(notifications.error) : null
@@ -189,50 +185,25 @@ export default function NotificationsView() {
       <h1 className="visually-hidden">notifications</h1>
       <div className="b-notif__bar">
         <span className="mono-label">notifications</span>
-        {authenticated ? (
-          <span className="b-notif__count">
-            {notifications.isPending
-              ? 'loading'
-              : unread > 0
-                ? `${unread} unread / ${rows.length} shown`
-                : `${rows.length} shown`}
-          </span>
-        ) : null}
-        {authenticated ? (
-          <Button
-            variant="ghost"
-            className="b-notif__refresh"
-            onClick={notifications.reload}
-            disabled={notifications.isFetching}
-          >
-            {notifications.isFetching ? 'refreshing' : 'refresh'}
-          </Button>
-        ) : null}
+        <span className="b-notif__count">
+          {notifications.isPending
+            ? 'loading'
+            : unread > 0
+              ? `${unread} unread / ${rows.length} shown`
+              : `${rows.length} shown`}
+        </span>
+        <Button
+          variant="ghost"
+          className="b-notif__refresh"
+          onClick={notifications.reload}
+          disabled={notifications.isFetching}
+        >
+          {notifications.isFetching ? 'refreshing' : 'refresh'}
+        </Button>
       </div>
 
       <div className="b-view__body b-notif__stage">
-        {status === 'restoring' ? (
-          <div className="b-notif__state">
-            <Progress label="restoring session" indeterminate />
-          </div>
-        ) : !authenticated ? (
-          <div className="b-notif__state">
-            <EmptyState
-              title="sign in for notifications"
-              hint="follows, likes, reposts, replies and mentions land here once you are signed in."
-              action={
-                <Button
-                  variant="solid"
-                  onClick={() => {
-                    openDialog('login')
-                  }}
-                >
-                  sign in
-                </Button>
-              }
-            />
-          </div>
-        ) : info !== null && rows.length === 0 ? (
+        {info !== null && rows.length === 0 ? (
           <div className="b-notif__state">
             <ErrorNotice title={info.title} message={info.detail} onRetry={notifications.reload} />
           </div>
@@ -272,7 +243,7 @@ export default function NotificationsView() {
                 navigate(openHref(notification))
               }}
               label="notifications"
-              stateKey={`notifications:${viewerDid ?? 'anonymous'}`}
+              stateKey={viewerDid === null ? 'notifications' : `notifications:${viewerDid}`}
             />
           </>
         )}

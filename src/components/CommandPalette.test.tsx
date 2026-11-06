@@ -128,19 +128,17 @@ describe('CommandPalette', () => {
     expect(history).not.toContain('/profile/me')
   })
 
-  it('asks for sign in from the @me row when signed out', () => {
-    const { history } = renderPalette()
-    submit('@me')
-    expect(useUiStore.getState().dialog).toBe('login')
-    expect(history).not.toContain('/profile/me')
-    expect(history.at(-1)).toBe('/')
-  })
-
   it('runs the highlighted row for a bare @ instead of searching its text', () => {
-    const { history, onClose } = renderPalette()
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:me', handle: 'me.test' },
+      pending: false,
+      error: null,
+    })
+    const { history } = renderPalette()
     submit('@')
-    expect(useUiStore.getState().dialog).toBe('login')
-    expect(onClose).toHaveBeenCalled()
+    // the highlighted account row wins over searching the literal marker
+    expect(useUiStore.getState().dialog).toBe('account')
     expect(history.at(-1)).toBe('/')
   })
 
@@ -289,7 +287,8 @@ describe('CommandPalette', () => {
 
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(onClose).toHaveBeenCalled()
-    expect(useUiStore.getState().dialog).toBe('login')
+    // the clamped row is the account row, which needs an account to jump
+    expect(useUiStore.getState().dialog).toBeNull()
     expect(history.at(-1)).toBe('/')
   })
 
@@ -301,14 +300,14 @@ describe('CommandPalette', () => {
       rows().findIndex((row) => row.getAttribute('data-selected') === 'true')
     const selectedLabel = () => rows()[selectedIndex()]?.textContent ?? ''
 
-    expect(selectedLabel()).toContain('sign in')
+    expect(selectedLabel()).toContain('compose a post')
 
     fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect(selectedLabel()).toContain('@me')
+    expect(selectedLabel()).toContain('account')
     fireEvent.keyDown(input, { key: 'ArrowDown' })
-    expect(selectedLabel()).toContain('feeds')
-    fireEvent.keyDown(input, { key: 'ArrowUp' })
     expect(selectedLabel()).toContain('@me')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    expect(selectedLabel()).toContain('account')
 
     fireEvent.keyDown(input, { key: 'ArrowUp' })
     expect(selectedIndex()).toBe(0)

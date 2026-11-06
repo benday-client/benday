@@ -377,19 +377,19 @@ describe('KeyHints hold gesture', () => {
   })
 
   it('advertises only the actions the current state can run', () => {
-    const signedOut = renderDeck(imagePost())
+    const anonymous = renderDeck(imagePost())
 
     hold()
-    // signed out: the interaction keys belong to a button that only offers a
-    // login, so they are not painted
-    const shown = signedOut.badges()
+    // the interaction bar belongs to the mounted card; delete belongs to the
+    // account that owns the post
+    const shown = anonymous.badges()
     expect(shown).toContain(registryLabel('card-copy'))
-    expect(shown).not.toContain(registryLabel('card-like'))
-    expect(shown).not.toContain(registryLabel('card-reply'))
+    expect(shown).toContain(registryLabel('card-like'))
+    expect(shown).toContain(registryLabel('card-reply'))
     expect(shown).not.toContain(registryLabel('card-delete'))
     // an image embed answers to `m`
     expect(shown).toContain(registryLabel('card-media'))
-    signedOut.unmount()
+    anonymous.unmount()
 
     const labelled = renderDeck(
       postFixture({

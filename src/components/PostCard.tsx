@@ -117,7 +117,6 @@ function PostCardView({
   const profileHref = `/profile/${encodeURIComponent(handle)}`
   const threadHref = `/thread?uri=${encodeURIComponent(post.uri)}`
 
-  const authed = useAuthStore((state) => state.status === 'authenticated')
   const accountDid = useAuthStore((state) => state.account?.did ?? null)
   const queryClient = useQueryClient()
   const cardRef = useRef<HTMLElement>(null)
@@ -197,25 +196,17 @@ function PostCardView({
     }, DELETE_ARM_MS)
   }, [clearDeleteArmTimer, owner])
   const own =
-    authed &&
-    accountDid !== null &&
-    accountDid === post.author.did &&
-    isOwnPostUri(post.uri, accountDid)
+    accountDid !== null && accountDid === post.author.did && isOwnPostUri(post.uri, accountDid)
   const topComments = useTopComments(
     post.uri,
     replies === undefined && inView && post.replyCount > 0,
   )
   const entry = useActionStore((state) => state.byUri[post.uri])
-  const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
   const openInlineCompose = useUiStore((state) => state.openInlineCompose)
   const inlineTarget = focused && replies !== undefined
 
   const openReplyCompose = () => {
-    if (!authed) {
-      openDialog('login')
-      return
-    }
     if (inlineTarget) {
       openInlineCompose({ mode: 'reply', post })
       return
@@ -224,10 +215,6 @@ function PostCardView({
   }
 
   const openQuoteCompose = () => {
-    if (!authed) {
-      openDialog('login')
-      return
-    }
     if (inlineTarget) {
       openInlineCompose({ mode: 'quote', post })
       return
@@ -255,10 +242,6 @@ function PostCardView({
 
   const feedbackAction = useCallback(
     async (kind: FeedFeedbackEvent) => {
-      if (!authed) {
-        openDialog('login')
-        return
-      }
       // one submission at a time; the operator hears about it once
       if (feedbackSent || feedbackPending || onFeedback === undefined) return
       // the pressed control is about to be disabled or removed; the deck takes
@@ -285,7 +268,7 @@ function PostCardView({
         if (card.active) setFeedbackPending(false)
       }
     },
-    [authed, openDialog, onDismiss, onFeedback, feedbackSent, feedbackPending, owner],
+    [onDismiss, onFeedback, feedbackSent, feedbackPending, owner],
   )
 
   // a different post or account invalidates the previous token and every timer
@@ -417,14 +400,6 @@ function PostCardView({
       }
 
       const ui = useUiStore.getState()
-      const authenticated = useAuthStore.getState().status === 'authenticated'
-      const interact = (action: () => void) => {
-        if (!authenticated) {
-          ui.openDialog('login')
-          return
-        }
-        action()
-      }
       const inline = focused && replies !== undefined
       const open = (mode: 'reply' | 'quote') => {
         if (inline) {
@@ -436,23 +411,19 @@ function PostCardView({
       switch (event.key) {
         case 'f':
           event.preventDefault()
-          interact(() => {
-            void useActionStore.getState().toggleLike(post)
-          })
+          void useActionStore.getState().toggleLike(post)
           break
         case 'b':
           event.preventDefault()
-          interact(() => {
-            void useActionStore.getState().toggleRepost(post)
-          })
+          void useActionStore.getState().toggleRepost(post)
           break
         case 'r':
           event.preventDefault()
-          interact(() => open('reply'))
+          open('reply')
           break
         case 'q':
           event.preventDefault()
-          interact(() => open('quote'))
+          open('quote')
           break
         case '+':
           if (onFeedback === undefined) break
@@ -783,7 +754,7 @@ function PostCardView({
             <span className="b-post-card__feedback-sent" role="status">
               post deleted
             </span>
-          ) : authed ? (
+          ) : (
             <>
               <Link href={threadHref} className="b-post-card__action">
                 re {post.replyCount}
@@ -924,7 +895,7 @@ function PostCardView({
                 </span>
               ) : null}
             </>
-          ) : null}
+          )}
           <button
             type="button"
             className="b-post-card__action"

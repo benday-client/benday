@@ -64,10 +64,50 @@ function rootTheme(): string | undefined {
   return document.documentElement.dataset['theme']
 }
 
+const REAL_RESTORE = useAuthStore.getState().restore
+const PDS = 'https://pds.test'
+const SESSION = {
+  did: 'did:plc:shell',
+  handle: 'shell.test',
+  accessJwt: 'shell-access',
+  refreshJwt: 'shell-refresh',
+  active: true,
+}
+
+/**
+ * The shell only renders routes for a signed-in account. These cases exercise
+ * the shell rather than the reads, so the account signs in against a routed pds
+ * and the surfaces the shell always mounts answer with empty pages.
+ */
+async function signInShell(): Promise<TestTransport> {
+  const transport = installTransport()
+  transport.route('POST', `${PDS}/xrpc/com.atproto.server.createSession`, () =>
+    jsonResponse(200, SESSION),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getPreferences`, () =>
+    jsonResponse(200, { preferences: [] }),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getFeed`, () => jsonResponse(200, { feed: [] }))
+  transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfiles`, () =>
+    jsonResponse(200, { profiles: [] }),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
+    jsonResponse(200, { posts: [] }),
+  )
+  transport.route('GET', `${PDS}/xrpc/app.bsky.notification.listNotifications`, () =>
+    jsonResponse(200, { notifications: [] }),
+  )
+  routeDiscoverMetadata(transport)
+  const ok = await useAuthStore.getState().signIn('shell.test', 'app-pass', PDS)
+  expect(ok).toBe(true)
+  return transport
+}
+
 afterEach(() => {
   vi.useRealTimers()
   window.history.pushState({}, '', '/')
   useUiStore.setState({ dialog: null, compose: null, inlineCompose: null })
+  useAuthStore.setState({ status: 'anonymous', account: null, restore: REAL_RESTORE })
 })
 
 describe('live appearance on a fresh session', () => {
@@ -152,8 +192,59 @@ describe('live appearance on a fresh session', () => {
   })
 })
 
+describe('shell auth gate', () => {
+  it('shows restore progress and no route while the session restores', () => {
+    useAuthStore.setState({
+      status: 'restoring',
+      account: null,
+      pending: false,
+      error: null,
+      restore: () => new Promise<void>(() => {}),
+    })
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      expect(screen.getByRole('progressbar', { name: 'restoring session' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'sign in to read benday' })).toBeNull()
+      expect(document.querySelector('.b-view')).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('gates an anonymous session and reads no list behind the gate', async () => {
+    const transport = installTransport()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      const gate = await screen.findByRole('button', { name: 'sign in to read benday' })
+      expect(document.querySelector('.b-view')).toBeNull()
+      expect(transport.calls).toHaveLength(0)
+
+      fireEvent.click(gate)
+      await waitFor(() => expect(useUiStore.getState().dialog).toBe('login'))
+      expect(transport.calls).toHaveLength(0)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('renders the route for an authenticated session', async () => {
+    await signInShell()
+    window.history.pushState({}, '', '/search')
+    const view = render(<App />)
+    try {
+      expect(await screen.findByLabelText('query')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'sign in to read benday' })).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+})
+
 describe('global keyboard routing', () => {
   it('sends / to search instead of the command palette', async () => {
+    await signInShell()
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
@@ -171,7 +262,7 @@ describe('global keyboard routing', () => {
   })
 
   it('goes to search and focuses the query field from the feed', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -193,6 +284,7 @@ describe('global keyboard routing', () => {
   })
 
   it('toggles the palette with ctrl+k', async () => {
+    await signInShell()
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
@@ -211,6 +303,7 @@ describe('global keyboard routing', () => {
   })
 
   it('does not cycle tabs from an editable field', async () => {
+    await signInShell()
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
@@ -232,7 +325,7 @@ describe('global keyboard routing', () => {
 
 describe('escape precedence stack', () => {
   it('clears a committed search query, then blurs the field, and stays on search', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, { posts: [] }),
     )
@@ -263,7 +356,7 @@ describe('escape precedence stack', () => {
   })
 
   it('returns from notifications to the previous tab and never leaves the feed', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -275,7 +368,7 @@ describe('escape precedence stack', () => {
       act(() => {
         window.history.pushState({}, '', '/notifications')
       })
-      await screen.findByText('sign in for notifications')
+      await screen.findByText('nothing yet')
 
       // an input method that is still composing owns the key
       fireEvent.keyDown(document.body, { key: 'Escape', isComposing: true })
@@ -299,6 +392,7 @@ describe('escape precedence stack', () => {
   })
 
   it('closes the palette with escape without changing route', async () => {
+    await signInShell()
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
@@ -317,12 +411,15 @@ describe('escape precedence stack', () => {
 
 describe('route title', () => {
   it('titles each route and the committed query', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
     routeDiscoverMetadata(transport)
     routeUnavailableRouteReads(transport)
+    transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfile`, () =>
+      jsonResponse(400, { error: 'InvalidRequest', message: 'invalid actor' }),
+    )
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
@@ -367,7 +464,7 @@ describe('route title', () => {
 
 describe('route context focus', () => {
   it('focuses the new route container when nothing in it claimed focus', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -381,7 +478,7 @@ describe('route context focus', () => {
       act(() => {
         window.history.pushState({}, '', '/notifications')
       })
-      await screen.findByText('sign in for notifications')
+      await screen.findByText('nothing yet')
       await waitFor(() => expect(main).toHaveFocus())
     } finally {
       view.unmount()
@@ -389,7 +486,7 @@ describe('route context focus', () => {
   })
 
   it('leaves focus in the query field and on same-path query updates', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -419,7 +516,7 @@ describe('route context focus', () => {
 
 describe('app history', () => {
   it('stamps an app navigation with its entry depth', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -560,6 +657,7 @@ describe('route transitions', () => {
   }
 
   it('drops a queued transition update when a newer direct navigation arrives', async () => {
+    await signInShell()
     const stub = stubTransitions()
     feedRoutes()
     window.history.pushState({}, '', '/feed')
@@ -589,6 +687,7 @@ describe('route transitions', () => {
   })
 
   it('invalidates a queued transition update on unmount', async () => {
+    await signInShell()
     const stub = stubTransitions()
     feedRoutes()
     window.history.pushState({}, '', '/feed')

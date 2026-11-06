@@ -20,7 +20,6 @@ export interface TopBarProps {
 
 export function TopBar({ onSearch }: TopBarProps) {
   const [pathname] = useLocation()
-  const authStatus = useAuthStore((state) => state.status)
   const account = useAuthStore((state) => state.account)
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
@@ -36,7 +35,6 @@ export function TopBar({ onSearch }: TopBarProps) {
       profileHandle = ''
     }
   }
-  const authenticated = authStatus === 'authenticated'
 
   return (
     <header className="b-topbar">
@@ -54,16 +52,14 @@ export function TopBar({ onSearch }: TopBarProps) {
         >
           feeds
         </Link>
-        {authenticated ? (
-          <Link
-            href="/notifications"
-            className="b-topbar__link"
-            data-active={notificationsActive ? 'true' : 'false'}
-            aria-current={notificationsActive ? 'page' : undefined}
-          >
-            notifications
-          </Link>
-        ) : null}
+        <Link
+          href="/notifications"
+          className="b-topbar__link"
+          data-active={notificationsActive ? 'true' : 'false'}
+          aria-current={notificationsActive ? 'page' : undefined}
+        >
+          notifications
+        </Link>
         {profileActive ? (
           <Link
             href={pathname}
@@ -78,7 +74,7 @@ export function TopBar({ onSearch }: TopBarProps) {
       </nav>
 
       <div className="b-topbar__actions">
-        {authenticated && account !== null ? (
+        {account !== null ? (
           <Link
             href={`/profile/${encodeURIComponent(account.handle)}`}
             className="b-topbar__account"
@@ -87,31 +83,19 @@ export function TopBar({ onSearch }: TopBarProps) {
           >
             @{account.handle}
           </Link>
-        ) : authStatus === 'anonymous' ? (
-          <Button
-            variant="ghost"
-            className="b-topbar__login"
-            onClick={() => {
-              openDialog('login')
-            }}
-          >
-            log in
-          </Button>
         ) : null}
-        {authenticated ? (
-          <Button
-            variant="ghost"
-            className="b-topbar__icon"
-            onClick={() => {
-              openCompose({ mode: 'post', post: null })
-            }}
-            aria-label="compose"
-            title={`compose · ${COMPOSE_KEY}`}
-            data-keyhint="compose"
-          >
-            <span className="b-topbar__label">compose</span>
-          </Button>
-        ) : null}
+        <Button
+          variant="ghost"
+          className="b-topbar__icon"
+          onClick={() => {
+            openCompose({ mode: 'post', post: null })
+          }}
+          aria-label="compose"
+          title={`compose · ${COMPOSE_KEY}`}
+          data-keyhint="compose"
+        >
+          <span className="b-topbar__label">compose</span>
+        </Button>
 
         <Button
           variant="ghost"

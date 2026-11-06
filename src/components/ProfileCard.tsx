@@ -17,7 +17,6 @@ import {
 } from '../lib/profileActions'
 import { formatAbsoluteTime } from '../lib/time'
 import type { ProfileActivitySubscription, ProfileModel, ProfileViewerState } from '../lib/types'
-import { useUiStore } from '../lib/ui'
 import { Avatar } from './Avatar'
 import { DitherImage } from './DitherImage'
 import { Frame, Tag } from './ui'
@@ -110,8 +109,6 @@ function rollbackViewer(
 interface NotifyPickerProps {
   value: string
   disabled: boolean
-  locked: boolean
-  onLocked: () => void
   onSelect: (key: string) => void
 }
 
@@ -122,7 +119,7 @@ interface MenuPlacement {
   width: number
 }
 
-function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPickerProps) {
+function NotifyPicker({ value, disabled, onSelect }: NotifyPickerProps) {
   const listId = useId()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -147,10 +144,6 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
 
   const openPicker = () => {
     if (disabled) return
-    if (locked) {
-      onLocked()
-      return
-    }
     const trigger = triggerRef.current
     if (trigger === null) return
     const rect = trigger.getBoundingClientRect()
@@ -337,7 +330,6 @@ function NotifyPicker({ value, disabled, locked, onLocked, onSelect }: NotifyPic
 
 export function ProfileCard({ profile }: ProfileCardProps) {
   const queryClient = useQueryClient()
-  const openDialog = useUiStore((state) => state.openDialog)
   const actionsRef = useRef<HTMLFieldSetElement>(null)
   const [pending, setPending] = useState<ProfileAction | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -346,7 +338,6 @@ export function ProfileCard({ profile }: ProfileCardProps) {
   const displayName = profile.displayName.length > 0 ? profile.displayName : handle
   const viewer = profile.viewer
   const signedInDid = useAuthStore((state) => state.account?.did ?? null)
-  const authenticated = useAuthStore((state) => state.status === 'authenticated')
   const isSelf = signedInDid !== null && signedInDid === profile.did
   const viewerIdentity = signedInDid ?? 'anonymous'
   // the identity a late action belongs to; a new account or profile owns the
@@ -404,10 +395,6 @@ export function ProfileCard({ profile }: ProfileCardProps) {
     task: () => Promise<Partial<ProfileViewerState> | null>,
     optimistic: Partial<ProfileViewerState> | null,
   ) => {
-    if (useAuthStore.getState().status !== 'authenticated') {
-      openDialog('login')
-      return
-    }
     if (pending !== null) return
 
     const captured = identityRef.current
@@ -706,10 +693,6 @@ export function ProfileCard({ profile }: ProfileCardProps) {
             <NotifyPicker
               value={notifyChoice(viewer.activitySubscription)}
               disabled={toggling}
-              locked={!authenticated}
-              onLocked={() => {
-                openDialog('login')
-              }}
               onSelect={(key) => {
                 const choice = NOTIFY_CHOICES.find((entry) => entry.key === key)
                 if (choice === undefined) return

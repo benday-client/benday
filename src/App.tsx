@@ -12,8 +12,9 @@ import { HelpDialog } from './components/HelpDialog'
 import { KeyHints } from './components/KeyHints'
 import { LoginDialog } from './components/LoginDialog'
 import { SettingsDialog } from './components/SettingsDialog'
+import { SignedOutCard } from './components/SignedOutCard'
 import { TopBar } from './components/TopBar'
-import { EmptyState, ErrorNotice } from './components/ui'
+import { EmptyState, ErrorNotice, Progress } from './components/ui'
 import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
 import { getAuthAgent, useAuthStore } from './lib/auth'
@@ -172,6 +173,7 @@ function AppShell() {
   const previousTabRef = useRef<string | null>(null)
   const queryClient = useQueryClient()
   const authStatus = useAuthStore((state) => state.status)
+  const authenticated = authStatus === 'authenticated'
   const restoreError = useAuthStore((state) => state.restoreError)
   const labelers = useSettings((state) => state.labelers)
   const labelerKey = labelers.join('\n')
@@ -332,7 +334,7 @@ function AppShell() {
   }
 
   const changeTab = (direction: number) => {
-    const tabs: readonly string[] = authStatus === 'authenticated' ? TAB_ROUTES : ['/feed']
+    const tabs: readonly string[] = TAB_ROUTES
     const profileTab = pathname.startsWith('/profile/') ? pathname : null
     const routes: readonly string[] = profileTab === null ? tabs : [...tabs, profileTab]
     const current = routes.findIndex((route) =>
@@ -348,11 +350,7 @@ function AppShell() {
   }
 
   const startCompose = () => {
-    if (useAuthStore.getState().status === 'authenticated') {
-      openCompose({ mode: 'post', post: null })
-    } else {
-      openDialog('login')
-    }
+    openCompose({ mode: 'post', post: null })
   }
 
   const tabBinding = bindingFor('tabs')
@@ -390,6 +388,8 @@ function AppShell() {
       if (event.defaultPrevented || event.repeat) return
       if (event.isComposing || event.keyCode === 229) return
       if (!matchesBinding(event, bindingFor('palette'))) return
+      // the gate owns the keyboard while nobody is signed in
+      if (!authenticated) return
 
       if (dialog === 'palette') {
         event.preventDefault()
@@ -407,7 +407,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handlePaletteToggle, true)
     }
-  }, [dialog, compose, inlineCompose, openDialog, closeDialog])
+  }, [dialog, compose, inlineCompose, authenticated, openDialog, closeDialog])
 
   const closeOrBack = () => {
     if (pathname.startsWith('/profile/')) {
@@ -480,7 +480,10 @@ function AppShell() {
     // dialog and a hold reveals the key badges instead
   })
 
-  useHotkeys(hotkeys, dialog === null && compose === null && inlineCompose === null)
+  useHotkeys(
+    hotkeys,
+    authenticated && dialog === null && compose === null && inlineCompose === null,
+  )
 
   // a route swap ends a hold: the badges describe the surface that was on
   // screen when the key went down
@@ -495,20 +498,34 @@ function AppShell() {
       <TopBar onSearch={focusSearch} />
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
-        {/* a failed portal restore is reported above the route, not inside the
-            login dialog the reader did not ask for */}
-        {restoreError === null ? null : (
-          <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
+        {authenticated ? (
+          <Switch>
+            <Route path="/" component={FeedView} />
+            <Route path="/search" component={SearchView} />
+            <Route path="/profile/:actor" component={ProfileView} />
+            <Route path="/thread" component={ThreadView} />
+            <Route path="/feed" component={FeedView} />
+            <Route path="/notifications" component={NotificationsView} />
+            <Route component={NotFound} />
+          </Switch>
+        ) : authStatus === 'restoring' ? (
+          <div className="b-shell-gate">
+            <Progress label="restoring session" indeterminate />
+          </div>
+        ) : (
+          <div className="b-shell-gate">
+            {/* a failed portal restore is reported above the gate, not inside
+                the login dialog the reader did not ask for */}
+            {restoreError === null ? null : (
+              <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
+            )}
+            <SignedOutCard
+              onSignIn={() => {
+                openDialog('login')
+              }}
+            />
+          </div>
         )}
-        <Switch>
-          <Route path="/" component={FeedView} />
-          <Route path="/search" component={SearchView} />
-          <Route path="/profile/:actor" component={ProfileView} />
-          <Route path="/thread" component={ThreadView} />
-          <Route path="/feed" component={FeedView} />
-          <Route path="/notifications" component={NotificationsView} />
-          <Route component={NotFound} />
-        </Switch>
       </main>
 
       <CommandPalette
