@@ -18,6 +18,7 @@ import { useAuthStore } from '../lib/auth'
 import { focusOwningDeck } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { characterShortcutAllowed } from '../lib/keymap'
+import { displayContentLabel } from '../lib/labels'
 import { postWebUrl } from '../lib/postUrl'
 import { invalidateNonFeedQueries } from '../lib/queries'
 import { useSettings } from '../lib/store'
@@ -590,7 +591,7 @@ function PostCardView({
           <div className="b-post-card__labels">
             {post.labels.map((label) => (
               <Tag key={label} tone="warn" title={label}>
-                {label}
+                {displayContentLabel(label)}
               </Tag>
             ))}
           </div>
@@ -607,7 +608,7 @@ function PostCardView({
               <button
                 type="button"
                 className="b-spoil"
-                aria-label={`show ${mediaWord(post.embed)} behind the ${post.labels.join(' ')} label`}
+                aria-label={`show ${mediaWord(post.embed)} behind the ${post.labels.map(displayContentLabel).join(' ')} label`}
                 onClick={(event) => {
                   // revealing media must never follow the embed's link
                   event.preventDefault()

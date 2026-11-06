@@ -27,7 +27,7 @@ export const PROFILE_MODES: readonly ProfileModeOption[] = [
   {
     mode: 'media',
     name: 'media',
-    description: 'posts with images or video',
+    description: "this account's own images and video",
   },
 ]
 

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TestTransport } from '../test/transport'
 import { installTransport, jsonResponse } from '../test/transport'
 import { getAuthAgent } from './auth'
-import { showReposts, unblock } from './profileActions'
+import { unblock } from './profileActions'
 import { isRecord } from './records'
 
 vi.mock('./auth', () => ({
@@ -73,38 +73,5 @@ describe('unblock', () => {
 
     await expect(unblock(uri)).rejects.toThrow('invalid block record')
     expect(transport.calls).toEqual([])
-  })
-})
-
-describe('showReposts', () => {
-  it('keeps a quote-only scope by muting quotes instead of unmuting', async () => {
-    transport.route('POST', `${PDS}/xrpc/app.bsky.graph.muteActor`, () => jsonResponse(200, {}))
-    signedIn()
-
-    await showReposts('did:plc:other', true)
-
-    expect(transport.calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
-      'POST /xrpc/app.bsky.graph.muteActor',
-    ])
-    const [call] = transport.calls
-    expect(call?.headers['authorization']).toBe('Bearer access')
-    expect(parseBody(call?.body ?? null)).toEqual({
-      actor: 'did:plc:other',
-      onlyQuoteposts: true,
-    })
-  })
-
-  it('unmutes the actor when no quote scope is hidden', async () => {
-    transport.route('POST', `${PDS}/xrpc/app.bsky.graph.unmuteActor`, () => jsonResponse(200, {}))
-    signedIn()
-
-    await showReposts('did:plc:other', false)
-
-    expect(transport.calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
-      'POST /xrpc/app.bsky.graph.unmuteActor',
-    ])
-    const [call] = transport.calls
-    expect(call?.headers['authorization']).toBe('Bearer access')
-    expect(parseBody(call?.body ?? null)).toEqual({ actor: 'did:plc:other' })
   })
 })

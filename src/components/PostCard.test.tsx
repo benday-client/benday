@@ -213,6 +213,19 @@ describe('PostCard labels', () => {
     expect(screen.queryByRole('button', { name: /show image/ })).not.toBeInTheDocument()
   })
 
+  it('names a content label for display while keeping the raw id', () => {
+    renderCard(mediaPost(['porn', 'graphic-media', 'weird']))
+
+    expect(screen.getByText('explicit sexual content')).toHaveAttribute('title', 'porn')
+    expect(screen.getByText('graphic content')).toHaveAttribute('title', 'graphic-media')
+    expect(screen.getByText('weird')).toHaveAttribute('title', 'weird')
+    expect(
+      screen.getByRole('button', {
+        name: /show image behind the explicit sexual content graphic content weird label/,
+      }),
+    ).toBeInTheDocument()
+  })
+
   it('leaves unlabelled media open', () => {
     const { container } = renderCard(mediaPost([]))
     expect(container.querySelector('.b-post-card__media')?.getAttribute('data-spoil')).toBeNull()

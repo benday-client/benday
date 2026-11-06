@@ -61,7 +61,7 @@ const MODE_EMPTY: Record<ProfileContentMode, { title: string; hint: string }> = 
   },
   media: {
     title: 'no media',
-    hint: 'this actor has no image or video posts in the fetched feed',
+    hint: 'this account has no authored image or video posts in the fetched feed',
   },
 }
 
@@ -141,7 +141,13 @@ export default function ProfileView() {
         (post) => post.isReply && (authorDid === null || post.author.did === authorDid),
       )
     }
-    return entries.filter(hasMedia)
+    return entries.filter(
+      (post) =>
+        authorDid !== null &&
+        post.author.did === authorDid &&
+        post.reason?.type !== 'repost' &&
+        hasMedia(post),
+    )
   }
 
   const visiblePosts = mode === 'profile' ? [] : modeEntries(mode)

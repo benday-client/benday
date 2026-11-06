@@ -558,3 +558,84 @@ describe('ProfileView deck memory', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
+
+function imageEmbed(alt: string) {
+  return {
+    $type: 'app.bsky.embed.images#view',
+    images: [
+      {
+        $type: 'app.bsky.embed.images#viewImage',
+        thumb: `https://cdn.test/${alt}-thumb.jpg`,
+        fullsize: `https://cdn.test/${alt}-full.jpg`,
+        alt,
+        aspectRatio: { width: 4, height: 3 },
+      },
+    ],
+  }
+}
+
+describe('ProfileView media mode', () => {
+  it('shows only the author own media, including media replies, and counts the deck', async () => {
+    const indexedAt = '2026-10-29T12:00:00.000Z'
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+      jsonResponse(200, {
+        feed: [
+          { post: { ...wirePost('own', 'own media'), embed: imageEmbed('own') } },
+          {
+            post: {
+              ...wirePost('own-reply', 'own media reply'),
+              embed: imageEmbed('reply'),
+              record: {
+                $type: 'app.bsky.feed.post',
+                text: 'own media reply',
+                createdAt: indexedAt,
+                reply: {
+                  root: { uri: `at://${AUTHOR_DID}/app.bsky.feed.post/root`, cid: CID },
+                  parent: { uri: `at://${AUTHOR_DID}/app.bsky.feed.post/own`, cid: CID },
+                },
+              },
+            },
+          },
+          {
+            post: {
+              ...wirePost('self-repost', 'reposted media'),
+              embed: imageEmbed('repost'),
+            },
+            reason: {
+              $type: 'app.bsky.feed.defs#reasonRepost',
+              by: { did: AUTHOR_DID, handle: ACTOR },
+              indexedAt,
+            },
+          },
+          {
+            post: {
+              uri: 'at://did:plc:other/app.bsky.feed.post/foreign',
+              cid: CID,
+              author: { did: 'did:plc:other', handle: 'other.test' },
+              record: {
+                $type: 'app.bsky.feed.post',
+                text: 'foreign media',
+                createdAt: indexedAt,
+              },
+              indexedAt,
+              embed: imageEmbed('foreign'),
+            },
+          },
+        ],
+      }),
+    )
+
+    renderProfile()
+    await contentDeck()
+    fireEvent.click(screen.getByLabelText('change mode, profile'))
+    fireEvent.click(screen.getByLabelText('show media'))
+
+    await screen.findByLabelText(`media by ${ACTOR}`)
+    expect(screen.getByText('own media')).toBeInTheDocument()
+    expect(screen.getByText('own media reply')).toBeInTheDocument()
+    expect(screen.queryByText('reposted media')).toBeNull()
+    expect(screen.queryByText('foreign media')).toBeNull()
+    // the mode count is the deck that is actually shown
+    expect(screen.getAllByText('2 cards').length).toBeGreaterThan(0)
+  })
+})

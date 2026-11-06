@@ -1,5 +1,4 @@
 import { getAuthAgent } from './auth'
-import type { ProfileActivitySubscription } from './types'
 
 export interface ProfileWriteResult {
   uri: string
@@ -38,20 +37,6 @@ export async function unmute(did: string): Promise<void> {
   await requireAgent().unmute(did)
 }
 
-export async function hideReposts(did: string): Promise<void> {
-  await requireAgent().mute(did, { onlyReposts: true })
-}
-
-export async function showReposts(did: string, keepQuoteposts: boolean): Promise<void> {
-  const agent = requireAgent()
-  if (keepQuoteposts) {
-    // undo only the repost scope; a quote-only mute must survive it
-    await agent.mute(did, { onlyQuoteposts: true })
-    return
-  }
-  await agent.unmute(did)
-}
-
 export async function block(did: string): Promise<ProfileWriteResult> {
   const agent = requireAgent()
   const repo = requireRepo()
@@ -88,19 +73,4 @@ export async function unblock(blockUri: string): Promise<void> {
     collection: BLOCK_COLLECTION,
     rkey,
   })
-}
-
-export async function setActivitySubscription(
-  did: string,
-  subscription: ProfileActivitySubscription,
-): Promise<ProfileActivitySubscription> {
-  const response = await requireAgent().app.bsky.notification.putActivitySubscription({
-    subject: did,
-    activitySubscription: { post: subscription.post, reply: subscription.reply },
-  })
-  const result = response.data.activitySubscription
-  return {
-    post: result?.post ?? subscription.post,
-    reply: result?.reply ?? subscription.reply,
-  }
 }
