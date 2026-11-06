@@ -401,14 +401,14 @@ pnpm install
 pnpm dev
 ```
 
-the dev server listens on `0.0.0.0:5173`. open `http://127.0.0.1:5173/` or
-`http://[::1]:5173/` for the loopback portal flow; `localhost` serves the
-password form. the production build is a static bundle in `dist/`.
+the dev server listens on `127.0.0.1:5173`. open `http://127.0.0.1:5173/` for
+the loopback portal flow; `localhost` serves the password form. the production
+build is a static bundle in `dist/`.
 
 ```sh
 pnpm dev        # vite dev server
 pnpm build      # tsc --noEmit plus vite build
-pnpm preview    # static preview on 0.0.0.0:4173
+pnpm preview    # static preview on 127.0.0.1:4173
 pnpm typecheck  # strict tsc pass
 pnpm lint         # biome check
 pnpm test         # vitest run (jsdom)

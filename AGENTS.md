@@ -140,9 +140,9 @@ the playwright chromium download, and a git checkout. a missing one is a hard
 failure, never a skipped check.
 
 ```sh
-pnpm dev        # vite on 0.0.0.0:5173, strict port
+pnpm dev        # vite on 127.0.0.1:5173, strict port
 pnpm build      # tsc --noEmit then vite build into dist/
-pnpm preview    # static preview on 0.0.0.0:4173, strict port
+pnpm preview    # static preview on 127.0.0.1:4173, strict port
 pnpm typecheck  # strict tsc pass
 pnpm lint       # biome check .
 pnpm format     # biome check --write .
@@ -170,9 +170,9 @@ python3 -m venv ~/.local/share/benday-pre-commit
 the hook is local and bypassable; it is not remote enforcement, and no forge
 runs `pnpm check` for this repository.
 
-open the dev server at `http://127.0.0.1:5173/` or `http://[::1]:5173/` for the
-portal flow, or at `localhost` for the password form. vite and preview bind all
-interfaces on purpose.
+open the dev server at `http://127.0.0.1:5173/` for the portal flow, or at
+`localhost` for the password form. vite and preview bind the loopback address
+only, so the dev server is never reachable from another host.
 
 before handing off a change, run the narrowest check that covers it, then
 `pnpm check` unless the task explicitly says not to run gates. tests are offline
