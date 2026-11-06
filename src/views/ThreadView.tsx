@@ -426,8 +426,7 @@ export default function ThreadView() {
     dockRequest !== null && dockRequest.post !== null ? (
       <InlineComposer request={dockRequest} onClose={closeInlineCompose} />
     ) : null
-  const quoteDock = dockRequest?.mode === 'quote' ? composeDock : null
-  const replyDock = dockRequest?.mode === 'reply' ? composeDock : null
+  const replyDock = dockRequest !== null ? composeDock : null
   const stacked = parentUri !== null || composeDock !== null
 
   return (
@@ -480,7 +479,6 @@ export default function ThreadView() {
                 ) : null}
               </div>
             ) : null}
-            {quoteDock}
             <PostCard
               post={focusPost}
               focused={focusedReply === null}

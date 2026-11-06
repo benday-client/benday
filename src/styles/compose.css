@@ -77,12 +77,6 @@
   scrollbar-width: thin;
 }
 
-.b-compose-dock[data-placement="above"] {
-  top: 0;
-  bottom: auto;
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 55%, transparent);
-}
-
 /* the dock head reuses the dialog head classes and its actions row is the one
    both composers render, so a dock reads as the same box as the modal; the
    dock only drops the dialog's inset padding and keeps the hint next to the
@@ -93,8 +87,8 @@
   background: transparent;
 }
 
-/* both placements push the title to the left edge and leave the hint beside
-   the close cross, so the two heads cannot drift apart */
+/* the dock and the modal push the title to the left edge and leave the hint
+   beside the close cross, so the two heads cannot drift apart */
 .b-compose > .b-dialog__head > .b-dialog__title,
 .b-compose-dock > .b-dialog__head > .b-dialog__title {
   margin-right: auto;
@@ -159,10 +153,6 @@
 /* reserve room above the card so the reply card scrolls instead of the dock */
 .b-thread--stack[data-compose="reply"] > .b-post-card {
   max-height: calc(100% - clamp(160px, 30dvh, 280px));
-}
-
-.b-thread--stack[data-compose="quote"] > .b-post-card {
-  min-height: 96px;
 }
 
 @media (max-width: 520px) {

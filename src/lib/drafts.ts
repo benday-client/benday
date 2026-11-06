@@ -89,13 +89,36 @@ function freshRevision(): string {
   return revision
 }
 
+/**
+ * Every draft is owned by an account: a signed-out composition has no key, and
+ * a key is never written for an owner the composer does not have.
+ */
 export function draftKeyFor(
   mode: ComposeMode,
   targetUri: string | null,
-  accountDid: string | null,
+  accountDid: string,
 ): string {
-  const owner = accountDid ?? 'signed-out'
-  return mode === 'post' ? `${owner}:post` : `${owner}:${mode}:${targetUri ?? ''}`
+  return mode === 'post' ? `${accountDid}:post` : `${accountDid}:reply:${targetUri ?? ''}`
+}
+
+/**
+ * Drops drafts from retired compose surfaces once at startup: signed-out
+ * records and quote-mode records have no composer any more. A store that
+ * cannot be read is left alone rather than rewritten. Unknown keys survive.
+ */
+export function purgeRetiredDrafts(): void {
+  const drafts = readMap()
+  if (drafts === null) return
+
+  let changed = false
+  for (const key of Object.keys(drafts)) {
+    if (key.startsWith('signed-out:') || key.includes(':quote:')) {
+      delete drafts[key]
+      changed = true
+    }
+  }
+  if (!changed) return
+  writeMap(drafts)
 }
 
 /** Reads one entry, reporting an unreadable store instead of pretending it is empty. */

@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { createPost, createQuote, createReply } from '../lib/actions'
+import { createPost, createReply } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { clearDraft, draftKeyFor, readDraft, writeDraft } from '../lib/drafts'
 import { errorInfo } from '../lib/errors'
@@ -48,7 +48,6 @@ const DISMISS = bindingFor('compose-dismiss')
 const PLACEHOLDERS: Record<ComposeMode, string> = {
   post: 'write a post',
   reply: 'write a reply',
-  quote: 'add a comment, optional',
 }
 
 export function composePlaceholder(mode: ComposeMode): string {
@@ -192,7 +191,9 @@ export function useComposeForm({
   const storageWarningId = useId()
   const compositionRef = useRef<Composition | null>(null)
   const draftKey =
-    request === null ? null : draftKeyFor(request.mode, request.post?.uri ?? null, accountDid)
+    request === null || accountDid === null
+      ? null
+      : draftKeyFor(request.mode, request.post?.uri ?? null, accountDid)
 
   useEffect(() => {
     // whatever the previous request typed belongs to its own key, even when it
@@ -291,7 +292,7 @@ export function useComposeForm({
     suggestions.length === 0 ? -1 : Math.min(selectedSuggestion, suggestions.length - 1)
   const plain = markdownText(text)
   const count = new RichText({ text: plain }).graphemeLength
-  const empty = mode !== 'quote' && plain.trim().length === 0
+  const empty = plain.trim().length === 0
   const overLimit = count > MAX_GRAPHEMES
   const missingTarget = mode !== 'post' && target === null
   const disabled = pending || sent || empty || overLimit || missingTarget
@@ -420,10 +421,8 @@ export function useComposeForm({
       } else if (submittedRequest.post === null) {
         setError('no target post')
         return
-      } else if (submittedRequest.mode === 'reply') {
-        await createReply(sentText, submittedRequest.post)
       } else {
-        await createQuote(sentText, submittedRequest.post)
+        await createReply(sentText, submittedRequest.post)
       }
 
       // the post exists now: nothing from here may send it again, and the

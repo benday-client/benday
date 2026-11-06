@@ -2,7 +2,8 @@ import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createQuote, createReply } from '../lib/actions'
+import { createReply } from '../lib/actions'
+import { useAuthStore } from '../lib/auth'
 import { draftKeyFor, readDraft } from '../lib/drafts'
 import type { ComposeRequest } from '../lib/ui'
 import { useUiStore } from '../lib/ui'
@@ -15,13 +16,9 @@ import { InlineComposer } from './InlineComposer'
 vi.mock('../lib/actions', () => ({
   createPost: vi.fn(async () => ({ uri: 'at://post', cid: 'post-cid' })),
   createReply: vi.fn(async () => ({ uri: 'at://reply', cid: 'reply-cid' })),
-  createQuote: vi.fn(async () => ({ uri: 'at://quote', cid: 'quote-cid' })),
 }))
 
-const MODES = ['reply', 'quote'] as const
-// the dock is only opened for replies and quotes, but the field name derives
-// from the request mode, so every mode has to name its editor the same way
-const ALL_MODES = ['post', 'reply', 'quote'] as const
+const OWNER = 'did:plc:owner'
 
 function dockClientWithActor() {
   const queryClient = createTestQueryClient()
@@ -33,9 +30,9 @@ function dockClientWithActor() {
   return queryClient
 }
 
-function awaitingQuoteGate() {
+function awaitingReplyGate() {
   const gate = Promise.withResolvers<{ uri: string; cid: string }>()
-  vi.mocked(createQuote).mockReturnValueOnce(gate.promise)
+  vi.mocked(createReply).mockReturnValueOnce(gate.promise)
   return gate
 }
 
@@ -121,6 +118,12 @@ async function settleAutosave() {
 
 beforeEach(() => {
   useUiStore.setState({ compose: null, inlineCompose: null, dialog: null })
+  useAuthStore.setState({
+    status: 'authenticated',
+    account: { did: OWNER, handle: 'owner.test' },
+    pending: false,
+    error: null,
+  })
 })
 
 describe('InlineComposer', () => {
@@ -138,18 +141,18 @@ describe('InlineComposer', () => {
       </QueryClientProvider>,
     )
 
-    expect(readDraft(draftKeyFor('reply', first.uri, null)).text).toBe('for the first')
+    expect(readDraft(draftKeyFor('reply', first.uri, OWNER)).text).toBe('for the first')
     expect(screen.getByRole('textbox')).toHaveValue('')
   })
 
   it('flushes on unmount before the autosave delay', () => {
     const post = postFixture()
-    const { view } = renderDock({ mode: 'quote', post })
+    const { view } = renderDock({ mode: 'reply', post })
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'unfinished' } })
 
     view.unmount()
 
-    expect(readDraft(draftKeyFor('quote', post.uri, null)).text).toBe('unfinished')
+    expect(readDraft(draftKeyFor('reply', post.uri, OWNER)).text).toBe('unfinished')
   })
 
   it('wears the shared composer head and actions', () => {
@@ -202,13 +205,12 @@ describe('InlineComposer', () => {
     }
   })
 
-  it.each(MODES)('counts graphemes and sends a %s dock', async (mode) => {
+  it('counts graphemes and sends a reply dock', async () => {
     const post = postFixture()
-    renderDock({ mode, post })
+    renderDock({ mode: 'reply', post })
     const input = screen.getByRole('textbox')
-    const send = screen.getByRole('button', { name: mode })
-    // a reply needs text; a quote may go out with just the quoted post
-    if (mode === 'reply') expect(send).toBeDisabled()
+    const send = screen.getByRole('button', { name: 'reply' })
+    expect(send).toBeDisabled()
 
     fireEvent.change(input, { target: { value: 'a'.repeat(301) } })
     expect(screen.getByText('301/300')).toHaveAttribute('data-over', 'true')
@@ -219,27 +221,25 @@ describe('InlineComposer', () => {
     expect(send).toBeEnabled()
 
     fireEvent.submit(composeForm())
-
-    const sendAction = mode === 'reply' ? createReply : createQuote
-    await waitFor(() => expect(sendAction).toHaveBeenCalledWith('hello', post))
+    await waitFor(() => expect(createReply).toHaveBeenCalledWith('hello', post))
   })
 
-  it.each(MODES)('closes a %s dock from the keyboard and from the shared head', (mode) => {
-    const { onClose } = renderDock({ mode, post: postFixture() })
+  it('closes a reply dock from the keyboard and from the shared head', () => {
+    const { onClose } = renderDock({ mode: 'reply', post: postFixture() })
 
-    fireEvent.keyDown(screen.getByLabelText(`${mode} composer`), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByLabelText('reply composer'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByLabelText(`close ${mode}`))
+    fireEvent.click(screen.getByLabelText('close reply'))
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('keeps the draft and shows the failure when a dock send is rejected', async () => {
     const post = postFixture()
-    const key = draftKeyFor('quote', post.uri, null)
-    vi.mocked(createQuote).mockRejectedValueOnce(new Error('pds said no'))
+    const key = draftKeyFor('reply', post.uri, OWNER)
+    vi.mocked(createReply).mockRejectedValueOnce(new Error('pds said no'))
 
-    const { onClose } = renderDock({ mode: 'quote', post })
+    const { onClose } = renderDock({ mode: 'reply', post })
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'keep me' } })
     fireEvent.submit(composeForm())
 
@@ -248,10 +248,10 @@ describe('InlineComposer', () => {
     expect(readDraft(key).text).toBe('keep me')
   })
 
-  it.each(ALL_MODES)('exposes a native %s dock textbox', (mode) => {
-    renderDock({ mode, post: postFixture() })
+  it('exposes a native reply dock textbox', () => {
+    renderDock({ mode: 'reply', post: postFixture() })
 
-    const input = screen.getByRole('textbox', { name: `compose ${mode}` })
+    const input = screen.getByRole('textbox', { name: 'compose reply' })
     expect(input.tagName).toBe('TEXTAREA')
     expect(input).not.toHaveAttribute('role')
     expect(input).not.toHaveAttribute('aria-expanded')
@@ -262,8 +262,8 @@ describe('InlineComposer', () => {
 
   it('keeps a pending dock send focused read-only and suggestion-free', async () => {
     stubTypeahead()
-    const gate = awaitingQuoteGate()
-    const request: ComposeRequest = { mode: 'quote', post: postFixture() }
+    const gate = awaitingReplyGate()
+    const request: ComposeRequest = { mode: 'reply', post: postFixture() }
     const { onClose } = renderDock(request, { client: dockClientWithActor() })
 
     const input = screen.getByRole('textbox')
@@ -278,7 +278,7 @@ describe('InlineComposer', () => {
 
     expect(input).not.toBeDisabled()
     expect(document.activeElement).toBe(input)
-    expect(screen.getByRole('button', { name: 'quote' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'reply' })).toBeDisabled()
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(input).not.toHaveAttribute('aria-controls')
     expect(input).not.toHaveAttribute('aria-activedescendant')
@@ -288,7 +288,7 @@ describe('InlineComposer', () => {
     expect(document.getElementById(describedBy[0] ?? '')).toHaveTextContent('/300')
 
     await act(async () => {
-      gate.resolve({ uri: 'at://quote', cid: 'quote-cid' })
+      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
     })
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
@@ -306,7 +306,7 @@ describe('InlineComposer', () => {
 
   it('warns while dock storage is unreadable and clears it after a later save', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     const reads = stubStorageReads()
     const { onClose } = renderDock({ mode: 'reply', post })
 
@@ -326,10 +326,10 @@ describe('InlineComposer', () => {
     expect(readDraft(key).text).toBe('held copy and more')
   })
 
-  it('keeps a sent dock open without a second quote when cleanup fails', async () => {
+  it('keeps a sent dock open without a second reply when cleanup fails', async () => {
     const post = postFixture()
-    const key = draftKeyFor('quote', post.uri, null)
-    const { onClose } = renderDock({ mode: 'quote', post })
+    const key = draftKeyFor('reply', post.uri, OWNER)
+    const { onClose } = renderDock({ mode: 'reply', post })
     const input = screen.getByRole('textbox')
     if (!(input instanceof HTMLTextAreaElement)) throw new Error('missing dock textarea')
 
@@ -349,13 +349,13 @@ describe('InlineComposer', () => {
 
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
     await act(async () => undefined)
-    expect(createQuote).toHaveBeenCalledTimes(1)
+    expect(createReply).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
     expect(onClose).toHaveBeenCalledTimes(1)
     await act(async () => undefined)
     // closing a submitted dock never autosaves it again
-    expect(createQuote).toHaveBeenCalledTimes(1)
+    expect(createReply).toHaveBeenCalledTimes(1)
     expect(readDraft(key)).toEqual(stored)
   })
 })

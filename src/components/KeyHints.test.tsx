@@ -176,7 +176,6 @@ describe('KeyHints hold gesture', () => {
     expect(shown).toContain(registryLabel('card-like'))
     expect(shown).toContain(registryLabel('card-repost'))
     expect(shown).toContain(registryLabel('card-reply'))
-    expect(shown).toContain(registryLabel('card-quote'))
     expect(shown).toContain(registryLabel('card-copy'))
     expect(shown).toContain(registryLabel('card-media'))
     expect(shown).toContain(registryLabel('palette'))

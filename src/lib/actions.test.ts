@@ -4,14 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { postFixture } from '../test/fixtures'
 import type { RouteRequest, TestTransport } from '../test/transport'
 import { installTransport, jsonResponse } from '../test/transport'
-import {
-  createPost,
-  createQuote,
-  createReply,
-  deletePost,
-  fetchViewerStates,
-  sendFeedFeedback,
-} from './actions'
+import { createPost, createReply, deletePost, fetchViewerStates, sendFeedFeedback } from './actions'
 import { getAuthAgent } from './auth'
 import { segmentText } from './facets'
 import { mapFacets } from './model'
@@ -444,20 +437,6 @@ describe('post composition', () => {
     expect(records[1]?.reply).toEqual({
       root: { uri: parent.uri, cid: parent.cid },
       parent: { uri: parent.uri, cid: parent.cid },
-    })
-  })
-
-  it('quotes the exact record it was opened from', async () => {
-    routeCreateRecord()
-    signedIn()
-    const post = postFixture()
-
-    await createQuote('worth reading', post)
-
-    const [record] = postedRecords()
-    expect(record?.embed).toEqual({
-      $type: 'app.bsky.embed.record',
-      record: { uri: post.uri, cid: post.cid },
     })
   })
 

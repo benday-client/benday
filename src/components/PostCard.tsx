@@ -206,14 +206,6 @@ function PostCardView({
     openCompose({ mode: 'reply', post })
   }
 
-  const openQuoteCompose = () => {
-    if (inlineTarget) {
-      openInlineCompose({ mode: 'quote', post })
-      return
-    }
-    openCompose({ mode: 'quote', post })
-  }
-
   const copyLink = useCallback(async () => {
     const card = owner
     const target = postWebUrl(post)
@@ -369,12 +361,12 @@ function PostCardView({
 
       const ui = useUiStore.getState()
       const inline = focused && replies !== undefined
-      const open = (mode: 'reply' | 'quote') => {
+      const openReply = () => {
         if (inline) {
-          ui.openInlineCompose({ mode, post })
+          ui.openInlineCompose({ mode: 'reply', post })
           return
         }
-        ui.openCompose({ mode, post })
+        ui.openCompose({ mode: 'reply', post })
       }
       switch (event.key) {
         case 'f':
@@ -387,11 +379,7 @@ function PostCardView({
           break
         case 'r':
           event.preventDefault()
-          open('reply')
-          break
-        case 'q':
-          event.preventDefault()
-          open('quote')
+          openReply()
           break
         case '+':
           if (onFeedback === undefined) break
@@ -692,14 +680,6 @@ function PostCardView({
                 onClick={openReplyCompose}
               >
                 reply
-              </button>
-              <button
-                type="button"
-                className="b-post-card__action"
-                data-keyhint={focused ? 'card-quote' : undefined}
-                onClick={openQuoteCompose}
-              >
-                quote
               </button>
               {onFeedback !== undefined ? (
                 feedbackSent ? (

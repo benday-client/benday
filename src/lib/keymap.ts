@@ -231,7 +231,6 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     label: 'repost or unrepost',
   },
   { id: 'card-reply', scope: 'card', keys: ['r'], chords: letterChords(['r']), label: 'reply' },
-  { id: 'card-quote', scope: 'card', keys: ['q'], chords: letterChords(['q']), label: 'quote' },
   {
     id: 'card-copy',
     scope: 'card',

@@ -3,7 +3,7 @@ import type { PostModel } from './types'
 
 export type DialogKind = 'palette' | 'help' | 'login' | 'account' | 'settings' | null
 
-export type ComposeMode = 'post' | 'reply' | 'quote'
+export type ComposeMode = 'post' | 'reply'
 
 export interface ComposeRequest {
   mode: ComposeMode

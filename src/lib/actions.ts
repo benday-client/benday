@@ -1,9 +1,4 @@
-import type {
-  AppBskyEmbedRecord,
-  AppBskyFeedPost,
-  AppBskyRichtextFacet,
-  AtpBaseClient,
-} from '@atproto/api'
+import type { AppBskyFeedPost, AppBskyRichtextFacet, AtpBaseClient } from '@atproto/api'
 import { AppBskyFeedDefs, RichText } from '@atproto/api'
 import { getAuthAgent } from './auth'
 import { parseMarkdown } from './markdown'
@@ -241,22 +236,6 @@ export async function createReply(text: string, post: PostModel): Promise<WriteR
   const record: Partial<AppBskyFeedPost.Record> = {
     text: rich.text,
     reply: { root, parent },
-  }
-  applyFacets(record, rich)
-  return agent.post(record)
-}
-
-export async function createQuote(text: string, post: PostModel): Promise<WriteResult> {
-  const agent = requireAgent()
-  const rich = await preparedText(text, agent)
-  requireSameAgent(agent)
-  const embed: AppBskyEmbedRecord.Main = {
-    $type: 'app.bsky.embed.record',
-    record: { uri: post.uri, cid: post.cid },
-  }
-  const record: Partial<AppBskyFeedPost.Record> = {
-    text: rich.text,
-    embed,
   }
   applyFacets(record, rich)
   return agent.post(record)

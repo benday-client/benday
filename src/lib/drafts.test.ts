@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearDraft, type DraftWrite, draftKeyFor, readDraft, writeDraft } from './drafts'
+import {
+  clearDraft,
+  type DraftWrite,
+  draftKeyFor,
+  purgeRetiredDrafts,
+  readDraft,
+  writeDraft,
+} from './drafts'
 
 const KEY = 'benday:drafts'
 
@@ -19,15 +26,13 @@ describe('drafts', () => {
     localStorage.clear()
   })
 
-  it('keeps separate drafts for post reply and quote', () => {
+  it('keeps separate drafts for a post and a reply', () => {
     const account = 'did:plc:test'
     const post = draftKeyFor('post', null, account)
     const reply = draftKeyFor('reply', 'at://post/a', account)
-    const quote = draftKeyFor('quote', 'at://post/a', account)
 
     writeDraft(post, 'a post')
     writeDraft(reply, 'a reply')
-    writeDraft(quote, 'a quote')
 
     expect(readDraft(post)).toEqual({
       text: 'a post',
@@ -35,7 +40,13 @@ describe('drafts', () => {
       available: true,
     })
     expect(readDraft(reply).text).toBe('a reply')
-    expect(readDraft(quote).text).toBe('a quote')
+  })
+
+  it('names every key for its account', () => {
+    expect(draftKeyFor('post', null, 'did:plc:test')).toBe('did:plc:test:post')
+    expect(draftKeyFor('reply', 'at://post/a', 'did:plc:test')).toBe(
+      'did:plc:test:reply:at://post/a',
+    )
   })
 
   it('scopes drafts by account', () => {
@@ -177,5 +188,56 @@ describe('drafts', () => {
     expect(clearDraft('post', revision, 'hello')).toBe(false)
     vi.restoreAllMocks()
     expect(readDraft('post').text).toBe('hello')
+  })
+})
+
+describe('purgeRetiredDrafts', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('drops signed-out and quote records and keeps everything else', () => {
+    const account = 'did:plc:test'
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        'signed-out:post': { text: 'old signed-out post', updatedAt: 1 },
+        [`${account}:post`]: { text: 'post', updatedAt: 2 },
+        [`${account}:reply:at://post/a`]: { text: 'reply', updatedAt: 3 },
+        [`${account}:quote:at://post/a`]: { text: 'quote', updatedAt: 4 },
+        'unknown-key': { text: 'unknown', updatedAt: 5 },
+      }),
+    )
+
+    purgeRetiredDrafts()
+
+    expect(Object.keys(stored()).sort()).toEqual(
+      [`${account}:post`, `${account}:reply:at://post/a`, 'unknown-key'].sort(),
+    )
+    expect(readDraft(`${account}:post`).text).toBe('post')
+  })
+
+  it('deletes nothing when storage cannot be read', () => {
+    const raw = JSON.stringify({ 'signed-out:post': { text: 'kept', updatedAt: 1 } })
+    localStorage.setItem(KEY, raw)
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage read denied')
+    })
+
+    purgeRetiredDrafts()
+
+    spy.mockRestore()
+    expect(localStorage.getItem(KEY)).toBe(raw)
+  })
+
+  it('writes nothing when there is nothing retired to remove', () => {
+    const account = 'did:plc:test'
+    const raw = JSON.stringify({ [`${account}:post`]: { text: 'post', updatedAt: 1 } })
+    localStorage.setItem(KEY, raw)
+    const spy = vi.spyOn(Storage.prototype, 'setItem')
+
+    purgeRetiredDrafts()
+
+    expect(spy).not.toHaveBeenCalled()
   })
 })

@@ -111,7 +111,7 @@ describe('character shortcut opt-out', () => {
   })
 
   it('rejects bare character shortcuts while the setting is off', () => {
-    const letters = ['f', 'b', 'r', 'q', 'y', 'v', 'm', 'o', 'x', 'j', 'k', 'h', 'l', 's', 'c']
+    const letters = ['f', 'b', 'r', 'y', 'v', 'm', 'o', 'x', 'j', 'k', 'h', 'l', 's', 'c']
     for (const key of [...letters, 'G', 'R']) {
       expect(characterShortcuts, `${key} is a registered character shortcut`).toContain(key)
       expect(characterShortcutAllowed(false, bare(key)), key).toBe(false)

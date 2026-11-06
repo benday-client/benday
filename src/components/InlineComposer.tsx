@@ -18,14 +18,11 @@ export function InlineComposer({ request, onClose }: InlineComposerProps) {
 
   if (form.target === null) return null
 
-  const action = request.mode === 'quote' ? 'quote' : 'reply'
-  const placement = request.mode === 'quote' ? 'above' : 'below'
+  const action = 'reply'
 
   return (
     <section
       className="b-compose-dock"
-      data-mode={action}
-      data-placement={placement}
       aria-label={`${action} composer`}
       onKeyDown={(event) => {
         if (event.key !== 'Escape' || event.defaultPrevented) return

@@ -5,7 +5,8 @@ import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router, useLocation, useSearch } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
-import { createQuote, createReply } from '../lib/actions'
+import { createReply } from '../lib/actions'
+import { useAuthStore } from '../lib/auth'
 import { draftKeyFor, readDraft } from '../lib/drafts'
 import type { ComposeRequest } from '../lib/ui'
 import { useUiStore } from '../lib/ui'
@@ -17,7 +18,6 @@ import { ComposeDialog } from './ComposeDialog'
 vi.mock('../lib/actions', () => ({
   createPost: vi.fn(async () => ({ uri: 'at://post', cid: 'post-cid' })),
   createReply: vi.fn(async () => ({ uri: 'at://reply', cid: 'reply-cid' })),
-  createQuote: vi.fn(async () => ({ uri: 'at://quote', cid: 'quote-cid' })),
 }))
 
 function LocationProbe() {
@@ -29,6 +29,8 @@ function LocationProbe() {
 }
 
 type RouterHooks = Required<Pick<ComponentProps<typeof Router>, 'hook' | 'searchHook'>>
+
+const OWNER = 'did:plc:owner'
 
 function Harness({ queryClient, hooks }: { queryClient: QueryClient; hooks: RouterHooks }) {
   const compose = useUiStore((state) => state.compose)
@@ -109,7 +111,6 @@ function stubTypeahead() {
 const MODE_REQUESTS: readonly ComposeRequest[] = [
   { mode: 'post', post: null },
   { mode: 'reply', post: postFixture() },
-  { mode: 'quote', post: postFixture() },
 ]
 
 /** Opens a reply whose mention list is already settled with two actors. */
@@ -190,6 +191,12 @@ async function settleAutosave() {
 
 beforeEach(() => {
   useUiStore.setState({ compose: null, inlineCompose: null, dialog: null, openingPost: null })
+  useAuthStore.setState({
+    status: 'authenticated',
+    account: { did: OWNER, handle: 'owner.test' },
+    pending: false,
+    error: null,
+  })
 })
 
 describe('ComposeDialog', () => {
@@ -229,18 +236,18 @@ describe('ComposeDialog', () => {
     expect(useUiStore.getState().compose).toBeNull()
   })
 
-  it('keeps a reply draft when the request switches to quote before the delay', async () => {
+  it('keeps a post draft when the request switches to reply before the delay', async () => {
     const post = postFixture()
     renderComposer()
+    open({ mode: 'post', post: null })
+    type('post draft')
+
     open({ mode: 'reply', post })
     type('reply draft')
 
-    open({ mode: 'quote', post })
-    type('quote draft')
-
-    expect(readDraft(draftKeyFor('reply', post.uri, null)).text).toBe('reply draft')
+    expect(readDraft(draftKeyFor('post', null, OWNER)).text).toBe('post draft')
     await waitFor(() =>
-      expect(readDraft(draftKeyFor('quote', post.uri, null)).text).toBe('quote draft'),
+      expect(readDraft(draftKeyFor('reply', post.uri, OWNER)).text).toBe('reply draft'),
     )
   })
 
@@ -259,7 +266,7 @@ describe('ComposeDialog', () => {
 
   it('leaves a reopened draft alone when a dismissed identical send resolves', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     const gate = Promise.withResolvers<{ uri: string; cid: string }>()
     vi.mocked(createReply).mockReturnValueOnce(gate.promise)
 
@@ -298,11 +305,11 @@ describe('ComposeDialog', () => {
 
   it('keeps the draft and shows the failure when a send is rejected', async () => {
     const post = postFixture()
-    const key = draftKeyFor('quote', post.uri, null)
-    vi.mocked(createQuote).mockRejectedValueOnce(new Error('pds said no'))
+    const key = draftKeyFor('reply', post.uri, OWNER)
+    vi.mocked(createReply).mockRejectedValueOnce(new Error('pds said no'))
 
     renderComposer()
-    open({ mode: 'quote', post })
+    open({ mode: 'reply', post })
     type('keep me')
     submit()
 
@@ -313,7 +320,7 @@ describe('ComposeDialog', () => {
 
   it('clears a differently worded autosave after a failed flush and a successful send', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     renderComposer()
     open({ mode: 'reply', post })
 
@@ -342,7 +349,7 @@ describe('ComposeDialog', () => {
 
   it('clears the original read snapshot when the claim and the final flush both fail', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     localStorage.setItem(
       'benday:drafts',
       JSON.stringify({ [key]: { text: 'seeded draft', updatedAt: 1, revision: 'known-revision' } }),
@@ -373,7 +380,7 @@ describe('ComposeDialog', () => {
 
   it('warns while storage is unreadable, then clears the warning after a later save', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     const reads = stubStorageReads()
     renderComposer()
     open({ mode: 'reply', post })
@@ -402,7 +409,7 @@ describe('ComposeDialog', () => {
 
   it('keeps a sent composition open without a second post when cleanup fails', async () => {
     const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, null)
+    const key = draftKeyFor('reply', post.uri, OWNER)
     renderComposer()
     open({ mode: 'reply', post })
 
@@ -753,9 +760,9 @@ describe('ComposeDialog', () => {
   })
 
   it('associates the count and the submission error with the editor', async () => {
-    vi.mocked(createQuote).mockRejectedValueOnce(new Error('pds said no'))
+    vi.mocked(createReply).mockRejectedValueOnce(new Error('pds said no'))
     renderComposer()
-    open({ mode: 'quote', post: postFixture() })
+    open({ mode: 'reply', post: postFixture() })
 
     type('keep me')
     submit()
