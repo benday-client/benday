@@ -23,45 +23,46 @@ const APPVIEW_PROXY = {
 } as const
 
 type WireFacet = AppBskyRichtextFacet.Main
-type WireFeature = WireFacet['features'][number]
+type NavigationFeature =
+  | { $type: 'app.bsky.richtext.facet#link'; uri: string }
+  | { $type: 'app.bsky.richtext.facet#mention'; did: string }
+  | { $type: 'app.bsky.richtext.facet#tag'; tag: string }
 
 interface ResolvedFeature {
   start: number
   end: number
-  feature: WireFeature
+  feature: NavigationFeature
 }
 
-function navigationKind(feature: WireFeature): 'mention' | 'link' | 'tag' | null {
-  if ('did' in feature) return 'mention'
-  if ('uri' in feature) return 'link'
-  if ('tag' in feature) return 'tag'
+function asNavigation(feature: WireFacet['features'][number]): NavigationFeature | null {
+  if ('uri' in feature) return { $type: 'app.bsky.richtext.facet#link', uri: feature.uri }
+  if ('did' in feature) return { $type: 'app.bsky.richtext.facet#mention', did: feature.did }
+  if ('tag' in feature) return { $type: 'app.bsky.richtext.facet#tag', tag: feature.tag }
   return null
 }
 
-function featureKey(feature: WireFeature): string {
+function featureKey(feature: NavigationFeature): string {
   if ('did' in feature) return `mention:${feature.did}`
   if ('uri' in feature) return `link:${feature.uri}`
-  if ('tag' in feature) return `tag:${feature.tag}`
-  return feature.$type
+  return `tag:${feature.tag}`
 }
 
 // an unresolved mention arrives with an empty did and must not reach the wire
-function isUsableFeature(feature: WireFeature): boolean {
+function isUsableFeature(feature: NavigationFeature): boolean {
   return !('did' in feature) || feature.did.trim().length > 0
 }
 
 /**
  * Wire facets allow overlaps that benday's renderer handles, but the two
- * sources disagree: markdown links must win over autodetected navigation, and
- * a navigation span can never be split. Formatting is cut at navigation
- * boundaries so both survive, and identical ranges are merged.
+ * sources disagree: an explicit labelled link must win over an autodetected
+ * navigation span, and a navigation span can never be split. Only links,
+ * mentions and tags reach the wire; style features are never produced.
  */
 function canonicalFacets(
-  markdownFacets: readonly WireFacet[],
+  explicitFacets: readonly WireFacet[],
   detectedFacets: readonly WireFacet[],
 ): WireFacet[] {
   const navigation: ResolvedFeature[] = []
-  const formatting: ResolvedFeature[] = []
 
   const collect = (facets: readonly WireFacet[], explicit: boolean) => {
     const explicitLinks: ResolvedFeature[] = []
@@ -74,16 +75,16 @@ function canonicalFacets(
       if (start < 0 || end <= start) continue
 
       const seen = new Set<string>()
-      for (const feature of facet.features) {
+      for (const raw of facet.features) {
+        const feature = asNavigation(raw)
+        if (feature === null) continue
         const key = featureKey(feature)
         if (seen.has(key)) continue
         seen.add(key)
         if (!isUsableFeature(feature)) continue
 
         const resolved = { start, end, feature }
-        if (navigationKind(feature) === null) {
-          formatting.push(resolved)
-        } else if (explicit) {
+        if (explicit && feature.$type === 'app.bsky.richtext.facet#link') {
           explicitLinks.push(resolved)
         } else {
           automatic.push(resolved)
@@ -94,7 +95,7 @@ function canonicalFacets(
     navigation.push(...explicitLinks, ...automatic)
   }
 
-  collect(markdownFacets, true)
+  collect(explicitFacets, true)
   collect(detectedFacets, false)
 
   const selected: ResolvedFeature[] = []
@@ -104,54 +105,11 @@ function canonicalFacets(
     )
     if (!overlaps) selected.push(candidate)
   }
+  selected.sort((left, right) => left.start - right.start || left.end - right.end)
 
-  const cuts = [...new Set(selected.flatMap((span) => [span.start, span.end]))].sort(
-    (left, right) => left - right,
-  )
-
-  const ranges = new Map<string, { start: number; end: number; features: WireFeature[] }>()
-  const addFormatting = (start: number, end: number, feature: WireFeature) => {
-    if (end <= start) return
-    const key = `${start}:${end}`
-    const existing = ranges.get(key)
-    if (existing === undefined) {
-      ranges.set(key, { start, end, features: [feature] })
-      return
-    }
-    const name = featureKey(feature)
-    if (existing.features.some((other) => featureKey(other) === name)) return
-    existing.features.push(feature)
-  }
-
-  for (const span of formatting) {
-    let cursor = span.start
-    for (const cut of cuts) {
-      if (cut <= span.start) continue
-      if (cut >= span.end) break
-      addFormatting(cursor, cut, span.feature)
-      cursor = cut
-    }
-    addFormatting(cursor, span.end, span.feature)
-  }
-
-  const facets = selected.map((span) => ({
-    start: span.start,
-    end: span.end,
+  return selected.map((span) => ({
+    index: { byteStart: span.start, byteEnd: span.end },
     features: [span.feature],
-    navigation: true,
-  }))
-  for (const range of ranges.values()) facets.push({ ...range, navigation: false })
-
-  facets.sort(
-    (left, right) =>
-      left.start - right.start ||
-      Number(right.navigation) - Number(left.navigation) ||
-      left.end - right.end,
-  )
-
-  return facets.map((facet) => ({
-    index: { byteStart: facet.start, byteEnd: facet.end },
-    features: facet.features,
   }))
 }
 

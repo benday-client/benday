@@ -182,9 +182,7 @@ export function ComposeField({ form, inputClassName }: ComposeFieldProps) {
         ) : null}
 
         <div className="b-compose__meta">
-          <span className="b-compose__markdown">
-            markdown: **bold**, *italic*, ~~strike~~, `code`, [link](url) · @/# suggestions
-          </span>
+          <span className="b-compose__markdown">[link](url) · @ suggestions</span>
         </div>
       </form>
 

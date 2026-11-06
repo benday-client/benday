@@ -394,24 +394,15 @@ describe('sendFeedFeedback', () => {
 })
 
 describe('post composition', () => {
-  it('converts markdown markers into record facets', async () => {
+  it('publishes markdown markers literally with no style facets', async () => {
     routeCreateRecord()
     signedIn()
 
     await createPost('**bold** and ~~gone~~')
 
     const [record] = postedRecords()
-    expect(record?.text).toBe('bold and gone')
-    expect(record?.facets).toEqual([
-      {
-        index: { byteStart: 0, byteEnd: 4 },
-        features: [{ $type: 'app.bsky.richtext.facet#bold' }],
-      },
-      {
-        index: { byteStart: 9, byteEnd: 13 },
-        features: [{ $type: 'app.bsky.richtext.facet#strikethrough' }],
-      },
-    ])
+    expect(record?.text).toBe('**bold** and ~~gone~~')
+    expect(record?.facets ?? []).toEqual([])
   })
 
   it('keeps the original root on a nested reply and the parent it answers', async () => {
@@ -448,7 +439,7 @@ describe('post composition', () => {
 
     const [record] = postedRecords()
     if (record === undefined) throw new Error('nothing was posted')
-    expect(record.text).toBe('see https://example.com bold and italic')
+    expect(record.text).toBe('see https://example.com **bold _and italic_**')
 
     const segments = wireSegments(record)
     expect(segments.map((segment) => segment.text).join('')).toBe(record.text)
@@ -458,13 +449,11 @@ describe('post composition', () => {
     expect(mappedSegments(record)).toEqual([
       { text: 'see ', kinds: [] },
       { text: 'https://example.com', kinds: ['link'] },
-      { text: ' ', kinds: [] },
-      { text: 'bold ', kinds: ['bold'] },
-      { text: 'and italic', kinds: ['bold', 'italic'] },
+      { text: ' **bold _and italic_**', kinds: [] },
     ])
   })
 
-  it('splits emphasis around a link it contains', async () => {
+  it('keeps a bare url as one automatic link beside literal markers', async () => {
     routeCreateRecord()
     signedIn()
 
@@ -472,15 +461,33 @@ describe('post composition', () => {
 
     const [record] = postedRecords()
     if (record === undefined) throw new Error('nothing was posted')
-    expect(record.text).toBe('see https://example.com')
-    expect(
-      wireSegments(record)
-        .map((segment) => segment.text)
-        .join(''),
-    ).toBe(record.text)
+    expect(record.text).toBe('**see https://example.com**')
+    // autodetection owns the bare url: the trailing markers sit inside its span
     expect(mappedSegments(record)).toEqual([
-      { text: 'see ', kinds: ['bold'] },
-      { text: 'https://example.com', kinds: ['bold', 'link'] },
+      { text: '**see ', kinds: [] },
+      { text: 'https://example.com**', kinds: ['link'] },
+    ])
+  })
+
+  it('publishes a labelled link as its label with the exact destination', async () => {
+    routeCreateRecord()
+    signedIn()
+
+    await createPost('see [label](https://example.com/a_(b))')
+
+    const [record] = postedRecords()
+    if (record === undefined) throw new Error('nothing was posted')
+    expect(record.text).toBe('see label')
+    expect(record.facets).toEqual([
+      {
+        index: { byteStart: 4, byteEnd: 9 },
+        features: [
+          {
+            $type: 'app.bsky.richtext.facet#link',
+            uri: 'https://example.com/a_(b)',
+          },
+        ],
+      },
     ])
   })
 
@@ -497,27 +504,27 @@ describe('post composition', () => {
     expect(links).toHaveLength(1)
   })
 
-  it('keeps a whole mention span when only part of it is emphasized', async () => {
+  it('keeps a mention as one automatic facet beside literal markers', async () => {
     routeCreateRecord()
     transport.route('GET', `${PDS}${RESOLVE_HANDLE}`, () =>
       jsonResponse(200, { did: 'did:plc:alice' }),
     )
     signedIn()
 
-    await createPost('é *@alice*.bsky.social')
+    await createPost('*see @alice.bsky.social*')
 
     const [record] = postedRecords()
     if (record === undefined) throw new Error('nothing was posted')
-    expect(record.text).toBe('é @alice.bsky.social')
+    expect(record.text).toBe('*see @alice.bsky.social*')
     expect(
       wireSegments(record)
         .filter((segment) => segment.mention)
-        .map((s) => s.text),
+        .map((segment) => segment.text),
     ).toEqual(['@alice.bsky.social'])
     expect(mappedSegments(record)).toEqual([
-      { text: 'é ', kinds: [] },
-      { text: '@alice', kinds: ['italic', 'mention'] },
-      { text: '.bsky.social', kinds: ['mention'] },
+      { text: '*see ', kinds: [] },
+      { text: '@alice.bsky.social', kinds: ['mention'] },
+      { text: '*', kinds: [] },
     ])
   })
 

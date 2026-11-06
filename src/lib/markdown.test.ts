@@ -6,20 +6,19 @@ describe('parseMarkdown', () => {
     expect(parseMarkdown('hello world')).toEqual({ text: 'hello world', facets: [] })
   })
 
-  it('converts bold, italic, strikethrough and code markers', () => {
-    const parsed = parseMarkdown('**bold** *italic* _also_ ~~gone~~ `code`')
+  it('publishes style markers literally with no style facets', () => {
+    const source = '**bold** *italic* _also_ ~~gone~~ `code`'
+    const parsed = parseMarkdown(source)
 
-    expect(parsed.text).toBe('bold italic also gone code')
-    expect(parsed.facets.map((facet) => facet.features[0]?.$type)).toEqual([
-      'app.bsky.richtext.facet#bold',
-      'app.bsky.richtext.facet#italic',
-      'app.bsky.richtext.facet#italic',
-      'app.bsky.richtext.facet#strikethrough',
-      'app.bsky.richtext.facet#code',
-    ])
+    expect(parsed.text).toBe(source)
+    expect(parsed.facets).toEqual([])
   })
 
-  it('converts markdown links to link facets and keeps the label', () => {
+  it('publishes a hashtag literally', () => {
+    expect(parseMarkdown('#tag stays text')).toEqual({ text: '#tag stays text', facets: [] })
+  })
+
+  it('converts labelled links to link facets and keeps the label', () => {
     const parsed = parseMarkdown('read [the site](https://example.com/a)')
 
     expect(parsed.text).toBe('read the site')
@@ -32,7 +31,7 @@ describe('parseMarkdown', () => {
   })
 
   it('uses UTF-8 byte offsets', () => {
-    const parsed = parseMarkdown('hé **là**')
+    const parsed = parseMarkdown('hé [là](https://example.com)')
     const start = new TextEncoder().encode('hé ').length
     const end = start + new TextEncoder().encode('là').length
 
@@ -40,48 +39,38 @@ describe('parseMarkdown', () => {
     expect(parsed.facets[0]?.index).toEqual({ byteStart: start, byteEnd: end })
   })
 
-  it('handles nested emphasis', () => {
+  it('keeps nested emphasis literal', () => {
     const parsed = parseMarkdown('**bold _and italic_**')
 
-    expect(parsed.text).toBe('bold and italic')
-    expect(parsed.facets.map((facet) => facet.features[0]?.$type)).toEqual([
-      'app.bsky.richtext.facet#bold',
-      'app.bsky.richtext.facet#bold',
-      'app.bsky.richtext.facet#italic',
-    ])
+    expect(parsed.text).toBe('**bold _and italic_**')
+    expect(parsed.facets).toEqual([])
   })
 
-  it('does not treat code contents as markdown', () => {
+  it('keeps code contents and backticks literal', () => {
     const parsed = parseMarkdown('`**literal**`')
 
-    expect(parsed.text).toBe('**literal**')
-    expect(parsed.facets).toEqual([
-      {
-        index: { byteStart: 0, byteEnd: 11 },
-        features: [{ $type: 'app.bsky.richtext.facet#code' }],
-      },
-    ])
-  })
-
-  it('keeps intraword underscores literal', () => {
-    const parsed = parseMarkdown('snake_case_name')
-
-    expect(parsed.text).toBe('snake_case_name')
+    expect(parsed.text).toBe('`**literal**`')
     expect(parsed.facets).toEqual([])
   })
 
-  it('keeps intraword asterisks literal', () => {
-    const parsed = parseMarkdown('2*3*4')
-
-    expect(parsed.text).toBe('2*3*4')
-    expect(parsed.facets).toEqual([])
+  it('keeps intraword underscores and asterisks literal', () => {
+    expect(parseMarkdown('snake_case_name')).toEqual({
+      text: 'snake_case_name',
+      facets: [],
+    })
+    expect(parseMarkdown('2*3*4')).toEqual({ text: '2*3*4', facets: [] })
   })
 
-  it('keeps underscores inside bare urls literal', () => {
-    const parsed = parseMarkdown('see https://example.com/some_path_here')
+  it('keeps bare urls literal with no facet', () => {
+    const source = 'see https://example.com/some_path_here'
+    expect(parseMarkdown(source)).toEqual({ text: source, facets: [] })
+  })
 
-    expect(parsed.text).toBe('see https://example.com/some_path_here')
-    expect(parsed.facets).toEqual([])
+  it('only accepts an http labelled link', () => {
+    expect(parseMarkdown('[label](ftp://example.com)')).toEqual({
+      text: '[label](ftp://example.com)',
+      facets: [],
+    })
   })
 
   it('keeps balanced parentheses in link destinations', () => {
@@ -103,8 +92,9 @@ describe('parseMarkdown', () => {
 })
 
 describe('markdownText', () => {
-  it('strips markers for counting and validation', () => {
-    expect(markdownText('**hello** [world](https://example.com)')).toBe('hello world')
+  it('counts the text that is actually sent', () => {
+    expect(markdownText('**hello** [world](https://example.com)')).toBe('**hello** world')
     expect(markdownText('**')).toBe('**')
+    expect(markdownText('~~x~~ `x`')).toBe('~~x~~ `x`')
   })
 })
