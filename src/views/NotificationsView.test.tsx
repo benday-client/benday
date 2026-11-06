@@ -282,20 +282,21 @@ describe('NotificationsView cards', () => {
     expect(memory.history.length).toBe(before + 1)
   })
 
-  it('reports the bounded page as shown rather than as a total', async () => {
+  it('keeps the header free of counts and refresh controls', async () => {
     renderNotifications()
 
     await screen.findByText('🚀 rocketeer')
 
-    expect(document.querySelector('.b-notif__count')?.textContent).toBe('3 shown')
+    expect(document.querySelector('.b-notif__count')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'refresh' })).toBeNull()
   })
 
-  it('labels an unread page with both the unread and shown counts', async () => {
-    renderNotifications([REPLY])
+  it('shows the empty state without a refresh action', async () => {
+    renderNotifications([])
 
-    await screen.findByText('reply author')
-
-    expect(document.querySelector('.b-notif__count')?.textContent).toBe('1 unread / 1 shown')
+    await screen.findByText('nothing yet')
+    expect(screen.queryByRole('button', { name: 'refresh' })).toBeNull()
+    expect(screen.getByText('when people follow, like or reply to you it shows up here.'))
   })
 
   it('lets user prose choose its own direction', async () => {

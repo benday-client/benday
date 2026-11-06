@@ -3,7 +3,7 @@ import { Link, useLocation } from 'wouter'
 import { Avatar } from '../components/Avatar'
 import { Deck } from '../components/Deck'
 import { RelativeTime } from '../components/RelativeTime'
-import { Button, EmptyState, ErrorNotice, FrameBody, FrameHead, Progress } from '../components/ui'
+import { EmptyState, ErrorNotice, FrameBody, FrameHead, Progress } from '../components/ui'
 import { useNotifications } from '../hooks/useNotifications'
 import { useAuthStore } from '../lib/auth'
 import { errorInfo } from '../lib/errors'
@@ -177,7 +177,6 @@ export default function NotificationsView() {
   const [, navigate] = useLocation()
   const notifications = useNotifications()
   const rows = notifications.notifications
-  const unread = rows.filter((item) => !item.isRead).length
   const info = notifications.error !== null ? errorInfo(notifications.error) : null
 
   return (
@@ -185,21 +184,6 @@ export default function NotificationsView() {
       <h1 className="visually-hidden">notifications</h1>
       <div className="b-notif__bar">
         <span className="mono-label">notifications</span>
-        <span className="b-notif__count">
-          {notifications.isPending
-            ? 'loading'
-            : unread > 0
-              ? `${unread} unread / ${rows.length} shown`
-              : `${rows.length} shown`}
-        </span>
-        <Button
-          variant="ghost"
-          className="b-notif__refresh"
-          onClick={notifications.reload}
-          disabled={notifications.isFetching}
-        >
-          {notifications.isFetching ? 'refreshing' : 'refresh'}
-        </Button>
       </div>
 
       <div className="b-view__body b-notif__stage">
@@ -216,11 +200,6 @@ export default function NotificationsView() {
             <EmptyState
               title="nothing yet"
               hint="when people follow, like or reply to you it shows up here."
-              action={
-                <Button variant="ghost" onClick={notifications.reload}>
-                  refresh
-                </Button>
-              }
             />
           </div>
         ) : (
