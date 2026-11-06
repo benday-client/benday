@@ -851,15 +851,13 @@ describe('cyberpunk corner language', () => {
           <PostCard post={postFixture()} index={1} />
           <FeedCard
             choice={{
-              kind: 'discover',
-              key: 'discover',
-              name: 'discover',
-              description: 'popular right now',
+              key: 'pinned',
+              uri: 'at://did:plc:test/app.bsky.feed.generator/pinned',
+              name: 'pinned',
+              description: 'a pinned feed',
               avatar: null,
-              source: { kind: 'discover' },
             }}
             active={false}
-            focused={false}
             onSelect={() => {}}
           />
           <InlineComposer request={{ mode: 'reply', post: postFixture() }} onClose={() => {}} />

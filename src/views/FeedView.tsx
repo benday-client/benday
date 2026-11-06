@@ -1,18 +1,10 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useSearchParams } from 'wouter'
 import { Deck } from '../components/Deck'
 import { FeedCard, FeedCardBack, FeedCardBackButton, type FeedChoice } from '../components/FeedCard'
 import { PostCard } from '../components/PostCard'
-import {
-  Button,
-  Dialog,
-  EmptyState,
-  ErrorNotice,
-  Frame,
-  Progress,
-  TextInput,
-} from '../components/ui'
-import { useFeedGenerator, usePostFeed } from '../hooks/useBskyQueries'
+import { Button, EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
+import { usePostFeed } from '../hooks/useBskyQueries'
 import { useDealFlash } from '../hooks/useDealFlash'
 import { isEditableTarget, isImeComposing } from '../hooks/useHotkeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -20,7 +12,6 @@ import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { type FeedFeedbackEvent, sendFeedFeedback } from '../lib/actions'
-import { DISCOVER_FEED_URI } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
@@ -31,22 +22,24 @@ import { useSettings } from '../lib/store'
 import type { PostModel } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 
+/** how long a first refresh press waits for its confirming second press */
+const REFRESH_ARM_MS = 5000
+
 export default function FeedView() {
   const [, navigate] = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const uri = (searchParams.get('uri') ?? '').trim()
-  const [draft, setDraft] = useState(uri)
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(() => new Set())
   const [feedsMode, setFeedsMode] = useState(false)
   const [dealMode, playDeal] = useDealFlash<'posts' | 'feeds'>()
+  const [armed, setArmed] = useState(false)
   // a press that already asked for a refresh, before react-query has a chance
   // to report the request it started
   const refreshPendingRef = useRef(false)
   const fetchingRef = useRef(false)
+  const armTimerRef = useRef<number | null>(null)
   const wide = useMediaQuery('(min-width: 900px)')
-  const addOpen = useUiStore((state) => state.dialog === 'feed-add')
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
-  const openDialog = useUiStore((state) => state.openDialog)
   const openPost = useUiStore((state) => state.openPost)
   const openThread = useCallback(
     (post: PostModel) => {
@@ -55,7 +48,6 @@ export default function FeedView() {
     },
     [navigate, openPost],
   )
-  const closeDialog = useUiStore((state) => state.closeDialog)
 
   const viewRef = useRef<HTMLElement | null>(null)
   const swapFocusRef = useRef<(() => void) | null>(null)
@@ -66,56 +58,79 @@ export default function FeedView() {
   }
 
   useEffect(() => {
-    setDraft(uri)
-  }, [uri])
-
-  useEffect(() => {
     return () => {
       swapFocusRef.current?.()
-      if (useUiStore.getState().dialog === 'feed-add') closeDialog()
     }
-  }, [closeDialog])
+  }, [])
 
   const pinned = usePinnedFeeds()
-  const activeUri = chooseFeedUri(uri, viewerDid !== null, pinned.feeds)
-  const showingCustom = activeUri.length > 0
+  const activeUri = chooseFeedUri(uri, pinned.feeds)
   // a failed preference read is not an empty preference list: while the pinned
   // set is unresolved the feed choice is unknown, so nothing is fetched
   const [pinnedFailure, setPinnedFailure] = useState<Error | null>(null)
   const pinnedFailureShown = pinned.error ?? (pinned.isPending ? pinnedFailure : null)
-  const pinnedUnresolved = uri.length === 0 && (pinned.isPending || pinned.error !== null)
+  const pinnedUnresolved = activeUri.length === 0 && (pinned.isPending || pinned.error !== null)
   // the first load shows labelled progress; a failure keeps the deck mounted
   // with its own error so the switcher, peeks and retry stay reachable
   const pinnedFirstLoad = pinnedUnresolved && pinnedFailureShown === null
   const pinnedBlocked = pinnedUnresolved && pinnedFailureShown !== null
-  const source = showingCustom
-    ? ({ kind: 'feed', uri: activeUri } as const)
-    : ({ kind: 'discover' } as const)
-  const feed = usePostFeed(source, !pinnedUnresolved)
-  const feedKey = JSON.stringify([viewerDid ?? 'anonymous', activeUri || 'discover'])
-  // Refresh is a read, so one explicit press is enough. It drops the loaded
-  // pages and reloads exactly the first one; a press while that is already in
-  // flight has nothing to add, and nothing else refreshes implicitly.
+  const source = activeUri.length > 0 ? ({ kind: 'feed', uri: activeUri } as const) : null
+  const feed = usePostFeed(source)
+  const feedKey = JSON.stringify([viewerDid ?? 'anonymous', activeUri])
+
+  const clearArm = useCallback(() => {
+    if (armTimerRef.current !== null) {
+      window.clearTimeout(armTimerRef.current)
+      armTimerRef.current = null
+    }
+    setArmed(false)
+  }, [])
+
+  // Refresh is a read, so a confirmed press is enough. It drops the loaded
+  // pages and reloads exactly the first one; nothing refreshes implicitly.
   const refreshFeed = useCallback(() => {
     if (pinnedUnresolved) return
-    if (refreshPendingRef.current || fetchingRef.current) return
+    clearArm()
     refreshPendingRef.current = true
     // an explicit refresh starts a clean deck, including rows dismissed locally
     setDismissed(new Set())
     feed.retry()
-  }, [feed.retry, pinnedUnresolved])
+  }, [clearArm, feed.retry, pinnedUnresolved])
+
+  // The first press arms for five seconds; the second inside that window is the
+  // confirmation. A fetch already in flight has nothing to confirm.
+  const armRefresh = useCallback(() => {
+    if (pinnedUnresolved) return
+    if (refreshPendingRef.current || fetchingRef.current) return
+    if (armed) {
+      refreshFeed()
+      return
+    }
+    setArmed(true)
+    armTimerRef.current = window.setTimeout(() => {
+      armTimerRef.current = null
+      setArmed(false)
+    }, REFRESH_ARM_MS)
+  }, [armed, pinnedUnresolved, refreshFeed])
+
   useEffect(() => {
     fetchingRef.current = feed.isFetching
     if (!feed.isFetching) refreshPendingRef.current = false
   }, [feed.isFetching])
+
+  // leaving the view cancels a pending confirmation
+  useEffect(() => {
+    return () => {
+      if (armTimerRef.current !== null) window.clearTimeout(armTimerRef.current)
+    }
+  }, [])
+
   const fetchedPosts = feed.data ?? []
   const posts = pinnedUnresolved ? [] : fetchedPosts
   const visiblePosts = posts.filter((post) => !dismissed.has(post.uri))
-  // feedback reaches the feed generator service that served the cards. the
-  // discover generator's view names its service did; a pinned feed carries it
-  // from its own generator metadata. no did means no service to address.
-  const discoverGenerator = useFeedGenerator(source.kind === 'discover' ? DISCOVER_FEED_URI : '')
-  const feedbackTarget = feedbackTargetFor(source, pinned.feeds, discoverGenerator)
+  // feedback reaches the generator service that served a pinned feed. no did
+  // means no service to address, so the card offers no feedback at all.
+  const feedbackTarget = feedbackTargetFor(source, pinned.feeds)
   const feedbackFeed = feedbackTarget?.feed ?? null
   const feedbackDid = feedbackTarget?.generatorDid ?? null
   // memoized by the target values, so an unchanged card keeps the same callback
@@ -158,7 +173,8 @@ export default function FeedView() {
     setDismissed(new Set())
     setPinnedFailure(null)
     refreshPendingRef.current = false
-  }, [activeUri, viewerDid])
+    clearArm()
+  }, [activeUri, viewerDid, clearArm])
 
   const dismissPost = useCallback((postUri: string) => {
     setDismissed((current) => {
@@ -190,16 +206,32 @@ export default function FeedView() {
         return
       }
       if (document.querySelector('dialog[open]') !== null) return
-      if (showingFeeds || pinnedUnresolved) return
+      if (showingFeeds) return
       event.preventDefault()
-      refreshFeed()
+      armRefresh()
     }
 
     window.addEventListener('keydown', handleRefreshKey)
     return () => {
       window.removeEventListener('keydown', handleRefreshKey)
     }
-  }, [refreshBinding, refreshFeed, showingFeeds, pinnedUnresolved])
+  }, [refreshBinding, armRefresh, showingFeeds])
+
+  // an armed confirmation owns Escape so it cancels instead of leaving the feed
+  useEffect(() => {
+    if (!armed) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== 'Escape') return
+      event.preventDefault()
+      clearArm()
+    }
+
+    window.addEventListener('keydown', handleEscape, true)
+    return () => {
+      window.removeEventListener('keydown', handleEscape, true)
+    }
+  }, [armed, clearArm])
 
   useEffect(() => {
     if (!canPickFeeds) setFeedsMode(false)
@@ -208,49 +240,24 @@ export default function FeedView() {
   const feedChoices: FeedChoice[] = []
   // a failed preference read must not read as an empty preference list
   if (!pinned.isPending && pinned.error === null) {
-    if (pinned.feeds.length > 0) {
-      for (const item of pinned.feeds) {
-        feedChoices.push({
-          kind: 'feed',
-          key: item.uri,
-          uri: item.uri,
-          name: item.name,
-          description: item.description,
-          avatar: item.avatar,
-          source: { kind: 'feed', uri: item.uri },
-        })
-      }
-    } else {
+    for (const item of pinned.feeds) {
       feedChoices.push({
-        kind: 'discover',
-        key: 'discover',
-        name: 'discover',
-        description: 'what is hot across bluesky',
-        avatar: null,
-        source: { kind: 'discover' },
+        key: item.uri,
+        uri: item.uri,
+        name: item.name,
+        description: item.description,
+        avatar: item.avatar,
       })
     }
-    feedChoices.push({
-      kind: 'add',
-      key: 'add',
-      name: 'add feed',
-      description: 'open a generator or paste an at-uri',
-      avatar: null,
-      source: null,
-    })
   }
 
-  const activeFeedIndex = feedChoices.findIndex((choice) => {
-    if (choice.kind === 'feed') return choice.uri === activeUri
-    if (choice.kind === 'discover') return activeUri.length === 0
-    return false
-  })
+  const activeFeedIndex = feedChoices.findIndex((choice) => choice.uri === activeUri)
   const activeFeedName =
     activeFeedIndex >= 0
       ? (feedChoices[activeFeedIndex]?.name ?? 'feed')
       : activeUri.length > 0
-        ? (activeUri.split('/').at(-1) ?? 'custom feed')
-        : 'discover'
+        ? (activeUri.split('/').at(-1) ?? 'feed')
+        : 'feed'
 
   const switchMode = (next: boolean) => {
     setFeedsMode(next)
@@ -259,16 +266,7 @@ export default function FeedView() {
   }
 
   const selectFeed = (choice: FeedChoice) => {
-    if (choice.kind === 'add') {
-      setDraft('')
-      openDialog('feed-add')
-      return
-    }
-    if (choice.kind === 'discover') {
-      setSearchParams({}, { replace: true })
-    } else {
-      setSearchParams({ uri: choice.uri }, { replace: true })
-    }
+    setSearchParams({ uri: choice.uri }, { replace: true })
     switchMode(false)
   }
 
@@ -297,24 +295,16 @@ export default function FeedView() {
     }
   }, [showingFeeds])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const next = draft.trim()
-    // a blank is not a feed: the dialog stays open and the url is untouched
-    if (next.length === 0) return
-    setSearchParams({ uri: next }, { replace: true })
-    if (feedsMode) {
-      switchMode(false)
-    } else {
-      setFeedsMode(false)
-      focusDeck()
-    }
-    closeDialog()
-  }
+  const noFeeds = pinned.error === null && !pinned.isPending && feedChoices.length === 0
 
   return (
     <section className="b-view" ref={viewRef}>
       <h1 className="visually-hidden">feeds</h1>
+      {armed ? (
+        <p className="b-view__refresh-note" role="status">
+          press R again to refresh
+        </p>
+      ) : null}
       {!wide ? (
         <div className="b-view__tools b-view__tools--feed">
           <fieldset className="b-view__pinned">
@@ -341,25 +331,15 @@ export default function FeedView() {
                 </button>
               ))
             )}
-            <button
-              type="button"
-              className="b-pinned-add"
-              onClick={() => {
-                setDraft('')
-                openDialog('feed-add')
-              }}
-            >
-              + add
-            </button>
           </fieldset>
           <button
             type="button"
             className="b-pinned-add b-view__refresh"
-            onClick={refreshFeed}
+            onClick={armRefresh}
             disabled={feed.isFetching || pinnedUnresolved}
             aria-label="refresh feed"
           >
-            {feed.isFetching ? 'refreshing' : 'refresh'}
+            {armed ? 'refresh again' : feed.isFetching ? 'refreshing' : 'refresh'}
           </button>
         </div>
       ) : null}
@@ -373,17 +353,10 @@ export default function FeedView() {
               key="feeds-deck"
               items={feedChoices}
               getKey={(choice) => choice.key}
-              renderItem={(choice, _index, focused) => (
+              renderItem={(choice) => (
                 <FeedCard
                   choice={choice}
-                  active={
-                    choice.kind === 'feed'
-                      ? choice.uri === activeUri
-                      : choice.kind === 'discover'
-                        ? activeUri.length === 0
-                        : false
-                  }
-                  focused={focused}
+                  active={choice.uri === activeUri}
                   onSelect={() => {
                     selectFeed(choice)
                   }}
@@ -418,17 +391,7 @@ export default function FeedView() {
                 ) : (
                   <EmptyState
                     title="no feeds"
-                    hint="add a feed to get started"
-                    action={
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          openDialog('feed-add')
-                        }}
-                      >
-                        add a feed
-                      </Button>
-                    }
+                    hint="pin feeds in the bluesky app and they appear here."
                   />
                 )
               }
@@ -477,7 +440,7 @@ export default function FeedView() {
                     onOpen={() => {
                       switchMode(true)
                     }}
-                    onRefresh={pinnedUnresolved ? undefined : refreshFeed}
+                    onRefresh={pinnedUnresolved ? undefined : armRefresh}
                     refreshing={feed.isFetching}
                   />
                 ) : undefined
@@ -488,11 +451,11 @@ export default function FeedView() {
               loadMoreError={feed.loadMoreError}
               onLoadMore={feed.loadMore}
               onRetryLoadMore={feed.retryLoadMore}
-              label={showingCustom || pinnedUnresolved ? 'feed cards' : 'discover cards'}
+              label="posts"
               {...(pinnedUnresolved
                 ? {}
                 : {
-                    stateKey: JSON.stringify([viewerDid ?? 'anonymous', activeUri || 'discover']),
+                    stateKey: JSON.stringify([viewerDid ?? 'anonymous', activeUri]),
                   })}
               empty={
                 pinnedBlocked && pinnedFailureShown !== null ? (
@@ -501,6 +464,11 @@ export default function FeedView() {
                     message={pinnedFailureShown.message}
                     onRetry={retryPinned}
                     retrying={pinned.isPending}
+                  />
+                ) : noFeeds || pinnedUnresolved ? (
+                  <EmptyState
+                    title="no feeds"
+                    hint="pin feeds in the bluesky app and they appear here."
                   />
                 ) : shownInfo !== null ? (
                   <ErrorNotice
@@ -511,12 +479,8 @@ export default function FeedView() {
                   />
                 ) : (
                   <EmptyState
-                    title={showingCustom ? 'no feed cards' : 'no signal'}
-                    hint={
-                      showingCustom
-                        ? 'the feed generator returned nothing'
-                        : 'the discover feed returned nothing'
-                    }
+                    title="no feed cards"
+                    hint="the feed generator returned nothing"
                     action={
                       <Button variant="ghost" onClick={refreshFeed}>
                         reload
@@ -529,28 +493,6 @@ export default function FeedView() {
           </div>
         )}
       </div>
-
-      <Dialog open={addOpen} title="add feed" onClose={closeDialog} className="b-feed-dialog">
-        <form className="b-feed-add" onSubmit={handleSubmit}>
-          <TextInput
-            label="feed at-uri"
-            placeholder="at://…/app.bsky.feed.generator/…"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            autoFocus
-          />
-          <div className="b-feed-add__actions">
-            <Button variant="ghost" type="button" onClick={closeDialog}>
-              cancel
-            </Button>
-            <Button type="submit" variant="solid" disabled={draft.trim().length === 0}>
-              open feed
-            </Button>
-          </div>
-        </form>
-      </Dialog>
     </section>
   )
 }

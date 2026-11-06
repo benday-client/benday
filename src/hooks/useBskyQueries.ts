@@ -2,7 +2,6 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useMemo } from 'react'
 import {
   fetchActorSearch,
-  fetchFeedGenerator,
   fetchFeedPage,
   fetchFeedSearch,
   fetchProfile,
@@ -40,8 +39,6 @@ function normalizeActor(actor: string): string {
 
 function feedKey(source: FeedSource, viewerDid: string | null): readonly unknown[] {
   switch (source.kind) {
-    case 'discover':
-      return ['feed', 'discover', viewerDid ?? 'anonymous']
     case 'author':
       return ['feed', 'author', source.actor, viewerDid ?? 'anonymous']
     case 'search':
@@ -53,8 +50,6 @@ function feedKey(source: FeedSource, viewerDid: string | null): readonly unknown
 
 function feedEnabled(source: FeedSource): boolean {
   switch (source.kind) {
-    case 'discover':
-      return true
     case 'author':
       return source.actor.length > 0
     case 'search':
@@ -77,19 +72,19 @@ function flattenPosts(pages: FeedPage[]): PostModel[] {
   return posts
 }
 
-export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
+export function usePostFeed(source: FeedSource | null, enabled = true): PostFeedState {
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const queryClient = useQueryClient()
 
-  const kind = source.kind
-  const rawActor = source.kind === 'author' ? source.actor : ''
-  const rawQuery = source.kind === 'search' ? source.query : ''
-  const rawUri = source.kind === 'feed' ? source.uri : ''
+  const kind = source?.kind ?? null
+  const rawActor = source?.kind === 'author' ? source.actor : ''
+  const rawQuery = source?.kind === 'search' ? source.query : ''
+  const rawUri = source?.kind === 'feed' ? source.uri : ''
 
-  const normalized = useMemo<FeedSource>(() => {
+  const normalized = useMemo<FeedSource | null>(() => {
     switch (kind) {
-      case 'discover':
-        return { kind: 'discover' }
+      case null:
+        return null
       case 'author':
         return { kind: 'author', actor: normalizeActor(rawActor) }
       case 'search':
@@ -99,8 +94,11 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
     }
   }, [kind, rawActor, rawQuery, rawUri])
 
-  const active = enabled && feedEnabled(normalized)
-  const key = useMemo(() => feedKey(normalized, viewerDid), [normalized, viewerDid])
+  const active = enabled && normalized !== null && feedEnabled(normalized)
+  const key = useMemo(
+    () => (normalized === null ? ['feed', 'none'] : feedKey(normalized, viewerDid)),
+    [normalized, viewerDid],
+  )
 
   // dropping the pages and letting the observer ask again reloads exactly one
   // first page; a plain refetch would walk every loaded page
@@ -113,7 +111,10 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
 
   const query = useInfiniteQuery({
     queryKey: key,
-    queryFn: ({ pageParam }) => fetchFeedPage(normalized, viewerDid, pageParam),
+    queryFn: ({ pageParam }) => {
+      if (normalized === null) throw new Error('no feed source')
+      return fetchFeedPage(normalized, viewerDid, pageParam)
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage, _pages, _lastPageParam, allPageParams) => {
       const next = lastPage.cursor
@@ -234,35 +235,6 @@ export function useFeedSearch(query: string, enabled = true): QueryState<SearchF
     retry: () => {
       void result.refetch()
     },
-  }
-}
-
-export interface FeedGeneratorState {
-  did: string | null
-  acceptsInteractions: boolean | null
-}
-
-export function useFeedGenerator(uri: string): FeedGeneratorState {
-  const normalized = uri.trim()
-  const active = normalized.length > 0
-
-  const result = useQuery({
-    // generator metadata is public and changes only when its record does, so a
-    // long stale time keeps a deck from asking again on every mount
-    queryKey: ['feed-generator', normalized],
-    queryFn: () => fetchFeedGenerator(normalized),
-    enabled: active,
-    staleTime: FEED_STALE_TIME,
-    retry: false,
-    retryOnMount: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  })
-
-  return {
-    did: result.data?.did ?? null,
-    acceptsInteractions: result.data?.acceptsInteractions ?? null,
   }
 }
 

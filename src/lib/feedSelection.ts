@@ -1,11 +1,10 @@
 import type { PinnedFeedModel } from './types'
 
-export function chooseFeedUri(
-  requested: string,
-  authenticated: boolean,
-  pinned: readonly PinnedFeedModel[],
-): string {
-  if (!authenticated) return ''
-  if (requested.length > 0) return requested
+/**
+ * A requested feed is honored only when the account pinned it. Anything else
+ * resolves to the first pinned feed, and an account with no pins has no feed.
+ */
+export function chooseFeedUri(requested: string, pinned: readonly PinnedFeedModel[]): string {
+  if (requested.length > 0 && pinned.some((item) => item.uri === requested)) return requested
   return pinned[0]?.uri ?? ''
 }

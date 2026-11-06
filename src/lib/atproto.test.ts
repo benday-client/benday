@@ -2,8 +2,6 @@ import type { AppBskyActorDefs, AtpSessionData } from '@atproto/api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
 import {
-  DISCOVER_FEED_URI,
-  fetchFeedGenerator,
   fetchFeedPage,
   fetchPinnedFeeds,
   fetchProfile,
@@ -155,12 +153,12 @@ describe('fetchFeedPage', () => {
       jsonResponse(200, { feed: [{ post: wirePost(2) }] }),
     )
 
-    const anonymous = await fetchFeedPage({ kind: 'discover' }, null)
+    const anonymous = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, null)
     expect(anonymous.posts[0]?.text).toBe('post 1')
 
     routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
-    const signedIn = await fetchFeedPage({ kind: 'discover' }, ALICE.did)
+    const signedIn = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, ALICE.did)
     expect(signedIn.posts[0]?.text).toBe('post 2')
   })
 
@@ -189,7 +187,7 @@ describe('fetchFeedPage', () => {
     routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage({ kind: 'discover' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, ALICE.did)
     expect(page.posts.map((post) => post.text)).toEqual(['post 3'])
   })
 
@@ -554,7 +552,7 @@ describe('account-scoped reads', () => {
     await signIn(BRAVO, PDS_B)
     transport.calls.length = 0
 
-    await expect(fetchFeedPage({ kind: 'discover' }, ALICE.did)).rejects.toThrow(
+    await expect(fetchFeedPage({ kind: 'feed', uri: FEED_URI }, ALICE.did)).rejects.toThrow(
       'account changed before the request could be sent',
     )
     await expect(fetchPinnedFeeds(ALICE.did)).rejects.toThrow(
@@ -613,60 +611,17 @@ describe('account-scoped reads', () => {
     expect(transport.calls.some((call) => new URL(call.url).origin === APPVIEW)).toBe(false)
   })
 
-  it('reads the discover feed through the canonical generator uri', async () => {
+  it('reads a pinned feed through the account agent', async () => {
     await signIn(ALICE, PDS_A)
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
 
-    await fetchFeedPage({ kind: 'discover' }, ALICE.did)
+    await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, ALICE.did)
 
     const call = transport.calls.find((entry) => entry.url.includes('getFeed'))
-    expect(new URL(call?.url ?? '').searchParams.get('feed')).toBe(DISCOVER_FEED_URI)
-    expect(new URL(call?.url ?? '').origin).toBe(PDS_A)
-  })
-})
-
-describe('fetchFeedGenerator', () => {
-  const CANONICAL = 'https://api.bsky.app'
-  const VIEW = {
-    uri: FEED_URI,
-    cid: CID,
-    did: 'did:web:feeds.test',
-    creator: { did: 'did:plc:test', handle: 'test.bsky.social' },
-    displayName: 'one',
-    acceptsInteractions: true,
-    indexedAt: '2026-10-29T12:00:00.000Z',
-  }
-
-  it('reads the generator service did from the canonical appview', async () => {
-    transport.route('GET', `${CANONICAL}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
-      jsonResponse(200, { view: VIEW, isOnline: true, isValid: true }),
-    )
-
-    await expect(fetchFeedGenerator(FEED_URI)).resolves.toEqual({
-      did: 'did:web:feeds.test',
-      acceptsInteractions: true,
-    })
-    const [call] = transport.calls
-    expect(new URL(call?.url ?? '').origin).toBe(CANONICAL)
     expect(new URL(call?.url ?? '').searchParams.get('feed')).toBe(FEED_URI)
-  })
-
-  it('reports absent metadata instead of throwing for a missing generator', async () => {
-    transport.route('GET', `${CANONICAL}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
-      jsonResponse(400, { error: 'InvalidRequest', message: 'unknown feed' }),
-    )
-
-    await expect(fetchFeedGenerator(FEED_URI)).resolves.toEqual({
-      did: null,
-      acceptsInteractions: null,
-    })
-  })
-
-  it('does not ask the appview about an empty uri', async () => {
-    await expect(fetchFeedGenerator('')).resolves.toEqual({ did: null, acceptsInteractions: null })
-    expect(transport.calls).toHaveLength(0)
+    expect(new URL(call?.url ?? '').origin).toBe(PDS_A)
   })
 })
 
@@ -782,7 +737,7 @@ describe('opaque post records', () => {
       jsonResponse(200, { feed: [{ post: malformed }, { post: wirePost(2) }] }),
     )
 
-    const page = await fetchFeedPage({ kind: 'discover' }, null)
+    const page = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, null)
 
     expect(page.posts.map((post) => post.text)).toEqual(['', 'post 2'])
     expect(page.posts[0]).toMatchObject({
@@ -812,7 +767,7 @@ describe('opaque post records', () => {
       jsonResponse(200, { feed: [{ post: quoted }, { post: wirePost(2) }] }),
     )
 
-    const page = await fetchFeedPage({ kind: 'discover' }, null)
+    const page = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, null)
 
     expect(page.posts[0]?.embed).toMatchObject({ type: 'quote', post: { text: '' } })
     expect(page.posts[1]?.text).toBe('post 2')

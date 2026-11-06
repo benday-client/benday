@@ -241,7 +241,6 @@ export interface PostFeedState extends QueryState<PostModel[]> {
 }
 
 export type FeedSource =
-  | { kind: 'discover' }
   | { kind: 'author'; actor: string }
   | { kind: 'search'; query: string }
   | { kind: 'feed'; uri: string }

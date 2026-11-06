@@ -24,9 +24,6 @@ import type {
   ThreadModel,
 } from './types'
 
-export const DISCOVER_FEED_URI =
-  'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
-
 const PAGE_LIMIT = 30
 
 // the one read service: the official appview. private canonical reads still use
@@ -165,24 +162,6 @@ export async function fetchFeedPage(
   limit = PAGE_LIMIT,
 ): Promise<{ posts: PostModel[]; cursor: string | null }> {
   switch (source.kind) {
-    case 'discover': {
-      // a signed-in viewer uses its own agent so JWT-gated feeds can answer;
-      // a null owner is public-only and never borrows the current account
-      const reader = viewerDid === null ? createAgent() : requireViewerAgent(viewerDid)
-      const response = await reader.app.bsky.feed.getFeed({
-        feed: DISCOVER_FEED_URI,
-        limit,
-        ...cursorParam(cursor),
-      })
-      return {
-        posts: await dropHiddenAuthors(
-          viewerDid,
-          response.data.feed.filter(visibleFeedView).map(mapFeedViewPost),
-        ),
-        cursor: normalizeCursor(response.data.cursor),
-      }
-    }
-
     case 'author': {
       const agent = createAgent()
       const response = await agent.app.bsky.feed.getAuthorFeed({
@@ -380,31 +359,6 @@ export async function fetchPinnedFeeds(viewerDid: string): Promise<PinnedFeedMod
       acceptsInteractions: generator?.acceptsInteractions ?? null,
     }
   })
-}
-
-export interface FeedGeneratorInfo {
-  did: string | null
-  acceptsInteractions: boolean | null
-}
-
-/**
- * The generator view names the service that serves the feed and whether it
- * accepts feedback. A feed without a view has no target, so the failure is
- * reported as absent metadata rather than thrown.
- */
-export async function fetchFeedGenerator(uri: string): Promise<FeedGeneratorInfo> {
-  if (uri.length === 0) return { did: null, acceptsInteractions: null }
-  const agent = createAgent()
-  try {
-    const response = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
-    const view = response.data.view
-    return {
-      did: view.did.length === 0 ? null : view.did,
-      acceptsInteractions: view.acceptsInteractions ?? null,
-    }
-  } catch {
-    return { did: null, acceptsInteractions: null }
-  }
 }
 
 export async function fetchProfile(actor: string, viewerDid: string | null): Promise<ProfileModel> {

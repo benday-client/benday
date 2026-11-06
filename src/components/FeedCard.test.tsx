@@ -5,20 +5,18 @@ import { FeedCard, FeedCardBack } from './FeedCard'
 
 function feedChoice(): FeedChoice {
   return {
-    kind: 'feed',
     key: 'whats-hot',
     uri: 'at://did:plc:test/app.bsky.feed.generator/whats-hot',
     name: '🚀 rocket feed',
     description: '',
     avatar: null,
-    source: { kind: 'feed', uri: 'at://did:plc:test/app.bsky.feed.generator/whats-hot' },
   }
 }
 
 describe('FeedCard avatar', () => {
   it('shows one whole emoji from the feed name', () => {
     const { container } = render(
-      <FeedCard choice={feedChoice()} active={false} focused={false} onSelect={() => {}} />,
+      <FeedCard choice={feedChoice()} active={false} onSelect={() => {}} />,
     )
     expect(
       container.querySelector('.b-feed-card__avatar .dither-image--fallback')?.textContent,
@@ -27,7 +25,7 @@ describe('FeedCard avatar', () => {
 
   it('opens the feed from a click', () => {
     const onSelect = vi.fn()
-    render(<FeedCard choice={feedChoice()} active={false} focused={false} onSelect={onSelect} />)
+    render(<FeedCard choice={feedChoice()} active={false} onSelect={onSelect} />)
     fireEvent.click(screen.getByLabelText('open 🚀 rocket feed'))
     expect(onSelect).toHaveBeenCalledTimes(1)
   })

@@ -22,17 +22,20 @@ const pinned: PinnedFeedModel[] = [
 ]
 
 describe('chooseFeedUri', () => {
-  it('uses the first pinned feed when signed in without a requested feed', () => {
-    expect(chooseFeedUri('', true, pinned)).toBe(pinned[0]?.uri)
+  it('uses the first pinned feed when nothing is requested', () => {
+    expect(chooseFeedUri('', pinned)).toBe(pinned[0]?.uri)
   })
 
-  it('keeps an explicit requested feed', () => {
-    expect(chooseFeedUri('at://explicit/feed', true, pinned)).toBe('at://explicit/feed')
+  it('honors a request that names a pinned feed', () => {
+    expect(chooseFeedUri(pinned[1]?.uri ?? '', pinned)).toBe(pinned[1]?.uri)
   })
 
-  it('falls back to discover when signed out or with no pinned feeds', () => {
-    expect(chooseFeedUri('', false, pinned)).toBe('')
-    expect(chooseFeedUri('at://explicit/feed', false, pinned)).toBe('')
-    expect(chooseFeedUri('', true, [])).toBe('')
+  it('falls back to the first pin for any other generator', () => {
+    expect(chooseFeedUri('at://explicit/feed', pinned)).toBe(pinned[0]?.uri)
+  })
+
+  it('has no feed when the account pinned none', () => {
+    expect(chooseFeedUri('', [])).toBe('')
+    expect(chooseFeedUri('at://explicit/feed', [])).toBe('')
   })
 })

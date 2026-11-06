@@ -212,7 +212,7 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     scope: 'deck',
     keys: ['R'],
     chords: [{ key: 'R' }],
-    label: 'refresh the feed; one explicit read, idempotent while it runs',
+    label: 'refresh the feed; press again to confirm',
   },
 
   // card

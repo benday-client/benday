@@ -8,28 +8,6 @@ import { useUiStore } from './lib/ui'
 import { installTransport, jsonResponse, type TestTransport } from './test/transport'
 
 const APPVIEW = 'https://api.bsky.app'
-// lexicon validation rejects invented cid strings
-const CID = 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'
-const DISCOVER_FEED_URI = 'at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot'
-
-// the feed deck reads discover metadata on mount; these route titles do not
-// depend on it, but the read must still be an explicit fixture
-function routeDiscoverMetadata(transport: TestTransport): void {
-  transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeedGenerator`, () =>
-    jsonResponse(200, {
-      view: {
-        uri: DISCOVER_FEED_URI,
-        cid: CID,
-        did: 'did:web:discover.bsky.app',
-        creator: { did: 'did:plc:z72i7hdynmk6r22z27h6tvur', handle: 'bsky.app' },
-        displayName: 'Discover',
-        indexedAt: '2026-10-29T12:00:00.000Z',
-      },
-      isOnline: true,
-      isValid: true,
-    }),
-  )
-}
 
 // a thread or profile the AppView cannot answer still renders its titled shell,
 // which is what these routes are asserting
@@ -103,7 +81,6 @@ async function signInShell(): Promise<TestTransport> {
       service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
     }),
   )
-  routeDiscoverMetadata(transport)
   const ok = await useAuthStore.getState().signIn(SESSION.did, 'app-pass')
   expect(ok).toBe(true)
   return transport
@@ -272,11 +249,10 @@ describe('global keyboard routing', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
-    routeDiscoverMetadata(transport)
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
 
       fireEvent.keyDown(document.body, { key: '/' })
 
@@ -369,7 +345,7 @@ describe('escape precedence stack', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
 
       act(() => {
         window.history.pushState({}, '', '/notifications')
@@ -421,7 +397,6 @@ describe('route title', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
-    routeDiscoverMetadata(transport)
     routeUnavailableRouteReads(transport)
     transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(400, { error: 'InvalidRequest', message: 'invalid actor' }),
@@ -429,7 +404,7 @@ describe('route title', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
       expect(document.title).toBe('benday // feeds')
 
       act(() => {
@@ -477,7 +452,7 @@ describe('route context focus', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
       const main = screen.getByRole('main')
       expect(main).not.toHaveFocus()
 
@@ -499,7 +474,7 @@ describe('route context focus', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
 
       act(() => {
         window.history.pushState({}, '', '/search')
@@ -529,7 +504,7 @@ describe('app history', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
       expect(appHistoryDepth()).toBe(0)
 
       fireEvent.keyDown(document.body, { key: '/' })
@@ -600,7 +575,6 @@ describe('portal restore notice', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
-    routeDiscoverMetadata(transport)
     window.history.pushState({}, '', '/feed')
     useAuthStore.setState({ restoreError: 'could not reach the portal' })
 
@@ -659,7 +633,6 @@ describe('route transitions', () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
-    routeDiscoverMetadata(transport)
   }
 
   it('drops a queued transition update when a newer direct navigation arrives', async () => {
@@ -669,7 +642,7 @@ describe('route transitions', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
 
       fireEvent.click(screen.getByLabelText('search'))
       expect(stub.updates).toHaveLength(1)
@@ -699,7 +672,7 @@ describe('route transitions', () => {
     window.history.pushState({}, '', '/feed')
     const view = render(<App />)
     try {
-      await screen.findByLabelText('discover cards')
+      await screen.findByLabelText('posts')
       fireEvent.click(screen.getByLabelText('search'))
       expect(stub.updates).toHaveLength(1)
 

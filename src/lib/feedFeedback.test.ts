@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { DISCOVER_FEED_URI } from './atproto'
 import { feedbackTargetFor } from './feedFeedback'
 import type { PinnedFeedModel } from './types'
 
@@ -45,71 +44,44 @@ const pinned: PinnedFeedModel[] = [
   },
 ]
 
-const discoverAccepts = { did: 'did:web:discover.bsky.app', acceptsInteractions: true }
-
 describe('feedbackTargetFor', () => {
   it.each([
     {
-      label: 'discover targets its own generator service',
-      source: { kind: 'discover' } as const,
-      discover: discoverAccepts,
-      expected: { feed: DISCOVER_FEED_URI, generatorDid: 'did:web:discover.bsky.app' },
-    },
-    {
-      label: 'discover without a resolved service did is not a target',
-      source: { kind: 'discover' } as const,
-      discover: { did: null, acceptsInteractions: true },
-      expected: null,
-    },
-    {
-      label: 'discover that explicitly refuses interactions is not a target',
-      source: { kind: 'discover' } as const,
-      discover: { did: 'did:web:discover.bsky.app', acceptsInteractions: false },
-      expected: null,
-    },
-    {
-      label: 'discover metadata that omits the capability keeps feedback offered',
-      source: { kind: 'discover' } as const,
-      discover: { did: 'did:web:discover.bsky.app', acceptsInteractions: null },
-      expected: { feed: DISCOVER_FEED_URI, generatorDid: 'did:web:discover.bsky.app' },
-    },
-    {
       label: 'a pinned generator that accepts interactions is the target',
       source: { kind: 'feed', uri: accepts } as const,
-      discover: discoverAccepts,
       expected: { feed: accepts, generatorDid: 'did:web:feeds.test' },
     },
     {
       label: 'a pinned generator that explicitly refuses interactions is not a target',
       source: { kind: 'feed', uri: silent } as const,
-      discover: discoverAccepts,
       expected: null,
     },
     {
       label: 'metadata that omits acceptsInteractions keeps feedback offered',
       source: { kind: 'feed', uri: omitted } as const,
-      discover: discoverAccepts,
       expected: { feed: omitted, generatorDid: 'did:web:feeds.test' },
     },
     {
       label: 'a pinned feed without a generator did is not a target',
       source: { kind: 'feed', uri: didless } as const,
-      discover: discoverAccepts,
       expected: null,
     },
     {
       label: 'a feed that is not pinned has no generator metadata',
       source: { kind: 'feed', uri: 'at://explicit/feed' } as const,
-      discover: discoverAccepts,
       expected: null,
     },
     {
       label: 'a pinned feed used as an author source is not a target',
       source: { kind: 'author', actor: 'alice.test' } as const,
-      discover: discoverAccepts,
       expected: null,
     },
-  ])('$label', ({ source, discover, expected }) => {
-    expect(feedbackTargetFor(source, pinned, discover)).toEqual(expected)
+    {
+      label: 'no resolved source is not a target',
+      source: null,
+      expected: null,
+    },
+  ])('$label', ({ source, expected }) => {
+    expect(feedbackTargetFor(source, pinned)).toEqual(expected)
   })
 })
