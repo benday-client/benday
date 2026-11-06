@@ -1,5 +1,4 @@
 import { AppBskyActorDefs, AppBskyFeedDefs, AppBskyLabelerDefs, AtpAgent } from '@atproto/api'
-import { DEFAULT_APPVIEW, toAppViewTarget } from './appviews'
 import { getAuthAgent, requireViewerAgent } from './auth'
 import { applyConfiguredLabelers } from './labelers'
 import {
@@ -16,7 +15,6 @@ import {
   threadAuthorDids,
 } from './model'
 import type {
-  AppViewTarget,
   FeedSource,
   PinnedFeedModel,
   PostModel,
@@ -31,9 +29,9 @@ export const DISCOVER_FEED_URI =
 
 const PAGE_LIMIT = 30
 
-// generator metadata is public, but it is read from the canonical appview so a
-// custom host never learns which feed the reader is asking about
-const PUBLIC_APPVIEW: AppViewTarget = toAppViewTarget(DEFAULT_APPVIEW)
+// the one read service: the official appview. private canonical reads still use
+// the account's pds with the appview proxy below.
+const APPVIEW_ORIGIN = 'https://api.bsky.app'
 
 interface CursorParam {
   cursor?: string
@@ -56,8 +54,8 @@ function normalizeCursor(cursor: string | undefined): string | null {
   return cursor === undefined || cursor.length === 0 ? null : cursor
 }
 
-export function createAgent(target: AppViewTarget): AtpAgent {
-  const agent = new AtpAgent({ service: target.host })
+export function createAgent(): AtpAgent {
+  const agent = new AtpAgent({ service: APPVIEW_ORIGIN })
   applyConfiguredLabelers(agent)
   return agent
 }
@@ -161,7 +159,6 @@ async function dropHiddenAuthors(
 }
 
 export async function fetchFeedPage(
-  target: AppViewTarget,
   source: FeedSource,
   viewerDid: string | null,
   cursor?: string,
@@ -171,7 +168,7 @@ export async function fetchFeedPage(
     case 'discover': {
       // a signed-in viewer uses its own agent so JWT-gated feeds can answer;
       // a null owner is public-only and never borrows the current account
-      const reader = viewerDid === null ? createAgent(target) : requireViewerAgent(viewerDid)
+      const reader = viewerDid === null ? createAgent() : requireViewerAgent(viewerDid)
       const response = await reader.app.bsky.feed.getFeed({
         feed: DISCOVER_FEED_URI,
         limit,
@@ -187,7 +184,7 @@ export async function fetchFeedPage(
     }
 
     case 'author': {
-      const agent = createAgent(target)
+      const agent = createAgent()
       const response = await agent.app.bsky.feed.getAuthorFeed({
         actor: source.actor.replace(/^@/, ''),
         limit,
@@ -204,7 +201,7 @@ export async function fetchFeedPage(
     }
 
     case 'feed': {
-      const reader = viewerDid === null ? createAgent(target) : requireViewerAgent(viewerDid)
+      const reader = viewerDid === null ? createAgent() : requireViewerAgent(viewerDid)
       const response = await reader.app.bsky.feed.getFeed({
         feed: source.uri,
         limit,
@@ -220,7 +217,7 @@ export async function fetchFeedPage(
     }
 
     case 'search': {
-      const agent = createAgent(target)
+      const agent = createAgent()
       const response = await agent.app.bsky.feed.searchPosts({
         q: source.query,
         limit,
@@ -248,11 +245,8 @@ export interface ActorSuggestion {
   avatar: string | null
 }
 
-export async function fetchActorSuggestions(
-  target: AppViewTarget,
-  query: string,
-): Promise<ActorSuggestion[]> {
-  const agent = createAgent(target)
+export async function fetchActorSuggestions(query: string): Promise<ActorSuggestion[]> {
+  const agent = createAgent()
   const response = await agent.app.bsky.actor.searchActorsTypeahead({
     q: query,
     limit: 6,
@@ -265,12 +259,8 @@ export async function fetchActorSuggestions(
   }))
 }
 
-export async function fetchActorSearch(
-  target: AppViewTarget,
-  query: string,
-  limit = 25,
-): Promise<SearchActorModel[]> {
-  const agent = createAgent(target)
+export async function fetchActorSearch(query: string, limit = 25): Promise<SearchActorModel[]> {
+  const agent = createAgent()
   const response = await agent.app.bsky.actor.searchActors({ q: query, limit })
   return response.data.actors.map((actor) => ({
     did: actor.did,
@@ -281,11 +271,8 @@ export async function fetchActorSearch(
   }))
 }
 
-export async function fetchFeedSearch(
-  target: AppViewTarget,
-  query: string,
-): Promise<SearchFeedModel[]> {
-  const agent = createAgent(target)
+export async function fetchFeedSearch(query: string): Promise<SearchFeedModel[]> {
+  const agent = createAgent()
   // the unspecced endpoint is the only public feed-generator search in the SDK;
   // its `query` parameter filters by text, so it is a real search, not a guess
   const response = await agent.app.bsky.unspecced.getPopularFeedGenerators({ query, limit: 25 })
@@ -312,8 +299,8 @@ export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): strin
   return [...new Set(uris)]
 }
 
-export async function fetchTagSuggestions(target: AppViewTarget, query: string): Promise<string[]> {
-  const agent = createAgent(target)
+export async function fetchTagSuggestions(query: string): Promise<string[]> {
+  const agent = createAgent()
 
   try {
     const response = await agent.app.bsky.feed.searchPosts({
@@ -364,12 +351,9 @@ export interface LabelerSummary {
   labelCount: number
 }
 
-export async function fetchLabelerSummaries(
-  target: AppViewTarget,
-  dids: readonly string[],
-): Promise<LabelerSummary[]> {
+export async function fetchLabelerSummaries(dids: readonly string[]): Promise<LabelerSummary[]> {
   if (dids.length === 0) return []
-  const agent = createAgent(target)
+  const agent = createAgent()
   const response = await agent.app.bsky.labeler.getServices({ dids: [...dids], detailed: true })
   const summaries: LabelerSummary[] = []
 
@@ -440,7 +424,7 @@ export interface FeedGeneratorInfo {
  */
 export async function fetchFeedGenerator(uri: string): Promise<FeedGeneratorInfo> {
   if (uri.length === 0) return { did: null, acceptsInteractions: null }
-  const agent = createAgent(PUBLIC_APPVIEW)
+  const agent = createAgent()
   try {
     const response = await agent.app.bsky.feed.getFeedGenerator({ feed: uri })
     const view = response.data.view
@@ -453,13 +437,9 @@ export async function fetchFeedGenerator(uri: string): Promise<FeedGeneratorInfo
   }
 }
 
-export async function fetchProfile(
-  target: AppViewTarget,
-  actor: string,
-  viewerDid: string | null,
-): Promise<ProfileModel> {
+export async function fetchProfile(actor: string, viewerDid: string | null): Promise<ProfileModel> {
   const normalized = actor.replace(/^@/, '')
-  const reader = createAgent(target)
+  const reader = createAgent()
 
   // a null owner is public-only: the appview's own viewer field is anonymous
   if (viewerDid === null) {
@@ -485,12 +465,8 @@ export async function fetchProfile(
   }
 }
 
-export async function fetchThread(
-  target: AppViewTarget,
-  uri: string,
-  viewerDid: string | null,
-): Promise<ThreadModel> {
-  const agent = createAgent(target)
+export async function fetchThread(uri: string, viewerDid: string | null): Promise<ThreadModel> {
+  const agent = createAgent()
   const response = await agent.app.bsky.feed.getPostThread({ uri, depth: 3, parentHeight: 6 })
   if (!AppBskyFeedDefs.isThreadViewPost(response.data.thread)) {
     throw new Error('thread unavailable')
@@ -503,11 +479,10 @@ export async function fetchThread(
 }
 
 export async function fetchTopComments(
-  target: AppViewTarget,
   uri: string,
   viewerDid: string | null,
 ): Promise<PostModel[]> {
-  const agent = createAgent(target)
+  const agent = createAgent()
   const response = await agent.getPostThread({ uri, depth: 1, parentHeight: 0 })
   const thread = response.data.thread
   if (!AppBskyFeedDefs.isThreadViewPost(thread)) return []

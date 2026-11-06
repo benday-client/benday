@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchLabelerSummaries, type LabelerSummary } from '../lib/atproto'
-import { useSettings } from '../lib/store'
 
 export interface LabelerDetailsState {
   labelers: LabelerSummary[]
@@ -9,12 +8,11 @@ export interface LabelerDetailsState {
 }
 
 export function useLabelerDetails(dids: readonly string[], active = true): LabelerDetailsState {
-  const target = useSettings((state) => state.appView)
   const key = dids.join('\n')
   const enabled = active && dids.length > 0
   const query = useQuery({
-    queryKey: ['labeler-details', target.host, key],
-    queryFn: () => fetchLabelerSummaries(target, dids),
+    queryKey: ['labeler-details', key],
+    queryFn: () => fetchLabelerSummaries(dids),
     enabled,
     staleTime: 5 * 60_000,
     retry: 1,

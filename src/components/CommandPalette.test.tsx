@@ -23,7 +23,6 @@ vi.mock('../hooks/usePinnedFeeds', () => ({
 interface RenderOptions {
   open?: boolean
   onClose?: () => void
-  onOpenAppView?: () => void
   onOpenHelp?: () => void
   onOpenSettings?: () => void
 }
@@ -31,7 +30,6 @@ interface RenderOptions {
 function renderPalette(options: RenderOptions = {}) {
   const location = memoryLocation({ path: '/', record: true })
   const onClose = options.onClose ?? vi.fn()
-  const onOpenAppView = options.onOpenAppView ?? vi.fn()
   const onOpenHelp = options.onOpenHelp ?? vi.fn()
   const onOpenSettings = options.onOpenSettings ?? vi.fn()
 
@@ -43,7 +41,6 @@ function renderPalette(options: RenderOptions = {}) {
         <CommandPalette
           open={open}
           onClose={onClose}
-          onOpenAppView={onOpenAppView}
           onOpenHelp={onOpenHelp}
           onOpenSettings={onOpenSettings}
         />
@@ -55,7 +52,6 @@ function renderPalette(options: RenderOptions = {}) {
 
   return {
     onClose,
-    onOpenAppView,
     onOpenHelp,
     onOpenSettings,
     history: location.history,
@@ -85,13 +81,6 @@ describe('CommandPalette', () => {
     const { onClose } = renderPalette()
     submit('theme cyberpunk 2077')
     expect(useSettings.getState().theme).toBe('cyberpunk')
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('sets an appview from the command prompt', () => {
-    const { onClose } = renderPalette()
-    submit('appview public')
-    expect(useSettings.getState().appView.id).toBe('public')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -212,10 +201,12 @@ describe('CommandPalette', () => {
   it('resets the selection when the palette reopens', () => {
     const { rerender } = renderPalette()
     const input = screen.getByLabelText('command or jump')
-    fireEvent.change(input, { target: { value: 'settings' } })
+    // a query broad enough to leave several rows, so the second one can be
+    // the selection that a reopen has to clear
+    fireEvent.change(input, { target: { value: 'e' } })
     fireEvent.keyDown(input, { key: 'ArrowDown' })
 
-    const staleRow = screen.getByText('appview settings').closest('.b-palette__command')
+    const staleRow = Array.from(document.querySelectorAll('.b-palette__command'))[1]
     expect(staleRow?.getAttribute('data-selected')).toBe('true')
 
     rerender(false)
@@ -225,12 +216,7 @@ describe('CommandPalette', () => {
     expect((reopenedInput as HTMLInputElement).value).toBe('')
     const rows = Array.from(document.querySelectorAll('.b-palette__command'))
     expect(rows[0]?.getAttribute('data-selected')).toBe('true')
-    expect(
-      screen
-        .getByText('appview settings')
-        .closest('.b-palette__command')
-        ?.getAttribute('data-selected'),
-    ).toBe('false')
+    expect(rows[1]?.getAttribute('data-selected')).toBe('false')
   })
 
   it('offers a retry instead of an invented empty preference list', () => {

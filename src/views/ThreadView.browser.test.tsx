@@ -13,7 +13,6 @@ import { createTestQueryClient } from '../test/queryClient'
 import { renderStage } from '../test/stage'
 import ThreadView from './ThreadView'
 
-const APPVIEW = 'https://api.bsky.app'
 const ROOT_URI = 'at://did:plc:test/app.bsky.feed.post/root'
 const REPLY_URI = 'at://did:plc:test/app.bsky.feed.post/reply'
 
@@ -37,7 +36,7 @@ function renderThread(model: ThreadModel, seeds: ThreadModel[] = []): ThreadRend
   // seed the route's own thread plus any thread a key is about to open, so
   // navigation never reaches for the network
   for (const entry of [model, ...seeds]) {
-    const key = ['thread', APPVIEW, 'anonymous', entry.focusUri]
+    const key = ['thread', 'anonymous', entry.focusUri]
     queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
     queryClient.setQueryData(key, entry)
   }

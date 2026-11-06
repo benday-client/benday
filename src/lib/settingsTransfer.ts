@@ -1,14 +1,7 @@
 import { isDid } from '@atproto/api'
-import {
-  appViewPresetFor,
-  DEFAULT_APPVIEW,
-  isAppViewTarget,
-  makeCustomAppView,
-  toAppViewTarget,
-} from './appviews'
 import { isRecord } from './records'
 import { isTheme, THEME_SCHEMES } from './themes'
-import type { AppViewTarget, Theme } from './types'
+import type { Theme } from './types'
 
 /** Stable filename offered by the settings export control. */
 export const SETTINGS_FILE_NAME = 'benday-settings.json'
@@ -35,7 +28,6 @@ export interface PortableSettings {
   highContrast: boolean
   /** Bare single-character shortcuts; modifier chords stay available (WCAG 2.1.4). */
   keyboardShortcuts: boolean
-  appView: AppViewTarget
   labelers: string[]
 }
 
@@ -115,25 +107,12 @@ function portableAppearance(
   }
 }
 
-/**
- * Rebuilds a known appview target from its host, so labels, ids and kinds in
- * an imported file cannot claim to be something the host does not provide.
- */
-export function normalizeAppViewTarget(value: unknown): AppViewTarget | null {
-  if (!isAppViewTarget(value)) return null
-  const preset = appViewPresetFor(value)
-  if (preset !== null) return toAppViewTarget(preset)
-  return makeCustomAppView(value.host)
-}
-
 /** Validates and normalizes a bare portable settings snapshot. */
 export function normalizePortableSettings(value: unknown): PortableSettings | null {
   if (!isRecord(value)) return null
   // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
   const theme = normalizeTheme(value['theme'])
   if (theme === null) return null
-  const appView = normalizeAppViewTarget(value['appView'])
-  if (appView === null) return null
   const rawLabelers = value['labelers']
   if (!Array.isArray(rawLabelers)) return null
   return {
@@ -147,7 +126,6 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
       value['highContrast'],
     ),
     keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
-    appView,
     labelers: sanitizeLabelers(rawLabelers),
   }
 }
@@ -158,7 +136,6 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
  * credentials and session material from ever reaching the file.
  */
 export function buildSettingsFile(settings: PortableSettings, now = new Date()): SettingsFile {
-  const appView = normalizeAppViewTarget(settings.appView) ?? toAppViewTarget(DEFAULT_APPVIEW)
   const normalizedTheme = normalizeTheme(settings.theme) ?? 'void'
   return {
     version: SETTINGS_FILE_VERSION,
@@ -173,7 +150,6 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
       settings.highContrast,
     ),
     keyboardShortcuts: normalizeBoolean(settings.keyboardShortcuts, true),
-    appView,
     labelers: sanitizeLabelers(settings.labelers),
   }
 }
@@ -206,9 +182,6 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
   const theme = normalizeTheme(value['theme'])
   if (theme === null) return fail('settings file has an invalid theme')
 
-  const appView = normalizeAppViewTarget(value['appView'])
-  if (appView === null) return fail('settings file has an invalid appview')
-
   const rawLabelers = value['labelers']
   if (!Array.isArray(rawLabelers)) return fail('settings file has an invalid labeler list')
 
@@ -225,7 +198,6 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
         value['highContrast'],
       ),
       keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
-      appView,
       labelers: sanitizeLabelers(rawLabelers),
     },
   }

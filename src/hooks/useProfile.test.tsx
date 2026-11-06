@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchProfile } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
-import { useSettings } from '../lib/store'
 import { profileFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
 import { useProfile } from './useBskyQueries'
@@ -49,12 +48,11 @@ beforeEach(() => {
 describe('useProfile', () => {
   it('never serves one account viewer state to the next', async () => {
     const queryClient = createTestQueryClient()
-    const host = useSettings.getState().appView.host
     // keep both account-keyed entries alive so the test can compare them
-    queryClient.setQueryDefaults(['profile', host, 'target.test', 'did:plc:alice'], {
+    queryClient.setQueryDefaults(['profile', 'target.test', 'did:plc:alice'], {
       gcTime: Number.POSITIVE_INFINITY,
     })
-    queryClient.setQueryDefaults(['profile', host, 'target.test', 'did:plc:bravo'], {
+    queryClient.setQueryDefaults(['profile', 'target.test', 'did:plc:bravo'], {
       gcTime: Number.POSITIVE_INFINITY,
     })
     vi.mocked(fetchProfile).mockResolvedValue(profileWithFollowing('at://follow/alice'))
@@ -74,21 +72,17 @@ describe('useProfile', () => {
     })
     rerender()
 
-    expect(vi.mocked(fetchProfile).mock.calls.at(-1)?.[2]).toBe('did:plc:bravo')
+    expect(vi.mocked(fetchProfile).mock.calls.at(-1)?.[1]).toBe('did:plc:bravo')
     expect(result.current.data).toBeNull()
 
     await act(async () => {
       gate.resolve(profileWithFollowing(null))
     })
 
-    expect(
-      queryClient.getQueryData(['profile', host, 'target.test', 'did:plc:alice']),
-    ).toMatchObject({
+    expect(queryClient.getQueryData(['profile', 'target.test', 'did:plc:alice'])).toMatchObject({
       viewer: { following: 'at://follow/alice' },
     })
-    expect(
-      queryClient.getQueryData(['profile', host, 'target.test', 'did:plc:bravo']),
-    ).toBeDefined()
+    expect(queryClient.getQueryData(['profile', 'target.test', 'did:plc:bravo'])).toBeDefined()
   })
 
   it('reads the anonymous key when nobody is signed in', async () => {
@@ -104,13 +98,12 @@ describe('useProfile', () => {
     })
     await waitFor(() => expect(result.current.data).not.toBeNull())
 
-    expect(vi.mocked(fetchProfile).mock.calls.at(-1)?.[2]).toBeNull()
+    expect(vi.mocked(fetchProfile).mock.calls.at(-1)?.[1]).toBeNull()
   })
 
   it('keeps the last good profile when a background refetch fails', async () => {
     const queryClient = createTestQueryClient()
-    const host = useSettings.getState().appView.host
-    const key = ['profile', host, 'target.test', 'did:plc:alice']
+    const key = ['profile', 'target.test', 'did:plc:alice']
     queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY, retryDelay: 0 })
     queryClient.setQueryData(key, profileWithFollowing('at://follow/alice'), {
       updatedAt: Date.now() - 60_000,
@@ -131,8 +124,7 @@ describe('useProfile', () => {
 
   it('reports a first-load failure when nothing is cached', async () => {
     const queryClient = createTestQueryClient()
-    const host = useSettings.getState().appView.host
-    queryClient.setQueryDefaults(['profile', host, 'target.test', 'did:plc:alice'], {
+    queryClient.setQueryDefaults(['profile', 'target.test', 'did:plc:alice'], {
       retryDelay: 0,
     })
     vi.mocked(fetchProfile).mockRejectedValue(new Error('profile unavailable'))

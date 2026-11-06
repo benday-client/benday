@@ -10,9 +10,7 @@ import {
 } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { normalizeError } from '../lib/errors'
-import { useSettings } from '../lib/store'
 import type {
-  AppViewTarget,
   FeedSource,
   PostFeedState,
   PostModel,
@@ -40,20 +38,16 @@ function normalizeActor(actor: string): string {
   return actor.trim().replace(/^@/, '')
 }
 
-function feedKey(
-  target: AppViewTarget,
-  source: FeedSource,
-  viewerDid: string | null,
-): readonly unknown[] {
+function feedKey(source: FeedSource, viewerDid: string | null): readonly unknown[] {
   switch (source.kind) {
     case 'discover':
-      return ['feed', target.host, 'discover', viewerDid ?? 'anonymous']
+      return ['feed', 'discover', viewerDid ?? 'anonymous']
     case 'author':
-      return ['feed', target.host, 'author', source.actor, viewerDid ?? 'anonymous']
+      return ['feed', 'author', source.actor, viewerDid ?? 'anonymous']
     case 'search':
-      return ['feed', target.host, 'search', source.query, viewerDid ?? 'anonymous']
+      return ['feed', 'search', source.query, viewerDid ?? 'anonymous']
     case 'feed':
-      return ['feed', target.host, 'feed', source.uri, viewerDid ?? 'anonymous']
+      return ['feed', 'feed', source.uri, viewerDid ?? 'anonymous']
   }
 }
 
@@ -84,7 +78,6 @@ function flattenPosts(pages: FeedPage[]): PostModel[] {
 }
 
 export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
-  const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const queryClient = useQueryClient()
 
@@ -107,7 +100,7 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
   }, [kind, rawActor, rawQuery, rawUri])
 
   const active = enabled && feedEnabled(normalized)
-  const key = useMemo(() => feedKey(target, normalized, viewerDid), [target, normalized, viewerDid])
+  const key = useMemo(() => feedKey(normalized, viewerDid), [normalized, viewerDid])
 
   // dropping the pages and letting the observer ask again reloads exactly one
   // first page; a plain refetch would walk every loaded page
@@ -120,7 +113,7 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
 
   const query = useInfiniteQuery({
     queryKey: key,
-    queryFn: ({ pageParam }) => fetchFeedPage(target, normalized, viewerDid, pageParam),
+    queryFn: ({ pageParam }) => fetchFeedPage(normalized, viewerDid, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage, _pages, _lastPageParam, allPageParams) => {
       const next = lastPage.cursor
@@ -159,7 +152,6 @@ export function usePostFeed(source: FeedSource, enabled = true): PostFeedState {
 }
 
 export function useProfile(actor: string): QueryState<ProfileModel> {
-  const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const normalizedActor = normalizeActor(actor)
   const enabled = normalizedActor.length > 0
@@ -167,8 +159,8 @@ export function useProfile(actor: string): QueryState<ProfileModel> {
   const query = useQuery({
     // the viewer belongs to the key so one account's relationship state is
     // never served to another
-    queryKey: ['profile', target.host, normalizedActor, viewerDid ?? 'anonymous'],
-    queryFn: () => fetchProfile(target, normalizedActor, viewerDid),
+    queryKey: ['profile', normalizedActor, viewerDid ?? 'anonymous'],
+    queryFn: () => fetchProfile(normalizedActor, viewerDid),
     enabled,
     staleTime: STALE_TIME,
     retry: 1,
@@ -187,13 +179,12 @@ export function useProfile(actor: string): QueryState<ProfileModel> {
 }
 
 export function useActorSearch(query: string, enabled = true): QueryState<SearchActorModel[]> {
-  const target = useSettings((state) => state.appView)
   const normalized = query.trim()
   const active = enabled && normalized.length > 0
 
   const result = useQuery({
-    queryKey: ['search-actors', target.host, normalized],
-    queryFn: () => fetchActorSearch(target, normalized),
+    queryKey: ['search-actors', normalized],
+    queryFn: () => fetchActorSearch(normalized),
     enabled: active,
     // search lists follow the feed policy: a mode switch reuses what the reader
     // already loaded and only an explicit retry asks the appview again
@@ -219,13 +210,12 @@ export function useActorSearch(query: string, enabled = true): QueryState<Search
 }
 
 export function useFeedSearch(query: string, enabled = true): QueryState<SearchFeedModel[]> {
-  const target = useSettings((state) => state.appView)
   const normalized = query.trim()
   const active = enabled && normalized.length > 0
 
   const result = useQuery({
-    queryKey: ['search-feeds', target.host, normalized],
-    queryFn: () => fetchFeedSearch(target, normalized),
+    queryKey: ['search-feeds', normalized],
+    queryFn: () => fetchFeedSearch(normalized),
     enabled: active,
     staleTime: FEED_STALE_TIME,
     retry: false,
@@ -277,7 +267,6 @@ export function useFeedGenerator(uri: string): FeedGeneratorState {
 }
 
 export function useThread(uri: string): QueryState<ThreadModel> {
-  const target = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const normalizedUri = uri.trim()
   const enabled = normalizedUri.length > 0
@@ -285,8 +274,8 @@ export function useThread(uri: string): QueryState<ThreadModel> {
   const query = useQuery({
     // the owner belongs to the key so a delayed callback cannot read another
     // account's muted state for this thread
-    queryKey: ['thread', target.host, viewerDid ?? 'anonymous', normalizedUri],
-    queryFn: () => fetchThread(target, normalizedUri, viewerDid),
+    queryKey: ['thread', viewerDid ?? 'anonymous', normalizedUri],
+    queryFn: () => fetchThread(normalizedUri, viewerDid),
     enabled,
     staleTime: STALE_TIME,
     gcTime: THREAD_CACHE_TIME,

@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { capabilitiesFor } from '../lib/appviews'
 import { type ActorSuggestion, fetchActorSuggestions } from '../lib/atproto'
-import { useSettings } from '../lib/store'
 import { useDebouncedValue } from './useDebouncedValue'
 
 export interface ActorSuggestionsState {
@@ -114,25 +112,22 @@ export function insertSuggestion(
 }
 
 export function useActorSuggestions(query: string, enabled: boolean): ActorSuggestionsState {
-  const target = useSettings((state) => state.appView)
-  const searchSupported = capabilitiesFor(target).search
   const normalized = query.trim()
   const debounced = useDebouncedValue(normalized, 180)
   // a suggestion from the previous token must not answer for the current one
   const settled = debounced === normalized
 
   const result = useQuery({
-    queryKey: ['actor-suggestions', target.host, debounced],
-    queryFn: () => fetchActorSuggestions(target, debounced),
-    enabled: searchSupported && enabled && debounced.length > 0,
+    queryKey: ['actor-suggestions', debounced],
+    queryFn: () => fetchActorSuggestions(debounced),
+    enabled: enabled && debounced.length > 0,
     staleTime: 60_000,
     retry: 0,
     refetchOnWindowFocus: false,
   })
 
   return {
-    suggestions: searchSupported && enabled && settled ? (result.data ?? []) : [],
-    isPending:
-      searchSupported && enabled && normalized.length > 0 && (!settled || result.isPending),
+    suggestions: enabled && settled ? (result.data ?? []) : [],
+    isPending: enabled && normalized.length > 0 && (!settled || result.isPending),
   }
 }

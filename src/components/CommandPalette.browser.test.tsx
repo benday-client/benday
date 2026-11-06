@@ -35,7 +35,6 @@ function PaletteHost({ onClose }: { onClose: () => void }) {
         setOpen(false)
         onClose()
       }}
-      onOpenAppView={() => undefined}
       onOpenHelp={() => undefined}
       onOpenSettings={() => undefined}
     />

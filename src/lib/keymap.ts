@@ -121,13 +121,6 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     label: 'open the composer',
   },
   {
-    id: 'appview',
-    scope: 'global',
-    keys: ['a'],
-    chords: letterChords(['a']),
-    label: 'open the appview picker',
-  },
-  {
     id: 'settings',
     scope: 'global',
     keys: [','],

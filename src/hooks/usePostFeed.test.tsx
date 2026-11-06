@@ -56,7 +56,7 @@ beforeEach(() => {
 describe('usePostFeed', () => {
   it('reloads exactly one first page on refresh and leaves other keys alone', async () => {
     const queryClient = createTestQueryClient()
-    const otherKey = ['feed', 'other.test', 'discover', 'anonymous']
+    const otherKey = ['feed', 'author', 'other.test', 'anonymous']
     queryClient.setQueryDefaults(otherKey, { gcTime: Number.POSITIVE_INFINITY })
     queryClient.setQueryData(otherKey, { pages: [page(['other'], null)], pageParams: [undefined] })
 
@@ -204,16 +204,15 @@ describe('usePostFeed', () => {
   ])('keeps %s pages attached to their viewer', async (_kind, source) => {
     if (source.kind !== 'author' && source.kind !== 'search') throw new Error('unexpected source')
     const queryClient = createTestQueryClient()
-    const host = useSettings.getState().appView.host
     const keyFor = (owner: string): readonly unknown[] =>
       source.kind === 'author'
-        ? ['feed', host, 'author', source.actor, owner]
-        : ['feed', host, 'search', source.query, owner]
+        ? ['feed', 'author', source.actor, owner]
+        : ['feed', 'search', source.query, owner]
     for (const owner of [ALICE_DID, BRAVO_DID, 'anonymous']) {
       queryClient.setQueryDefaults(keyFor(owner), { gcTime: Number.POSITIVE_INFINITY })
     }
 
-    vi.mocked(fetchFeedPage).mockImplementation(async (_target, _source, viewerDid, cursor) => {
+    vi.mocked(fetchFeedPage).mockImplementation(async (_source, viewerDid, cursor) => {
       const owner = viewerDid ?? 'anonymous'
       if (cursor === undefined) return page([`${owner} first`], 'more')
       if (cursor === 'more') return page([`${owner} second`], null)
@@ -252,8 +251,8 @@ describe('usePostFeed', () => {
 
     const firstPages = vi
       .mocked(fetchFeedPage)
-      .mock.calls.filter(([, , , cursor]) => cursor === undefined)
-      .map(([, , viewerDid]) => viewerDid ?? 'anonymous')
+      .mock.calls.filter(([, , cursor]) => cursor === undefined)
+      .map(([, viewerDid]) => viewerDid ?? 'anonymous')
     expect(firstPages).toEqual([ALICE_DID, 'anonymous', BRAVO_DID])
   })
 })

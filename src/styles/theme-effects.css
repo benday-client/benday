@@ -233,17 +233,6 @@
   background-image: none;
 }
 
-.b-button,
-.b-input__control,
-.b-tag,
-.b-kbd,
-.b-dialog__close,
-.b-settings__theme,
-.b-settings__appview,
-.b-appview__select {
-  border-radius: var(--theme-radius);
-}
-
 /* the square corner ticks would be cut off by an octagonal clip, and they
    fight a rounded trim; hide them for every shaped or rounded theme */
 :is(

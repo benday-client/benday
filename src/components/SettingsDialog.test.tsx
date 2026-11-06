@@ -2,11 +2,9 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_APPVIEW, makeCustomAppView, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { type PortableSettings, serializeSettings } from '../lib/settingsTransfer'
 import { SETTINGS_STORAGE_KEY, useSettings } from '../lib/store'
-import type { AppViewTarget } from '../lib/types'
 import { createTestQueryClient } from '../test/queryClient'
 import { installTransport, jsonResponse } from '../test/transport'
 import { SettingsDialog } from './SettingsDialog'
@@ -124,23 +122,8 @@ describe('SettingsDialog keyboard', () => {
   })
 })
 
-function requireTarget(target: AppViewTarget | null): AppViewTarget {
-  if (target === null) throw new Error('expected an appview target')
-  return target
-}
-
-function seedSettings(patch: { appView?: AppViewTarget; labelers?: string[] }) {
-  useSettings.setState({
-    appView: patch.appView ?? toAppViewTarget(DEFAULT_APPVIEW),
-    labelers: patch.labelers ?? [],
-  })
-}
-
-async function rehydrateFrom(stored: Record<string, unknown>): Promise<void> {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ version: 1, state: stored }))
-  await act(async () => {
-    await useSettings.persist.rehydrate()
-  })
+function seedSettings(patch: { labelers?: string[] } = {}) {
+  useSettings.setState({ labelers: patch.labelers ?? [] })
 }
 
 describe('SettingsDialog labelers', () => {
@@ -201,57 +184,6 @@ describe('SettingsDialog labelers', () => {
   })
 })
 
-describe('SettingsDialog appview host draft', () => {
-  const CUSTOM = requireTarget(makeCustomAppView('api.example.com'))
-
-  beforeEach(() => {
-    delete document.documentElement.dataset['theme']
-    seedSettings({ appView: CUSTOM })
-  })
-
-  it('keeps an unsubmitted host when another tab only changes the theme', async () => {
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'custom host' })
-    expect(input).toHaveValue(CUSTOM.host)
-
-    fireEvent.change(input, { target: { value: 'https://draft.example.com' } })
-
-    await rehydrateFrom({
-      appView: { ...CUSTOM },
-      theme: 'oxide',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'oxide',
-      imageEffects: true,
-      labelers: [],
-    })
-
-    expect(useSettings.getState().theme).toBe('oxide')
-    expect(input).toHaveValue('https://draft.example.com')
-  })
-
-  it('follows a genuinely different custom host', async () => {
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'custom host' })
-    fireEvent.change(input, { target: { value: 'https://draft.example.com' } })
-
-    const other = makeCustomAppView('other.example.com')
-    if (other === null) throw new Error('expected a custom appview')
-
-    await rehydrateFrom({
-      appView: { ...other },
-      theme: 'oxide',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'oxide',
-      imageEffects: true,
-      labelers: [],
-    })
-
-    expect(input).toHaveValue('https://other.example.com')
-  })
-})
-
 describe('SettingsDialog keyboard shortcuts setting', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
@@ -284,7 +216,6 @@ describe('SettingsDialog keyboard shortcuts setting', () => {
     expect(useSettings.getState().imageEffects).toBe(before.imageEffects)
     expect(useSettings.getState().highContrast).toBe(before.highContrast)
     expect(useSettings.getState().theme).toBe(before.theme)
-    expect(useSettings.getState().appView).toBe(before.appView)
     expect(useSettings.getState().labelers).toBe(before.labelers)
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -413,24 +344,6 @@ describe('SettingsDialog field associations', () => {
     seedSettings({})
   })
 
-  it('associates an invalid custom host with its hint and error', () => {
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'custom host' })
-
-    fireEvent.change(input, { target: { value: 'http://example.com' } })
-
-    const error = screen.getByRole('alert')
-    expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(error).toHaveTextContent('invalid host')
-    expect(error.id).not.toBe('')
-    expect(input.getAttribute('aria-describedby')).toBe(`${input.id}-hint ${error.id}`)
-
-    fireEvent.change(input, { target: { value: '' } })
-
-    expect(input).not.toHaveAttribute('aria-invalid')
-    expect(screen.queryByText('invalid host · use an https origin without a path')).toBeNull()
-  })
-
   it('associates an invalid labeler did with its error and names each remove control', () => {
     const transport = installTransport()
     transport.route('GET', 'https://api.bsky.app/xrpc/app.bsky.labeler.getServices', () =>
@@ -557,7 +470,6 @@ describe('SettingsDialog import limits', () => {
     imageEffects: true,
     highContrast: false,
     keyboardShortcuts: true,
-    appView: toAppViewTarget(DEFAULT_APPVIEW),
     labelers: [],
   }
 

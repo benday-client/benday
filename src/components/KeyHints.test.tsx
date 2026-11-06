@@ -182,7 +182,6 @@ describe('KeyHints hold gesture', () => {
     expect(shown).toContain(registryLabel('palette'))
     expect(shown).toContain(registryLabel('search'))
     expect(shown).toContain(registryLabel('compose'))
-    expect(shown).toContain(registryLabel('appview'))
     expect(shown).toContain(registryLabel('settings'))
     expect(shown).toContain(registryLabel('help'))
     // this is the viewer's own post, so delete is offered, but it has no video

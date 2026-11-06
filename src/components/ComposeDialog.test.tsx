@@ -69,7 +69,7 @@ function composerInput(value: string, caret: number): HTMLTextAreaElement {
 
 function composerClientWithActor(query: string, handle: string) {
   const queryClient = createTestQueryClient()
-  const key = ['actor-suggestions', 'https://api.bsky.app', query]
+  const key = ['actor-suggestions', query]
   queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
   queryClient.setQueryData(key, [
     { did: `did:plc:${handle}`, handle, displayName: '', avatar: null },
@@ -80,7 +80,7 @@ function composerClientWithActor(query: string, handle: string) {
 /** Two settled handles so the arrow keys have somewhere to move. */
 function composerClientWithActors() {
   const queryClient = createTestQueryClient()
-  const key = ['actor-suggestions', 'https://api.bsky.app', 'ad']
+  const key = ['actor-suggestions', 'ad']
   queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
   queryClient.setQueryData(key, [
     { did: 'did:plc:ada', handle: 'ada.test', displayName: '', avatar: null },
@@ -625,7 +625,7 @@ describe('ComposeDialog', () => {
         displayName: '',
         avatar: null,
       }))
-    const key = ['actor-suggestions', 'https://api.bsky.app', 'a']
+    const key = ['actor-suggestions', 'a']
     queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
     queryClient.setQueryData(key, actors(['a1.test', 'a2.test', 'a3.test', 'a4.test', 'a5.test']))
     renderComposer(queryClient)

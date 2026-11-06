@@ -9,13 +9,6 @@ import {
 } from 'react'
 import { isEditableTarget } from '../hooks/useHotkeys'
 import { useLabelerDetails } from '../hooks/useLabelerDetails'
-import {
-  APPVIEW_PRESETS,
-  appViewHostname,
-  makeCustomAppView,
-  sameAppView,
-  toAppViewTarget,
-} from '../lib/appviews'
 import { fetchLabelerPrefs } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { matchesSearchTokens } from '../lib/searchTokens'
@@ -35,7 +28,6 @@ import {
   themeAvailable,
   themeSeason,
 } from '../lib/themes'
-import type { AppViewPreset } from '../lib/types'
 import { ThemePreview } from './ThemePreview'
 import { Button, Dialog, Tag, TextInput } from './ui'
 
@@ -54,11 +46,6 @@ const SETTING_SEARCH: readonly SettingSearchEntry[] = [
     label: 'appearance',
     keywords: `theme themes colors image effects dither grunge contrast high mode maximum preview accessibility readable keyboard shortcuts wcag single key halloween seasonal october light dark system ${Object.values(THEME_LABELS).join(' ')}`,
   },
-  {
-    id: 'settings-appview',
-    label: 'appview',
-    keywords: `host server instance custom ${APPVIEW_PRESETS.map((preset) => `${preset.label} ${preset.host}`).join(' ')}`,
-  },
   { id: 'settings-labelers', label: 'labelers', keywords: 'labels moderation did import account' },
   { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
   { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
@@ -70,8 +57,6 @@ export interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const appView = useSettings((state) => state.appView)
-  const setAppView = useSettings((state) => state.setAppView)
   const theme = useSettings((state) => state.theme)
   const appearance = useSettings((state) => state.appearance)
   const setAppearance = useSettings((state) => state.setAppearance)
@@ -92,7 +77,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const account = useAuthStore((state) => state.account)
   const pending = useAuthStore((state) => state.pending)
   const signOut = useAuthStore((state) => state.signOut)
-  const [host, setHost] = useState('')
   const [labelerInput, setLabelerInput] = useState('')
   const [importingLabelers, setImportingLabelers] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
@@ -102,8 +86,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const settingsFileInput = useRef<HTMLInputElement>(null)
   const settingSearchRef = useRef<HTMLInputElement>(null)
   const formId = useId()
-  const hostFieldId = `${formId}-host`
-  const hostErrorId = `${formId}-host-error`
   const labelerFieldId = `${formId}-labeler`
   const labelerErrorId = `${formId}-labeler-error`
   // Monotonic id of the currently open instance. A sign-out captures it so a
@@ -124,12 +106,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const queryActive = settingQuery.trim().length > 0
   const sectionHidden = (id: string): 'true' | undefined =>
     queryActive && !settingMatches.some((entry) => entry.id === id) ? 'true' : undefined
-
-  const appViewHost = appView.kind === 'custom' ? appView.host : ''
-
-  useEffect(() => {
-    if (open) setHost(appViewHost)
-  }, [open, appViewHost])
 
   // A layout effect resets before paint, so a completion that settles right
   // after a reopened commit cannot touch the newer opening, and the search
@@ -165,23 +141,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }
   }, [open])
 
-  const custom = makeCustomAppView(host)
-  const invalidHost = host.trim().length > 0 && custom === null
   const labelerDid = sanitizeLabeler(labelerInput)
   const labelerLimitReached = labelers.length >= SETTINGS_LABELER_LIMIT
   const canAddLabeler = labelerDid !== null && !labelerLimitReached
   const labelerInvalid =
     labelerInput.trim().length > 0 && labelerDid === null && !labelerLimitReached
   const detailByDid = new Map(details.labelers.map((labeler) => [labeler.did, labeler]))
-
-  const choosePreset = (preset: AppViewPreset) => {
-    setAppView(toAppViewTarget(preset))
-  }
-
-  const useCustom = () => {
-    if (custom === null) return
-    setAppView(custom)
-  }
 
   const add = () => {
     if (labelerDid === null || labelerLimitReached) return
@@ -228,7 +193,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       imageEffects,
       highContrast,
       keyboardShortcuts,
-      appView,
       labelers,
     })
     const blob = new Blob([json], { type: 'application/json' })
@@ -455,57 +419,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       </section>
 
       <section
-        id="settings-appview"
-        className="b-settings__section"
-        data-hidden={sectionHidden('settings-appview')}
-      >
-        <h3 className="b-settings__heading">appview</h3>
-        <div className="b-settings__appviews">
-          {APPVIEW_PRESETS.map((preset) => {
-            const active = sameAppView(appView, preset)
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                className="b-settings__appview"
-                data-active={active ? 'true' : 'false'}
-                aria-pressed={active}
-                onClick={() => {
-                  choosePreset(preset)
-                }}
-              >
-                <span className="b-settings__appview-name">{preset.label}</span>
-                <span className="b-settings__appview-host">{appViewHostname(preset)}</span>
-                <span className="b-settings__appview-note">{preset.note}</span>
-              </button>
-            )
-          })}
-        </div>
-        <TextInput
-          id={hostFieldId}
-          label="custom host"
-          placeholder="https://api.example.com"
-          hint="https origin · public reads only"
-          value={host}
-          aria-invalid={invalidHost ? true : undefined}
-          aria-describedby={invalidHost ? hostErrorId : undefined}
-          onChange={(event) => {
-            setHost(event.target.value)
-          }}
-        />
-        {invalidHost ? (
-          <p className="b-settings__error" id={hostErrorId} role="alert">
-            invalid host · use an https origin without a path
-          </p>
-        ) : null}
-        <div className="b-settings__row">
-          <Button variant="outline" disabled={custom === null} onClick={useCustom}>
-            use custom appview
-          </Button>
-        </div>
-      </section>
-
-      <section
         id="settings-labelers"
         className="b-settings__section"
         data-hidden={sectionHidden('settings-labelers')}
@@ -603,8 +516,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       >
         <h3 className="b-settings__heading">transfer</h3>
         <p className="b-settings__note">
-          move theme appview and labelers between browsers with one json file. sessions,
-          credentials, drafts and account data are never included.
+          move theme and labelers between browsers with one json file. sessions, credentials, drafts
+          and account data are never included.
         </p>
         <div className="b-settings__row">
           <Button variant="outline" onClick={exportSettings}>

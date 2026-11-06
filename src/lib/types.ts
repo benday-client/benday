@@ -23,25 +23,6 @@ export interface StrongRefModel {
   cid: string
 }
 
-export type AppViewKind = 'official' | 'community' | 'custom'
-
-export interface AppViewCapabilities {
-  search: boolean
-  feeds: boolean
-}
-
-export interface AppViewTarget {
-  id: string
-  label: string
-  host: string
-  kind: AppViewKind
-  note: string
-}
-
-export interface AppViewPreset extends AppViewTarget {
-  capabilities: AppViewCapabilities
-}
-
 export interface AuthorModel {
   did: string
   handle: string

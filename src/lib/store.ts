@@ -1,9 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_APPVIEW, toAppViewTarget } from './appviews'
 import { isRecord } from './records'
 import {
-  normalizeAppViewTarget,
   normalizePortableSettings,
   normalizeTheme,
   SETTINGS_LABELER_LIMIT,
@@ -11,7 +9,7 @@ import {
   sanitizeLabelers,
 } from './settingsTransfer'
 import { resolveTheme, THEME_SCHEMES } from './themes'
-import type { AppViewTarget, Theme } from './types'
+import type { Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
 export type AppearanceMode = 'light' | 'dark' | 'system'
@@ -35,7 +33,6 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
 }
 
 interface SettingsState {
-  appView: AppViewTarget
   theme: Theme
   appearance: AppearanceMode
   lightTheme: Theme
@@ -44,7 +41,6 @@ interface SettingsState {
   highContrast: boolean
   keyboardShortcuts: boolean
   labelers: string[]
-  setAppView: (appView: AppViewTarget) => void
   setTheme: (theme: Theme) => void
   setAppearance: (appearance: AppearanceMode) => void
   setLightTheme: (theme: Theme) => void
@@ -63,12 +59,9 @@ interface SettingsState {
   importSettings: (value: unknown) => boolean
 }
 
-const INITIAL_APPVIEW = toAppViewTarget(DEFAULT_APPVIEW)
-
 export const useSettings = create<SettingsState>()(
   persist(
     (set, get) => ({
-      appView: INITIAL_APPVIEW,
       theme: 'void',
       appearance: 'dark',
       lightTheme: 'bone',
@@ -77,7 +70,6 @@ export const useSettings = create<SettingsState>()(
       highContrast: false,
       keyboardShortcuts: true,
       labelers: [],
-      setAppView: (appView) => set({ appView }),
       setTheme: (theme) =>
         set({
           theme,
@@ -145,7 +137,6 @@ export const useSettings = create<SettingsState>()(
           imageEffects: settings.imageEffects,
           highContrast: settings.highContrast,
           keyboardShortcuts: settings.keyboardShortcuts,
-          appView: settings.appView,
           labelers: settings.labelers,
         })
         return true
@@ -155,7 +146,6 @@ export const useSettings = create<SettingsState>()(
       name: SETTINGS_STORAGE_KEY,
       version: 1,
       partialize: (state) => ({
-        appView: state.appView,
         theme: state.theme,
         appearance: state.appearance,
         lightTheme: state.lightTheme,
@@ -169,9 +159,6 @@ export const useSettings = create<SettingsState>()(
         if (!isRecord(persisted)) return current
         const stored = persisted
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
-        // a stored host is rebuilt from its host so its label and kind cannot
-        // claim capabilities the host does not have
-        const appView = normalizeAppViewTarget(stored['appView']) ?? current.appView
         const legacyTheme = normalizeTheme(stored['theme'])
         const lightTheme =
           normalizeTheme(stored['lightTheme']) ??
@@ -205,7 +192,6 @@ export const useSettings = create<SettingsState>()(
           : current.labelers
         return {
           ...current,
-          appView,
           theme: selectedTheme(appearance, lightTheme, darkTheme),
           appearance,
           lightTheme,

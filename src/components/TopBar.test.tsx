@@ -40,7 +40,6 @@ describe('TopBar compose entry', () => {
       ['compose', 'compose'],
       ['jump', 'jump'],
       ['search', 'search'],
-      ['appview', 'appview'],
       ['keyboard help', 'help'],
       ['settings', 'settings'],
     ]
@@ -51,7 +50,7 @@ describe('TopBar compose entry', () => {
       expect(button.querySelector('.b-kbd')).toBeNull()
     }
     // the word is visible text, not only the accessible name on the title
-    expect(screen.getAllByText(/^(compose|jump|search|appview|help|settings)$/)).toHaveLength(6)
+    expect(screen.getAllByText(/^(compose|jump|search|help|settings)$/)).toHaveLength(5)
   })
 
   it('opens the compose dialog from the signed-in button', () => {

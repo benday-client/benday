@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { APPVIEW_PRESETS, DEFAULT_APPVIEW, makeCustomAppView, toAppViewTarget } from './appviews'
 import {
   buildSettingsFile,
-  normalizeAppViewTarget,
   normalizePortableSettings,
   normalizeTheme,
   type PortableSettings,
@@ -16,17 +14,11 @@ import {
 } from './settingsTransfer'
 import { useSettings } from './store'
 import { THEME_SCHEMES } from './themes'
-import type { AppViewTarget, Theme } from './types'
+import type { Theme } from './types'
 
 const FIXED_TIME = new Date('2026-10-30T12:00:00.000Z')
 
-const BLACKSKY = APPVIEW_PRESETS.find((preset) => preset.id === 'blacksky')
-if (BLACKSKY === undefined) throw new Error('expected the blacksky preset')
-
-const CUSTOM = makeCustomAppView('api.example.com')
-if (CUSTOM === null) throw new Error('expected a custom appview')
-
-function portable(theme: Theme, appView: AppViewTarget, labelers: string[]): PortableSettings {
+function portable(theme: Theme, labelers: string[]): PortableSettings {
   const scheme = THEME_SCHEMES[theme]
   return {
     theme,
@@ -36,27 +28,20 @@ function portable(theme: Theme, appView: AppViewTarget, labelers: string[]): Por
     imageEffects: true,
     highContrast: false,
     keyboardShortcuts: true,
-    appView,
     labelers,
   }
 }
 
-const SAMPLE = portable('bone', toAppViewTarget(BLACKSKY), ['did:plc:alpha', 'did:plc:beta'])
+const SAMPLE = portable('bone', ['did:plc:alpha', 'did:plc:beta'])
 
 function validFile(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: SETTINGS_FILE_VERSION,
     exportedAt: FIXED_TIME.toISOString(),
     theme: 'bone',
-    appView: toAppViewTarget(DEFAULT_APPVIEW),
     labelers: ['did:plc:alpha'],
     ...overrides,
   }
-}
-
-function requireTarget(value: AppViewTarget | null): AppViewTarget {
-  if (value === null) throw new Error('expected an appview target')
-  return value
 }
 
 describe('settings file format', () => {
@@ -69,7 +54,6 @@ describe('settings file format', () => {
     const file = buildSettingsFile(SAMPLE, FIXED_TIME)
     expect(Object.keys(file).sort()).toEqual(
       [
-        'appView',
         'appearance',
         'darkTheme',
         'exportedAt',
@@ -85,7 +69,6 @@ describe('settings file format', () => {
     expect(file.version).toBe(SETTINGS_FILE_VERSION)
     expect(file.exportedAt).toBe(FIXED_TIME.toISOString())
     expect(file.theme).toBe('bone')
-    expect(file.appView.host).toBe('https://api.blacksky.community')
     expect(file.labelers).toEqual(['did:plc:alpha', 'did:plc:beta'])
   })
 
@@ -102,13 +85,11 @@ describe('settings file format', () => {
   it('normalizes the exported snapshot instead of trusting its fields', () => {
     const normalized = normalizePortableSettings({
       theme: 'duotone',
-      appView: CUSTOM,
       labelers: [' did:plc:alpha ', 'did:plc:alpha', 'nope', 42, 'did:plc:beta'],
     })
     if (normalized === null) throw new Error('expected the dirty snapshot to normalize')
     const file = buildSettingsFile(normalized, FIXED_TIME)
     expect(file.theme).toBe('cyberpunk')
-    expect(file.appView.kind).toBe('custom')
     expect(file.labelers).toEqual(['did:plc:alpha', 'did:plc:beta'])
   })
 })
@@ -132,17 +113,12 @@ describe('credential and session exclusion', () => {
   it('never exports fields beyond the portable preferences', () => {
     // structurally compatible with the portable snapshot, with exactly the
     // extra keys that must never reach the file
-    const dirty = {
-      ...SAMPLE,
-      ...secrets,
-      appView: { ...SAMPLE.appView, accessJwt: secrets.appViewExtra },
-    }
+    const dirty = { ...SAMPLE, ...secrets }
     const json = serializeSettings(dirty, FIXED_TIME)
     const parsed = JSON.parse(json) as Record<string, unknown>
 
     expect(Object.keys(parsed).sort()).toEqual(
       [
-        'appView',
         'appearance',
         'darkTheme',
         'exportedAt',
@@ -165,7 +141,6 @@ describe('credential and session exclusion', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(Object.keys(result.settings).sort()).toEqual([
-      'appView',
       'appearance',
       'darkTheme',
       'highContrast',
@@ -269,7 +244,7 @@ describe('theme normalization', () => {
     const result = parseSettingsFile(validFile({ theme: 'dead-leaves' }))
     expect(result).toEqual({
       ok: true,
-      settings: portable('dead-leaves', toAppViewTarget(DEFAULT_APPVIEW), ['did:plc:alpha']),
+      settings: portable('dead-leaves', ['did:plc:alpha']),
     })
   })
 
@@ -281,45 +256,6 @@ describe('theme normalization', () => {
       const result = parseSettingsFile(validFile({ theme }))
       expect(result.ok).toBe(false)
     }
-  })
-})
-
-describe('appview normalization', () => {
-  it('rebuilds a known preset from its host instead of trusting labels', () => {
-    const spoofed = {
-      id: 'spoof',
-      label: 'spoof',
-      host: 'https://api.blacksky.community',
-      kind: 'official',
-      note: 'spoof',
-    }
-    expect(normalizeAppViewTarget(spoofed)).toEqual(toAppViewTarget(BLACKSKY))
-  })
-
-  it('turns an unknown https host into a custom target', () => {
-    const normalized = requireTarget(
-      normalizeAppViewTarget({
-        id: 'whatever',
-        label: 'whatever',
-        host: 'https://api.example.com',
-        kind: 'official',
-        note: 'whatever',
-      }),
-    )
-    expect(normalized).toEqual(CUSTOM)
-    expect(normalized.kind).toBe('custom')
-  })
-
-  it('rejects targets with unusable hosts', () => {
-    expect(normalizeAppViewTarget({ ...CUSTOM, host: 'https://api.example.com/path' })).toBeNull()
-    expect(normalizeAppViewTarget({ ...CUSTOM, host: 'http://api.example.com' })).toBeNull()
-    expect(normalizeAppViewTarget('https://api.example.com')).toBeNull()
-    expect(normalizeAppViewTarget(null)).toBeNull()
-  })
-
-  it('reports an invalid appview in a settings file', () => {
-    const result = parseSettingsFile(validFile({ appView: { host: 'nope' } }))
-    expect(result).toEqual({ ok: false, error: 'settings file has an invalid appview' })
   })
 })
 
@@ -375,7 +311,7 @@ describe('settings file validation', () => {
     const result = parseSettingsFile(validFile())
     expect(result).toEqual({
       ok: true,
-      settings: portable('bone', toAppViewTarget(DEFAULT_APPVIEW), ['did:plc:alpha']),
+      settings: portable('bone', ['did:plc:alpha']),
     })
   })
 
@@ -407,7 +343,7 @@ describe('settings file validation', () => {
     const mixed = parseSettingsFile(validFile({ labelers: ['did:plc:alpha', 8, 'junk'] }))
     expect(mixed).toEqual({
       ok: true,
-      settings: portable('bone', toAppViewTarget(DEFAULT_APPVIEW), ['did:plc:alpha']),
+      settings: portable('bone', ['did:plc:alpha']),
     })
   })
 
@@ -427,7 +363,6 @@ describe('settings file validation', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(Object.keys(result.settings).sort()).toEqual([
-      'appView',
       'appearance',
       'darkTheme',
       'highContrast',
@@ -441,17 +376,14 @@ describe('settings file validation', () => {
 })
 
 describe('store settings import', () => {
-  const baseAppView = toAppViewTarget(DEFAULT_APPVIEW)
-
   beforeEach(() => {
     localStorage.clear()
-    useSettings.setState({ theme: 'void', appView: baseAppView, labelers: [] })
+    useSettings.setState({ theme: 'void', labelers: [] })
   })
 
-  it('applies theme appview and labelers together', () => {
+  it('applies theme and labelers together', () => {
     const applied = useSettings.getState().importSettings({
       theme: 'bone',
-      appView: toAppViewTarget(BLACKSKY),
       labelers: ['did:plc:alpha', 'did:plc:beta'],
     })
     expect(applied).toBe(true)
@@ -461,7 +393,6 @@ describe('store settings import', () => {
       lightTheme: 'bone',
       darkTheme: 'void',
       imageEffects: true,
-      appView: { host: 'https://api.blacksky.community' },
       labelers: ['did:plc:alpha', 'did:plc:beta'],
     })
   })
@@ -469,7 +400,6 @@ describe('store settings import', () => {
   it('normalizes values while importing', () => {
     const applied = useSettings.getState().importSettings({
       theme: 'duotone',
-      appView: CUSTOM,
       labelers: [' did:plc:alpha ', 'did:plc:alpha', 'nope', 'did:plc:beta'],
     })
     expect(applied).toBe(true)
@@ -479,7 +409,6 @@ describe('store settings import', () => {
       lightTheme: 'bone',
       darkTheme: 'cyberpunk',
       imageEffects: true,
-      appView: { kind: 'custom', host: 'https://api.example.com' },
       labelers: ['did:plc:alpha', 'did:plc:beta'],
     })
   })
@@ -489,15 +418,13 @@ describe('store settings import', () => {
     for (const value of [
       null,
       {},
-      { theme: 'neon', appView: baseAppView, labelers: [] },
-      { theme: 'bone', appView: { host: 'nope' }, labelers: [] },
-      { theme: 'bone', appView: baseAppView, labelers: 'did:plc:alpha' },
-      { theme: 'bone', appView: baseAppView },
+      { theme: 'neon', labelers: [] },
+      { theme: 'bone', labelers: 'did:plc:alpha' },
+      { theme: 'bone' },
     ]) {
       expect(useSettings.getState().importSettings(value)).toBe(false)
       const after = useSettings.getState()
       expect(after.theme).toBe(before.theme)
-      expect(after.appView).toBe(before.appView)
       expect(after.labelers).toBe(before.labelers)
     }
   })
@@ -505,7 +432,6 @@ describe('store settings import', () => {
   it('ignores credential fields passed alongside a valid snapshot', () => {
     const applied = useSettings.getState().importSettings({
       theme: 'bone',
-      appView: baseAppView,
       labelers: ['did:plc:alpha'],
       accessJwt: 'secret',
       refreshToken: 'secret',

@@ -38,11 +38,10 @@ describe('FeedCardBack', () => {
     feedName: 'posts',
     postIndex: 2,
     postDate: '2026-10-29T12:00:00.000Z',
-    appview: 'bluesky',
     ...overrides,
   })
 
-  it('keeps the date, appview and a working refresh inside its article', () => {
+  it('keeps the date and a working refresh inside its article', () => {
     const onRefresh = vi.fn()
     const { container } = render(<FeedCardBack {...backProps({ onRefresh })} />)
 
@@ -53,7 +52,6 @@ describe('FeedCardBack', () => {
     expect(article.querySelector('.b-card-back__index')?.textContent).toBe('[02]')
     expect(article.querySelector('.b-card-back__feed')?.textContent).toBe('posts')
     expect(article.querySelector('.b-card-back__date')?.textContent).not.toBe('')
-    expect(article.querySelector('.b-card-back__appview')?.textContent).toBe('bluesky')
     expect(article.querySelector('.b-card-back__hint')?.textContent).toBe('← feeds')
     // the footer is still the article's own, never a button inside a button
     expect(article.querySelector('footer')).not.toBeNull()

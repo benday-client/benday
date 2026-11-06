@@ -50,10 +50,9 @@ export default function ThreadView() {
     return root === null || !(target instanceof Node) || !root.contains(target)
   }
   const replyRefs = useRef<(HTMLElement | null)[]>([])
-  const appViewHost = useSettings((state) => state.appView.host)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const thread = useThread(uri)
-  const requestKey = `${appViewHost}\u0000${viewerDid ?? 'anonymous'}\u0000${uri}`
+  const requestKey = `${viewerDid ?? 'anonymous'}\u0000${uri}`
   const entries = thread.data?.entries ?? []
   const focus = entries.find((entry) => entry.role === 'focus')
   const openingPost = useUiStore((state) => state.openingPost)

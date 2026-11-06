@@ -20,7 +20,6 @@ import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { type FeedFeedbackEvent, sendFeedFeedback } from '../lib/actions'
-import { capabilitiesFor } from '../lib/appviews'
 import { DISCOVER_FEED_URI } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
@@ -77,8 +76,6 @@ export default function FeedView() {
     }
   }, [closeDialog])
 
-  const appView = useSettings((state) => state.appView)
-  const supported = capabilitiesFor(appView).feeds
   const pinned = usePinnedFeeds()
   const activeUri = chooseFeedUri(uri, viewerDid !== null, pinned.feeds)
   const showingCustom = activeUri.length > 0
@@ -95,7 +92,7 @@ export default function FeedView() {
     ? ({ kind: 'feed', uri: activeUri } as const)
     : ({ kind: 'discover' } as const)
   const feed = usePostFeed(source, !pinnedUnresolved)
-  const feedKey = JSON.stringify([appView.host, viewerDid ?? 'anonymous', activeUri || 'discover'])
+  const feedKey = JSON.stringify([viewerDid ?? 'anonymous', activeUri || 'discover'])
   // Refresh is a read, so one explicit press is enough. It drops the loaded
   // pages and reloads exactly the first one; a press while that is already in
   // flight has nothing to add, and nothing else refreshes implicitly.
@@ -161,7 +158,7 @@ export default function FeedView() {
     setDismissed(new Set())
     setPinnedFailure(null)
     refreshPendingRef.current = false
-  }, [activeUri, appView.host, viewerDid])
+  }, [activeUri, viewerDid])
 
   const dismissPost = useCallback((postUri: string) => {
     setDismissed((current) => {
@@ -172,7 +169,7 @@ export default function FeedView() {
     })
   }, [])
 
-  const canPickFeeds = wide && supported
+  const canPickFeeds = wide
   const showingFeeds = feedsMode && canPickFeeds
 
   const refreshBinding = bindingFor('refresh')
@@ -402,7 +399,6 @@ export default function FeedView() {
                   feedName="posts"
                   postIndex={0}
                   postDate={posts[0]?.indexedAt ?? ''}
-                  appview={appView.label}
                   onOpen={() => {
                     switchMode(false)
                   }}
@@ -438,10 +434,6 @@ export default function FeedView() {
               }
             />
           </div>
-        ) : !supported ? (
-          <Frame label="feeds unavailable" tone="accent" className="b-view__warning">
-            <p>this appview does not expose custom feeds. switch appviews in the top bar.</p>
-          </Frame>
         ) : pinnedFirstLoad ? (
           <Frame label="pinned feeds" meta="loading">
             <Progress label="loading pinned feeds" indeterminate />
@@ -482,7 +474,6 @@ export default function FeedView() {
                     feedName={activeFeedName}
                     postIndex={0}
                     postDate={posts[0]?.indexedAt ?? ''}
-                    appview={appView.label}
                     onOpen={() => {
                       switchMode(true)
                     }}
@@ -501,11 +492,7 @@ export default function FeedView() {
               {...(pinnedUnresolved
                 ? {}
                 : {
-                    stateKey: JSON.stringify([
-                      appView.host,
-                      viewerDid ?? 'anonymous',
-                      activeUri || 'discover',
-                    ]),
+                    stateKey: JSON.stringify([viewerDid ?? 'anonymous', activeUri || 'discover']),
                   })}
               empty={
                 pinnedBlocked && pinnedFailureShown !== null ? (

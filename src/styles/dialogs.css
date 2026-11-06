@@ -159,156 +159,6 @@
   color: var(--line-strong);
 }
 
-/* appview switcher -------------------------------------------------- */
-
-.b-appview {
-  max-width: min(620px, calc(100vw - var(--dialog-gutter)));
-}
-
-.b-appview__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  list-style: none;
-}
-
-.b-appview__row {
-  min-width: 0;
-}
-
-.b-appview__select {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-1);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--void);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-}
-
-.b-appview__select:hover {
-  border-color: var(--line-strong);
-  background: var(--panel-raised);
-}
-
-.b-appview__select[data-active="true"] {
-  border-color: var(--blue);
-  background: var(--panel-raised);
-  box-shadow: inset 2px 0 0 0 var(--blue);
-}
-
-.b-appview__rowhead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.b-appview__mark {
-  flex: 0 0 1ch;
-  color: var(--blue);
-}
-
-.b-appview__name {
-  flex: 0 0 auto;
-  color: var(--ink);
-  font-size: var(--step-0);
-  letter-spacing: 0.06em;
-  text-transform: lowercase;
-}
-
-.b-appview__host {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--step--1);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.b-appview__status {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--step--2);
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-}
-
-.b-appview__status::before {
-  width: 6px;
-  height: 6px;
-  background: var(--line-strong);
-  content: "";
-}
-
-.b-appview__status[data-state="ok"] {
-  color: var(--ink);
-}
-
-.b-appview__status[data-state="ok"]::before {
-  background: var(--blue);
-}
-
-.b-appview__status[data-state="error"] {
-  color: var(--ink);
-}
-
-.b-appview__status[data-state="error"]::before {
-  background: var(--rust);
-}
-
-.b-appview__status[data-state="checking"]::before {
-  background: var(--text-muted);
-  animation: b-appview-blink 1s steps(2, end) infinite;
-}
-
-.b-appview__note {
-  color: var(--text-muted);
-  font-size: var(--step--1);
-  letter-spacing: 0.03em;
-}
-
-.b-appview__caps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: var(--space-1);
-}
-
-.b-appview__custom {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-
-.b-appview__error {
-  color: var(--ink);
-  font-size: var(--step--1);
-  letter-spacing: 0.03em;
-}
-
-.b-appview__custom-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.b-appview__disclaimer {
-  color: var(--text-muted);
-  font-size: var(--step--2);
-  letter-spacing: 0.03em;
-}
-
 /* keyboard help ----------------------------------------------------- */
 
 .b-help {
@@ -425,12 +275,6 @@
   .b-help__groups {
     grid-template-columns: 1fr;
     gap: var(--space-3);
-  }
-}
-
-@keyframes b-appview-blink {
-  50% {
-    opacity: 0.2;
   }
 }
 
@@ -767,52 +611,6 @@
   box-shadow: 0 0 10px -6px var(--neon);
 }
 
-.b-settings__appviews {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-1);
-}
-
-.b-settings__appview {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  padding: var(--space-2);
-  border: 1px solid var(--line);
-  background: var(--void);
-  color: var(--text-muted);
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-
-.b-settings__appview:hover,
-.b-settings__appview[data-active="true"] {
-  border-color: var(--blue);
-  color: var(--ink);
-  box-shadow: 0 0 10px -6px var(--neon);
-}
-
-.b-settings__appview-name {
-  color: var(--ink);
-  font-size: var(--step-0);
-}
-
-.b-settings__appview-host {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: var(--step--2);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.b-settings__appview-note {
-  color: var(--text-muted);
-  font-size: var(--step--2);
-  line-height: 1.4;
-}
-
 .b-settings__labelers {
   display: flex;
   flex-direction: column;
@@ -901,11 +699,5 @@
 
   .b-help__what {
     text-align: left;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .b-appview__status[data-state="checking"]::before {
-    animation: none;
   }
 }

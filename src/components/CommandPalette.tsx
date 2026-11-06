@@ -16,7 +16,6 @@ import {
 } from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
-import { APPVIEW_PRESETS, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { bindingFor, matchesBinding } from '../lib/keymap'
@@ -97,7 +96,6 @@ function writeHistory(entries: JumpEntry[]): void {
 export interface CommandPaletteProps {
   open: boolean
   onClose: () => void
-  onOpenAppView: () => void
   onOpenHelp: () => void
   onOpenSettings: () => void
 }
@@ -114,20 +112,13 @@ interface PaletteSuggestion extends SuggestionItem {
   kind: 'mention' | 'tag'
 }
 
-export function CommandPalette({
-  open,
-  onClose,
-  onOpenAppView,
-  onOpenHelp,
-  onOpenSettings,
-}: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: CommandPaletteProps) {
   const [, navigate] = useLocation()
   const account = useAuthStore((state) => state.account)
   const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
   const setTheme = useSettings((state) => state.setTheme)
-  const setAppView = useSettings((state) => state.setAppView)
 
   const [input, setInput] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -277,20 +268,10 @@ export function CommandPalette({
       id: 'settings',
       label: 'settings',
       meta: ',',
-      keywords: 'appearance theme appview labelers account preferences',
+      keywords: 'appearance theme labelers account preferences',
       run: () => {
         onClose()
         onOpenSettings()
-      },
-    },
-    {
-      id: 'appview-settings',
-      label: 'appview settings',
-      meta: 'a',
-      keywords: 'host server instance appview',
-      run: () => {
-        onClose()
-        onOpenAppView()
       },
     },
     {
@@ -314,17 +295,6 @@ export function CommandPalette({
         onClose()
       },
     }))
-
-  const appviewCommands: PaletteCommand[] = APPVIEW_PRESETS.map((preset) => ({
-    id: `appview:${preset.id}`,
-    label: `appview ${preset.label}`,
-    meta: 'appview',
-    keywords: `${preset.id} ${preset.label} ${preset.host} ${preset.note} host server`,
-    run: () => {
-      setAppView(toAppViewTarget(preset))
-      onClose()
-    },
-  }))
 
   const recentCommands: PaletteCommand[] =
     input.trim().length === 0
@@ -368,7 +338,7 @@ export function CommandPalette({
   const autocompleteActive =
     token !== null && (suggestionsPending || autocompleteCommands.length > 0)
   const needle = input.trim().toLowerCase()
-  const commandsForTyping = [...themeCommands, ...appviewCommands, ...commands]
+  const commandsForTyping = [...themeCommands, ...commands]
   const filtered = autocompleteActive
     ? autocompleteCommands
     : needle.length === 0

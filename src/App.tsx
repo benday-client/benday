@@ -4,7 +4,6 @@ import { flushSync } from 'react-dom'
 import { type AroundNavHandler, Link, Route, Router, Switch, useLocation, useSearch } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
-import { AppViewDialog } from './components/AppViewDialog'
 import { CommandPalette } from './components/CommandPalette'
 import { ComposeDialog } from './components/ComposeDialog'
 import { DitherDefs } from './components/DitherDefs'
@@ -474,7 +473,6 @@ function AppShell() {
   const hotkeys = globalHotkeys({
     search: focusSearch,
     compose: startCompose,
-    appview: () => openDialog('appview'),
     settings: () => openDialog('settings'),
     // `?` is not a plain hotkey: KeyHints owns it so a tap still opens the help
     // dialog and a hold reveals the key badges instead
@@ -531,11 +529,9 @@ function AppShell() {
       <CommandPalette
         open={dialog === 'palette'}
         onClose={closeDialog}
-        onOpenAppView={() => openDialog('appview')}
         onOpenHelp={() => openDialog('help')}
         onOpenSettings={() => openDialog('settings')}
       />
-      <AppViewDialog open={dialog === 'appview'} onClose={closeDialog} />
       <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
       <SettingsDialog open={dialog === 'settings'} onClose={closeDialog} />
       <LoginDialog open={dialog === 'login'} onClose={closeDialog} />

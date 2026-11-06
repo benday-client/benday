@@ -9,7 +9,6 @@ import {
   cardBackIndex,
   EmptyState,
   ErrorNotice,
-  Frame,
   ModeCard,
   TextInput,
 } from '../components/ui'
@@ -25,12 +24,10 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useViewerSync } from '../hooks/useViewerSync'
-import { capabilitiesFor } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { resultCountLabel, SEARCH_MODES, type SearchMode, searchModeName } from '../lib/searchModes'
-import { useSettings } from '../lib/store'
 import type { PostModel, SearchActorModel, SearchFeedModel } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 
@@ -126,9 +123,7 @@ export default function SearchView() {
     searchRef.current?.focus()
   }, [])
 
-  const appView = useSettings((state) => state.appView)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
-  const supported = capabilitiesFor(appView).search
   const token = suggestOpen ? suggestionAt(draft, cursor) : null
   const actorSuggestions = useActorSuggestions(
     token?.kind === 'mention' ? token.query : '',
@@ -148,22 +143,17 @@ export default function SearchView() {
     suggestions.length > 0 ? Math.min(selectedSuggestion, suggestions.length - 1) : 0
 
   // only the active mode fetches; the others keep whatever they already cached
-  const feed = usePostFeed({ kind: 'search', query: supported ? query : '' }, mode === 'posts')
-  const users = useActorSearch(query, supported && mode === 'users')
-  const feeds = useFeedSearch(query, supported && mode === 'feeds')
+  const feed = usePostFeed({ kind: 'search', query }, mode === 'posts')
+  const users = useActorSearch(query, mode === 'users')
+  const feeds = useFeedSearch(query, mode === 'feeds')
   const posts = feed.data ?? []
   const userResults = users.data ?? []
   const feedResults = feeds.data ?? []
   useViewerSync(posts)
 
-  const deckStateKey = JSON.stringify(['search-results', appView.host, mode, query])
+  const deckStateKey = JSON.stringify(['search-results', mode, query])
   // posts carry viewer-filtered interaction state; users and feeds do not
-  const postsStateKey = JSON.stringify([
-    'search-posts',
-    appView.host,
-    query,
-    viewerDid ?? 'anonymous',
-  ])
+  const postsStateKey = JSON.stringify(['search-posts', query, viewerDid ?? 'anonymous'])
   const emptyQuery = query.length === 0
   // a mode that never fetched has no result count yet
   const modeCounts: Record<SearchMode, number | null> = {
@@ -185,7 +175,7 @@ export default function SearchView() {
   const failure = useRetainedError(
     // the viewer belongs to the identity only for posts, whose rows carry
     // viewer-filtered state; users and feeds resolve independently
-    JSON.stringify(['search-failure', appView.host, mode, query, viewerDid ?? 'anonymous']),
+    JSON.stringify(['search-failure', mode, query, viewerDid ?? 'anonymous']),
     activeData !== null,
     activeError,
     activeFetching,
@@ -209,7 +199,7 @@ export default function SearchView() {
       />
     ) : null
   const statusText =
-    supported && !emptyQuery && activeInfo === null
+    !emptyQuery && activeInfo === null
       ? activeData === null
         ? activeFetching
           ? `searching ${searchModeName(mode)}`
@@ -269,8 +259,8 @@ export default function SearchView() {
   }, [])
 
   useEffect(() => {
-    if (!wide || !supported) setModeDeck(false)
-  }, [wide, supported])
+    if (!wide) setModeDeck(false)
+  }, [wide])
 
   useEffect(() => {
     if (!modeDeck) return
@@ -300,7 +290,6 @@ export default function SearchView() {
     setSelectedSuggestion(0)
     const next = draft.trim()
     if (next.length > 0 && next === query) {
-      if (!supported) return
       if (mode === 'posts') {
         feed.retry()
       } else if (mode === 'users') {
@@ -502,7 +491,7 @@ export default function SearchView() {
           </div>
         ) : null}
       </search>
-      {supported && !wide ? (
+      {!wide ? (
         <div className="b-view__tools b-view__tools--profile">
           <fieldset className="b-view__pinned">
             <legend className="mono-label">search</legend>
@@ -525,14 +514,10 @@ export default function SearchView() {
       ) : null}
       <div className="b-view__body">
         {inlineWarning}
-        {!supported ? (
-          <Frame label="search unavailable" tone="accent" className="b-view__warning">
-            <p>this appview does not expose search. switch appviews in the top bar.</p>
-          </Frame>
-        ) : wide && modeDeck ? (
+        {wide && modeDeck ? (
           <div className="b-deck-stage" data-deal={dealMode === 'modes' ? 'true' : undefined}>
             <Deck
-              key={`search-modes:${appView.host}:${query}:${mode}`}
+              key={`search-modes:${query}:${mode}`}
               items={SEARCH_MODES}
               getKey={(option) => option.mode}
               renderItem={(option) => (

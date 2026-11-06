@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { APPVIEW_PRESETS } from './appviews'
 import { SETTINGS_STORAGE_KEY, useSettings } from './store'
 
 describe('settings storage sync', () => {
@@ -18,7 +17,6 @@ describe('settings storage sync', () => {
   })
 
   it('applies an imported appearance pair and high contrast in one update', async () => {
-    const appView = useSettings.getState().appView
     const applied = useSettings.getState().importSettings({
       theme: 'void',
       appearance: 'light',
@@ -26,7 +24,6 @@ describe('settings storage sync', () => {
       darkTheme: 'void',
       imageEffects: true,
       highContrast: true,
-      appView,
       labelers: [],
     })
 
@@ -47,20 +44,10 @@ describe('settings storage sync', () => {
     expect(useSettings.getState().highContrast).toBe(true)
   })
 
-  it('rehydrates a high contrast change and a normalized appview from another tab', async () => {
-    const state = useSettings.getState()
-    const preset = APPVIEW_PRESETS.find((item) => item.id === 'blacksky')
-    if (preset === undefined) throw new Error('expected the blacksky preset')
+  it('rehydrates a high contrast change from another tab', async () => {
     const stored = {
       version: 1,
       state: {
-        appView: {
-          id: preset.id,
-          label: 'spoofed label',
-          host: preset.host,
-          kind: 'custom',
-          note: 'spoofed note',
-        },
         theme: 'void',
         appearance: 'dark',
         lightTheme: 'bone',
@@ -78,17 +65,12 @@ describe('settings storage sync', () => {
     await vi.waitFor(() => {
       expect(useSettings.getState().highContrast).toBe(true)
     })
-    expect(useSettings.getState().appView.label).toBe(preset.label)
-    expect(useSettings.getState().appView.kind).toBe(preset.kind)
-    expect(state.appView.host).toBeTruthy()
   })
 
   it('rehydrates settings written by another tab', async () => {
-    const state = useSettings.getState()
     const stored = {
       version: 1,
       state: {
-        appView: state.appView,
         theme: 'oxide',
         appearance: 'dark',
         lightTheme: 'bone',
@@ -129,11 +111,9 @@ describe('settings storage sync', () => {
   })
 
   it('rehydrates a keyboard shortcuts change from another tab', async () => {
-    const state = useSettings.getState()
     const raw = JSON.stringify({
       version: 1,
       state: {
-        appView: state.appView,
         theme: 'void',
         appearance: 'dark',
         lightTheme: 'bone',
@@ -154,11 +134,9 @@ describe('settings storage sync', () => {
 
   it('ignores a non-boolean stored keyboard shortcut field', async () => {
     useSettings.setState({ keyboardShortcuts: true })
-    const state = useSettings.getState()
     const raw = JSON.stringify({
       version: 1,
       state: {
-        appView: state.appView,
         theme: 'void',
         appearance: 'dark',
         lightTheme: 'bone',
@@ -176,7 +154,6 @@ describe('settings storage sync', () => {
   })
 
   it('imports the portable keyboard shortcut setting and defaults a missing field to on', () => {
-    const appView = useSettings.getState().appView
     const snapshot = {
       theme: 'void',
       appearance: 'dark',
@@ -184,7 +161,6 @@ describe('settings storage sync', () => {
       darkTheme: 'void',
       imageEffects: true,
       highContrast: false,
-      appView,
       labelers: [],
     } as const
 
@@ -229,7 +205,6 @@ describe('labeler validation', () => {
   })
 
   it('drops invalid dids from an imported settings file', () => {
-    const appView = useSettings.getState().appView
     const applied = useSettings.getState().importSettings({
       theme: 'void',
       appearance: 'dark',
@@ -237,7 +212,6 @@ describe('labeler validation', () => {
       darkTheme: 'void',
       imageEffects: true,
       highContrast: false,
-      appView,
       labelers: ['did:plc:bendaylabeler', 'did:plc', 'did:plcabc', 'did:plc:'],
     })
 
@@ -246,11 +220,9 @@ describe('labeler validation', () => {
   })
 
   it('drops invalid dids from storage written by another tab', async () => {
-    const state = useSettings.getState()
     const stored = {
       version: 1,
       state: {
-        appView: state.appView,
         theme: 'void',
         appearance: 'dark',
         lightTheme: 'bone',

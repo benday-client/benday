@@ -25,7 +25,7 @@ const ALL_MODES = ['post', 'reply', 'quote'] as const
 
 function dockClientWithActor() {
   const queryClient = createTestQueryClient()
-  const key = ['actor-suggestions', 'https://api.bsky.app', 'ad']
+  const key = ['actor-suggestions', 'ad']
   queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
   queryClient.setQueryData(key, [
     { did: 'did:plc:ada', handle: 'ada.test', displayName: '', avatar: null },

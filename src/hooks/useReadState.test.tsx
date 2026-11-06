@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchFeedPage, fetchPinnedFeeds, fetchTopComments } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
-import { useSettings } from '../lib/store'
 import type { PinnedFeedModel } from '../lib/types'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
@@ -61,8 +60,7 @@ describe('useFeedPreview', () => {
 
   it('keeps cached posts when a background refresh fails', async () => {
     const queryClient = createTestQueryClient()
-    const host = useSettings.getState().appView.host
-    const key = ['feed-preview', host, SOURCE, null]
+    const key = ['feed-preview', SOURCE, null]
     queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
     // stale on purpose, so mounting refreshes and hits the failure
     queryClient.setQueryData(

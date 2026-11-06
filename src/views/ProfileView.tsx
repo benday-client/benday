@@ -29,7 +29,6 @@ import {
   type ProfileMode,
   profileModeName,
 } from '../lib/profileModes'
-import { useSettings } from '../lib/store'
 import type { PostModel } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 
@@ -85,7 +84,6 @@ export default function ProfileView() {
     },
     [navigate, openPost],
   )
-  const appViewHost = useSettings((state) => state.appView.host)
   const viewerDid = useAuthStore((state) => state.account?.did ?? null)
   const profile = useProfile(actor)
   const feed = usePostFeed({ kind: 'author', actor })
@@ -98,16 +96,10 @@ export default function ProfileView() {
   const viewRef = useRef<HTMLElement>(null)
   const focusSwapRef = useRef<(() => void) | null>(null)
 
-  const profileDeckKey = JSON.stringify([
-    'profile-deck',
-    appViewHost,
-    actor,
-    mode,
-    viewerDid ?? 'anonymous',
-  ])
+  const profileDeckKey = JSON.stringify(['profile-deck', actor, mode, viewerDid ?? 'anonymous'])
   // the request a failure belongs to; a different actor, host or viewer is a
   // different request and never inherits an older notice
-  const requestIdentity = JSON.stringify([appViewHost, actor, viewerDid ?? 'anonymous'])
+  const requestIdentity = JSON.stringify([actor, viewerDid ?? 'anonymous'])
 
   const requestDeckFocus = () => {
     focusSwapRef.current?.()
@@ -307,7 +299,7 @@ export default function ProfileView() {
             {modeDeck && wide ? (
               <div className="b-deck-stage" data-deal={dealMode === 'modes' ? 'true' : undefined}>
                 <Deck
-                  key={`profile-modes:${appViewHost}:${actor}:${mode}`}
+                  key={`profile-modes:${actor}:${mode}`}
                   items={PROFILE_MODES}
                   getKey={(option) => option.mode}
                   renderItem={(option) => (

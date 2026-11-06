@@ -12,9 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useHotkeys } from '../hooks/useHotkeys'
-import { makeCustomAppView } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
-import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 import { createTestQueryClient } from '../test/queryClient'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
@@ -500,61 +498,6 @@ describe('ProfileView deck memory', () => {
     expect(focusedCardIndex()).toBe('0')
   })
 
-  it('does not share a saved deck with another appview host', async () => {
-    const OTHER_APPVIEW = 'https://other.test'
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
-      jsonResponse(
-        200,
-        feedPage([
-          ['1', 'first'],
-          ['2', 'second'],
-        ]),
-      ),
-    )
-    transport.route('GET', `${OTHER_APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
-      jsonResponse(200, profileWire()),
-    )
-    transport.route('GET', `${OTHER_APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
-      jsonResponse(
-        200,
-        feedPage([
-          ['1', 'first'],
-          ['2', 'second'],
-        ]),
-      ),
-    )
-    const original = useSettings.getState().appView
-
-    try {
-      const first = renderProfile()
-      await openPostsMode()
-      await screen.findByText('first')
-      fireEvent.keyDown(window, { key: 'Home' })
-      fireEvent.keyDown(window, { key: 'ArrowRight' })
-      expect(focusedCardIndex()).toBe('1')
-      first.unmount()
-
-      const target = makeCustomAppView(OTHER_APPVIEW)
-      expect(target).not.toBeNull()
-      act(() => {
-        useSettings.setState({ appView: target ?? original })
-      })
-
-      const last = renderProfile()
-      await openPostsMode()
-      await screen.findByText('first')
-      // the same actor on another host is a different deck namespace
-      expect(focusedCardIndex()).toBe('0')
-      last.unmount()
-    } finally {
-      act(() => {
-        useSettings.setState({ appView: original })
-      })
-    }
-  })
-})
-
-describe('ProfileView failure recovery', () => {
   it('keeps the first-page failure and its retry mounted while the retry runs', async () => {
     const gate = deferred<Response>()
     let calls = 0

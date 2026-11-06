@@ -9,7 +9,6 @@ import { Button } from './ui'
 const COMPOSE_KEY = displayKeys(bindingFor('compose'))[0] ?? ''
 const PALETTE_KEY = displayKeys(bindingFor('palette'))[0] ?? ''
 const SEARCH_KEY = displayKeys(bindingFor('search'))[0] ?? ''
-const APPVIEW_KEY = displayKeys(bindingFor('appview'))[0] ?? ''
 const SETTINGS_KEY = displayKeys(bindingFor('settings'))[0] ?? ''
 const HELP_KEY = displayKeys(bindingFor('help'))[0] ?? ''
 
@@ -119,19 +118,6 @@ export function TopBar({ onSearch }: TopBarProps) {
           data-keyhint="search"
         >
           <span className="b-topbar__label">search</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          onClick={() => {
-            openDialog('appview')
-          }}
-          aria-label="appview"
-          title={`appview · ${APPVIEW_KEY}`}
-          data-keyhint="appview"
-        >
-          <span className="b-topbar__label">appview</span>
         </Button>
 
         <Button

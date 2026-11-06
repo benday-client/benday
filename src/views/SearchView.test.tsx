@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useHotkeys } from '../hooks/useHotkeys'
-import { APPVIEW_PRESETS, DEFAULT_APPVIEW, toAppViewTarget } from '../lib/appviews'
 import { useAuthStore } from '../lib/auth'
-import { useSettings } from '../lib/store'
 import { useUiStore } from '../lib/ui'
 import { createTestQueryClient } from '../test/queryClient'
 import {
@@ -200,7 +198,6 @@ beforeEach(() => {
     }),
   )
   stubFeeds()
-  useSettings.setState({ appView: toAppViewTarget(DEFAULT_APPVIEW) })
   useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
   useUiStore.setState({ dialog: null, compose: null, inlineCompose: null, openingPost: null })
 })
@@ -448,20 +445,6 @@ describe('SearchView query submission', () => {
     expect(document.activeElement).not.toBe(input)
     expect(screen.getByLabelText('search posts')).toBeInTheDocument()
     expect(history.at(-1)).toBe('/search')
-  })
-
-  it('shows the unsupported state and sends no search request', async () => {
-    const publicView = APPVIEW_PRESETS.find((preset) => preset.id === 'public')
-    if (publicView === undefined) throw new Error('public preset missing')
-    useSettings.setState({ appView: toAppViewTarget(publicView) })
-
-    renderSearch('q=cats')
-
-    await screen.findByText('this appview does not expose search. switch appviews in the top bar.')
-    expect(screen.getByLabelText('query')).toHaveValue('cats')
-    expect(callsTo(SEARCH_POSTS)).toHaveLength(0)
-    expect(callsTo(SEARCH_ACTORS)).toHaveLength(0)
-    expect(callsTo(SEARCH_FEEDS)).toHaveLength(0)
   })
 
   it('opens the thread from a plain click on a result card', async () => {

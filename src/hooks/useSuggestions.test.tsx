@@ -42,9 +42,7 @@ describe('useActorSuggestions', () => {
     expect(result.current.isPending).toBe(true)
 
     // and it settles onto the next query only after the delay
-    await waitFor(() =>
-      expect(fetchActorSuggestions).toHaveBeenLastCalledWith(expect.anything(), 'bea'),
-    )
+    await waitFor(() => expect(fetchActorSuggestions).toHaveBeenLastCalledWith('bea'))
   })
 
   it('exposes nothing while the hook is disabled', async () => {
@@ -72,8 +70,6 @@ describe('useTagSuggestions', () => {
     expect(result.current.tags).toEqual([])
     expect(result.current.isPending).toBe(true)
 
-    await waitFor(() =>
-      expect(fetchTagSuggestions).toHaveBeenLastCalledWith(expect.anything(), 'banh'),
-    )
+    await waitFor(() => expect(fetchTagSuggestions).toHaveBeenLastCalledWith('banh'))
   })
 })

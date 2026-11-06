@@ -13,7 +13,6 @@ import {
 } from './atproto'
 import { useAuthStore } from './auth'
 import { fetchNotifications } from './notifications'
-import type { AppViewTarget } from './types'
 
 const ALICE: AtpSessionData = {
   did: 'did:plc:alice',
@@ -38,13 +37,8 @@ const FEED_URI = 'at://did:plc:test/app.bsky.feed.generator/one'
 
 const PDS_A = 'https://pds.a.test'
 const PDS_B = 'https://pds.b.test'
-const CUSTOM: AppViewTarget = {
-  id: 'custom',
-  label: 'custom',
-  host: 'https://custom.test',
-  kind: 'custom',
-  note: 'test',
-}
+// the one read service every fetcher builds its agent for
+const APPVIEW = 'https://api.bsky.app'
 
 function wirePost(index: number, parentUri?: string) {
   const record: Record<string, unknown> = {
@@ -154,19 +148,19 @@ async function signIn(session: AtpSessionData, service: string): Promise<void> {
 
 describe('fetchFeedPage', () => {
   it('distinguishes the public reader from the signed-in one by origin', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [{ post: wirePost(1) }] }),
     )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [{ post: wirePost(2) }] }),
     )
 
-    const anonymous = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+    const anonymous = await fetchFeedPage({ kind: 'discover' }, null)
     expect(anonymous.posts[0]?.text).toBe('post 1')
 
     routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
-    const signedIn = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+    const signedIn = await fetchFeedPage({ kind: 'discover' }, ALICE.did)
     expect(signedIn.posts[0]?.text).toBe('post 2')
   })
 
@@ -195,27 +189,24 @@ describe('fetchFeedPage', () => {
     routeQuietViewerReads()
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'discover' }, ALICE.did)
     expect(page.posts.map((post) => post.text)).toEqual(['post 3'])
   })
 
-  it('reads author and search feeds from the selected appview for any owner', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+  it('reads author and search feeds from the canonical appview for any owner', async () => {
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, { posts: [] }),
     )
     await signIn(ALICE, PDS_A)
     transport.calls.length = 0
 
-    await fetchFeedPage(CUSTOM, { kind: 'author', actor: 'alice.test' }, ALICE.did)
-    await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+    await fetchFeedPage({ kind: 'author', actor: 'alice.test' }, ALICE.did)
+    await fetchFeedPage({ kind: 'search', query: 'cats' }, ALICE.did)
 
-    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([
-      CUSTOM.host,
-      CUSTOM.host,
-    ])
+    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([APPVIEW, APPVIEW])
   })
 
   it('keeps resolved parent contexts when a later batch fails', async () => {
@@ -223,10 +214,10 @@ describe('fetchFeedPage', () => {
       { length: 26 },
       (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, (request) => {
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, (request) => {
       const uris = new URL(request.url).searchParams.getAll('uris')
       if (uris.includes('at://did:plc:test/app.bsky.feed.post/parent-25')) {
         return jsonResponse(500, { error: 'InternalServerError', message: 'batch failed' })
@@ -246,7 +237,7 @@ describe('fetchFeedPage', () => {
       })
     })
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, null)
 
     expect(page.posts).toHaveLength(26)
     expect(page.posts.filter((post) => post.replyContext !== null)).toHaveLength(25)
@@ -254,7 +245,7 @@ describe('fetchFeedPage', () => {
   })
 
   it('drops a search author the canonical appview reports as muted', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, {
         posts: [
           wirePost(1),
@@ -273,24 +264,24 @@ describe('fetchFeedPage', () => {
     await signIn(ALICE, PDS_A)
     transport.calls.length = 0
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, ALICE.did)
 
     expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
     const viewerStateCalls = transport.calls.filter((call) =>
       call.url.includes('app.bsky.actor.getProfiles'),
     )
     expect(viewerStateCalls.map((call) => new URL(call.url).origin)).toEqual([PDS_A])
-    expect(transport.calls.some((call) => new URL(call.url).origin === CUSTOM.host)).toBe(true)
+    expect(transport.calls.some((call) => new URL(call.url).origin === APPVIEW)).toBe(true)
   })
 
   it('keeps search posts for an anonymous reader without asking for viewer state', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, {
         posts: [{ ...wirePost(1), author: { did: 'did:plc:muted', handle: 'muted.test' } }],
       }),
     )
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, null)
 
     expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
     const viewerStateCalls = transport.calls.filter((call) =>
@@ -302,7 +293,7 @@ describe('fetchFeedPage', () => {
   it('prunes hidden reply contexts, quotes and media quotes from a search page', async () => {
     const parentUri = `at://${HIDDEN_DID}/app.bsky.feed.post/parent`
     const visibleParentUri = 'at://did:plc:test/app.bsky.feed.post/visible-parent'
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, {
         posts: [
           wirePost(1, parentUri),
@@ -320,7 +311,7 @@ describe('fetchFeedPage', () => {
         ],
       }),
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, () =>
       jsonResponse(200, {
         posts: [
           { ...hiddenWirePost(9), uri: parentUri },
@@ -335,7 +326,7 @@ describe('fetchFeedPage', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, ALICE.did)
     const byText = new Map(page.posts.map((post) => [post.text, post]))
 
     expect(byText.get('post 1')?.replyContext).toBeNull()
@@ -360,7 +351,7 @@ describe('fetchFeedPage', () => {
   })
 
   it('discards a post reposted by a hidden account without exposing the original', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getAuthorFeed`, () =>
       jsonResponse(200, {
         feed: [
           {
@@ -388,12 +379,12 @@ describe('fetchFeedPage', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'author', actor: 'candidate.test' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'author', actor: 'candidate.test' }, ALICE.did)
 
     expect(page.posts.map((post) => post.text)).toEqual(['post 1'])
   })
 
-  it('prunes a hidden quote from a signed-in custom feed page', async () => {
+  it('prunes a hidden quote from a signed-in generator page', async () => {
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, {
         feed: [{ post: { ...wirePost(1), embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote') } }],
@@ -406,14 +397,14 @@ describe('fetchFeedPage', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'feed', uri: FEED_URI }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'feed', uri: FEED_URI }, ALICE.did)
 
     expect(page.posts).toHaveLength(1)
     expect(page.posts[0]?.embed).toBeNull()
   })
 
   it('prunes a hidden quote from top comments', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: threadViewPost(wirePost(1), [
           threadViewPost({
@@ -431,11 +422,7 @@ describe('fetchFeedPage', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const comments = await fetchTopComments(
-      CUSTOM,
-      'at://did:plc:test/app.bsky.feed.post/1',
-      ALICE.did,
-    )
+    const comments = await fetchTopComments('at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
 
     expect(comments.map((comment) => comment.text)).toEqual(['post 2'])
     expect(comments[0]?.embed).toBeNull()
@@ -449,7 +436,7 @@ describe('fetchThread', () => {
       post: { ...wirePost(2), author: { did: 'did:plc:muted', handle: 'muted.test' } },
       replies: [],
     }
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: {
           $type: 'app.bsky.feed.defs#threadViewPost',
@@ -471,14 +458,14 @@ describe('fetchThread', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+    const thread = await fetchThread('at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
 
     expect(thread.entries.map((entry) => entry.role)).toEqual(['focus'])
     expect(thread.entries[0]?.post.text).toBe('post 1')
   })
 
   it('takes a hidden reply subtree with it and prunes the focus quote', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: threadViewPost(
           { ...wirePost(1), embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote') },
@@ -496,7 +483,7 @@ describe('fetchThread', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+    const thread = await fetchThread('at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
 
     // the focus post stays, the hidden reply and its visible child do not
     expect(thread.entries.map((entry) => entry.post.text)).toEqual(['post 1', 'post 4'])
@@ -505,7 +492,7 @@ describe('fetchThread', () => {
 
   it('keeps the focus post when its only ancestor is hidden', async () => {
     const parentUri = `at://${HIDDEN_DID}/app.bsky.feed.post/parent`
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: {
           ...threadViewPost(wirePost(2, parentUri)),
@@ -520,7 +507,7 @@ describe('fetchThread', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/2', ALICE.did)
+    const thread = await fetchThread('at://did:plc:test/app.bsky.feed.post/2', ALICE.did)
 
     expect(thread.entries.map((entry) => entry.post.text)).toEqual(['post 2'])
     // the hidden ancestor's text must not survive as the focus reply context
@@ -540,7 +527,7 @@ describe('fetchThread', () => {
         uri: `at://did:plc:test/app.bsky.feed.post/v${index}`,
       }),
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: threadViewPost(wirePost(1), [...hiddenReplies, ...visibleReplies]),
       }),
@@ -552,7 +539,7 @@ describe('fetchThread', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
+    const thread = await fetchThread('at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
 
     expect(thread.entries).toHaveLength(21)
     expect(thread.entries.slice(1).map((entry) => entry.post.uri)).toEqual(
@@ -567,7 +554,7 @@ describe('account-scoped reads', () => {
     await signIn(BRAVO, PDS_B)
     transport.calls.length = 0
 
-    await expect(fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)).rejects.toThrow(
+    await expect(fetchFeedPage({ kind: 'discover' }, ALICE.did)).rejects.toThrow(
       'account changed before the request could be sent',
     )
     await expect(fetchPinnedFeeds(ALICE.did)).rejects.toThrow(
@@ -579,7 +566,7 @@ describe('account-scoped reads', () => {
     expect(transport.calls).toEqual([])
   })
 
-  it('keeps pinned preferences and generator metadata off a custom appview', async () => {
+  it('keeps the private pinned feed list on the pds through the canonical proxy', async () => {
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getPreferences`, () =>
       jsonResponse(200, {
         preferences: [
@@ -623,7 +610,7 @@ describe('account-scoped reads', () => {
       },
     ])
     expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([PDS_A, PDS_A])
-    expect(transport.calls.some((call) => new URL(call.url).origin === CUSTOM.host)).toBe(false)
+    expect(transport.calls.some((call) => new URL(call.url).origin === APPVIEW)).toBe(false)
   })
 
   it('reads the discover feed through the canonical generator uri', async () => {
@@ -632,7 +619,7 @@ describe('account-scoped reads', () => {
       jsonResponse(200, { feed: [] }),
     )
 
-    await fetchFeedPage(CUSTOM, { kind: 'discover' }, ALICE.did)
+    await fetchFeedPage({ kind: 'discover' }, ALICE.did)
 
     const call = transport.calls.find((entry) => entry.url.includes('getFeed'))
     expect(new URL(call?.url ?? '').searchParams.get('feed')).toBe(DISCOVER_FEED_URI)
@@ -685,7 +672,7 @@ describe('fetchFeedGenerator', () => {
 
 describe('fetchProfile', () => {
   it('keeps public fields from the selected host and private state from the account', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, profileView({ displayName: 'custom host name' })),
     )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
@@ -704,19 +691,19 @@ describe('fetchProfile', () => {
     await signIn(ALICE, PDS_A)
     transport.calls.length = 0
 
-    const profile = await fetchProfile(CUSTOM, 'target.test', ALICE.did)
+    const profile = await fetchProfile('target.test', ALICE.did)
 
     expect(profile.displayName).toBe('custom host name')
     expect(profile.viewer.following).toBe('at://did:plc:alice/app.bsky.graph.follow/1')
     expect(profile.viewer.muted).toBe(true)
     expect(profile.viewer.activitySubscription).toEqual({ post: true, reply: false })
     expect(transport.calls.map((call) => new URL(call.url).origin).sort()).toEqual(
-      [CUSTOM.host, PDS_A].sort(),
+      [APPVIEW, PDS_A].sort(),
     )
   })
 
   it('fails the profile when the private read fails', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, profileView()),
     )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
@@ -724,13 +711,11 @@ describe('fetchProfile', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    await expect(fetchProfile(CUSTOM, 'target.test', ALICE.did)).rejects.toThrow(
-      'viewer read failed',
-    )
+    await expect(fetchProfile('target.test', ALICE.did)).rejects.toThrow('viewer read failed')
   })
 
   it('rejects a private record for a different identity', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, profileView()),
     )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
@@ -738,20 +723,20 @@ describe('fetchProfile', () => {
     )
     await signIn(ALICE, PDS_A)
 
-    await expect(fetchProfile(CUSTOM, 'target.test', ALICE.did)).rejects.toThrow(
+    await expect(fetchProfile('target.test', ALICE.did)).rejects.toThrow(
       'profile identity did not match',
     )
   })
 
   it('reads no private state for an anonymous viewer', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.actor.getProfile`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, profileView()),
     )
 
-    const profile = await fetchProfile(CUSTOM, 'target.test', null)
+    const profile = await fetchProfile('target.test', null)
 
     expect(profile.viewer.following).toBeNull()
-    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([CUSTOM.host])
+    expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([APPVIEW])
   })
 })
 
@@ -793,11 +778,11 @@ describe('opaque post records', () => {
         reply: { root: { uri: 'at://did:plc:test/app.bsky.feed.post/root' } },
       },
     }
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [{ post: malformed }, { post: wirePost(2) }] }),
     )
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+    const page = await fetchFeedPage({ kind: 'discover' }, null)
 
     expect(page.posts.map((post) => post.text)).toEqual(['', 'post 2'])
     expect(page.posts[0]).toMatchObject({
@@ -823,18 +808,18 @@ describe('opaque post records', () => {
         },
       },
     }
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getFeed`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [{ post: quoted }, { post: wirePost(2) }] }),
     )
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'discover' }, null)
+    const page = await fetchFeedPage({ kind: 'discover' }, null)
 
     expect(page.posts[0]?.embed).toMatchObject({ type: 'quote', post: { text: '' } })
     expect(page.posts[1]?.text).toBe('post 2')
   })
 
   it('keeps a thread usable when the focus record is malformed', async () => {
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPostThread`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
       jsonResponse(200, {
         thread: threadViewPost(
           {
@@ -850,7 +835,7 @@ describe('opaque post records', () => {
       }),
     )
 
-    const thread = await fetchThread(CUSTOM, 'at://did:plc:test/app.bsky.feed.post/1', null)
+    const thread = await fetchThread('at://did:plc:test/app.bsky.feed.post/1', null)
 
     expect(thread.entries[0]?.post.text).toBe('')
     expect(thread.entries[0]?.post.isReply).toBe(false)
@@ -867,14 +852,14 @@ describe('hydration batches', () => {
       { length: 26 },
       (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
     )
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
     )
     // neither batch may answer before both have started: a serial read would
     // deadlock here instead of quietly passing
     let started = 0
     const bothStarted = Promise.withResolvers<void>()
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.getPosts`, async (request) => {
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, async (request) => {
       started += 1
       if (started === 2) bothStarted.resolve()
       await bothStarted.promise
@@ -898,7 +883,7 @@ describe('hydration batches', () => {
       })
     })
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, null)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, null)
 
     expect(page.posts.slice(0, 25).every((post) => post.replyContext !== null)).toBe(true)
     // the failed batch keeps only its own reply context missing
@@ -907,7 +892,7 @@ describe('hydration batches', () => {
 
   it('starts hidden-author batches together and keeps the batch that answered', async () => {
     const dids = Array.from({ length: 26 }, (_, index) => `did:plc:author${index}`)
-    transport.route('GET', `${CUSTOM.host}/xrpc/app.bsky.feed.searchPosts`, () =>
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
       jsonResponse(200, {
         posts: dids.map((did, index) => ({
           ...wirePost(index),
@@ -936,7 +921,7 @@ describe('hydration batches', () => {
     })
     await signIn(ALICE, PDS_A)
 
-    const page = await fetchFeedPage(CUSTOM, { kind: 'search', query: 'cats' }, ALICE.did)
+    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, ALICE.did)
 
     // the muted author from the batch that answered is gone; the failed batch's
     // authors stay visible instead of the whole page failing

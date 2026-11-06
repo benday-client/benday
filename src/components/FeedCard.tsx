@@ -42,7 +42,6 @@ export interface FeedCardBackProps {
   feedName: string
   postIndex: number
   postDate: string
-  appview: string
   hint?: string
   /** makes the back's content one native button, leaving its footer outside it */
   onOpen?: (() => void) | undefined
@@ -55,7 +54,6 @@ export interface FeedCardBackButtonProps {
   feedName: string
   postIndex: number
   postDate: string
-  appview: string
   hint?: string
   onOpen: () => void
 }
@@ -64,7 +62,6 @@ export function FeedCardBack({
   feedName,
   postIndex,
   postDate,
-  appview,
   hint = '← feeds',
   onOpen,
   onRefresh,
@@ -76,7 +73,6 @@ export function FeedCardBack({
       index={cardBackIndex(postIndex)}
       title={feedName}
       date={postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
-      detail={appview}
       hint={hint}
       ariaHidden={onOpen === undefined && onRefresh === undefined}
       openAction={onOpen === undefined ? undefined : { label: `open ${feedName}`, onClick: onOpen }}
@@ -105,7 +101,6 @@ export function FeedCardBackButton({
   feedName,
   postIndex,
   postDate,
-  appview,
   hint = '← posts',
   onOpen,
 }: FeedCardBackButtonProps) {
@@ -115,7 +110,6 @@ export function FeedCardBackButton({
       index={cardBackIndex(postIndex)}
       title={feedName}
       date={postDate.length > 0 ? formatAbsoluteTime(postDate) : '—'}
-      detail={appview}
       hint={hint}
       ariaLabel={`open ${feedName}`}
       onClick={onOpen}

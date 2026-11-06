@@ -1082,7 +1082,6 @@ describe('cyberpunk corner language', () => {
       '.b-kbd',
       '.b-settings__section',
       '.b-settings__theme',
-      '.b-settings__appview',
     ]
     for (const selector of square) {
       expect(clipOf(selector, container), selector).toBe('none')

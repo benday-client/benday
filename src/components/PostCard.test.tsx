@@ -830,10 +830,7 @@ describe('PostCard actions', () => {
       uri: 'at://did:plc:test/app.bsky.feed.post/reply-1',
       text: 'a reply that opens',
     })
-    queryClient.setQueryData(
-      ['top-comments', useSettings.getState().appView.host, 'anonymous', post.uri],
-      [reply],
-    )
+    queryClient.setQueryData(['top-comments', 'anonymous', post.uri], [reply])
 
     render(
       <QueryClientProvider client={queryClient}>
