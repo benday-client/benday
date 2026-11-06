@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useLocation } from 'wouter'
+import { Link, useLocation, useSearch } from 'wouter'
 import { isEditableTarget, isInteractiveTarget } from '../hooks/useHotkeys'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
@@ -107,7 +107,8 @@ function PostCardView({
   onDismiss,
   onOpen,
 }: PostCardProps) {
-  const [, navigate] = useLocation()
+  const [pathname, navigate] = useLocation()
+  const search = useSearch()
   const quotedUri = quotedPostUri(post)
   const handle = post.author.handle.length > 0 ? post.author.handle : 'unknown'
   const displayName = post.author.displayName.length > 0 ? post.author.displayName : handle
@@ -194,16 +195,18 @@ function PostCardView({
   const own =
     accountDid !== null && accountDid === post.author.did && isOwnPostUri(post.uri, accountDid)
   const entry = useActionStore((state) => state.byUri[post.uri])
-  const openCompose = useUiStore((state) => state.openCompose)
   const openInlineCompose = useUiStore((state) => state.openInlineCompose)
-  const inlineTarget = focused && replies !== undefined
+  const openPost = useUiStore((state) => state.openPost)
 
+  // every reply action lands on the post's own thread with its inline composer
+  // focused; the request survives the route change and is consumed when the
+  // focus post matches
   const openReplyCompose = () => {
-    if (inlineTarget) {
-      openInlineCompose({ mode: 'reply', post })
-      return
-    }
-    openCompose({ mode: 'reply', post })
+    const uri = new URLSearchParams(search).get('uri')?.trim() ?? ''
+    const onOwnThread = pathname.startsWith('/thread') && uri === post.uri
+    openPost(post)
+    openInlineCompose({ mode: 'reply', post })
+    if (!onOwnThread) navigate(`/thread?uri=${encodeURIComponent(post.uri)}`)
   }
 
   const copyLink = useCallback(async () => {
@@ -359,15 +362,6 @@ function PostCardView({
         return
       }
 
-      const ui = useUiStore.getState()
-      const inline = focused && replies !== undefined
-      const openReply = () => {
-        if (inline) {
-          ui.openInlineCompose({ mode: 'reply', post })
-          return
-        }
-        ui.openCompose({ mode: 'reply', post })
-      }
       switch (event.key) {
         case 'f':
           event.preventDefault()
@@ -379,7 +373,7 @@ function PostCardView({
           break
         case 'r':
           event.preventDefault()
-          openReply()
+          openReplyCompose()
           break
         case '+':
           if (onFeedback === undefined) break
@@ -406,8 +400,8 @@ function PostCardView({
     feedbackAction,
     copyLink,
     navigate,
+    openReplyCompose,
     quotedUri,
-    replies,
     media.length,
     mediaReady,
     deleted,

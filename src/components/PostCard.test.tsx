@@ -866,7 +866,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     const post = postFixture()
-    const location = memoryLocation({ path: '/' })
+    const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     render(
       <QueryClientProvider client={queryClient}>
@@ -877,7 +877,8 @@ describe('PostCard actions', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'reply' }))
-    expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
+    expect(useUiStore.getState().inlineCompose).toEqual({ mode: 'reply', post })
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(post.uri)}`)
   })
 
   it('opens the reply composer from the focused-card reply shortcut', () => {
@@ -888,7 +889,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     const post = postFixture()
-    const location = memoryLocation({ path: '/' })
+    const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     render(
       <QueryClientProvider client={queryClient}>
@@ -899,7 +900,8 @@ describe('PostCard actions', () => {
     )
 
     fireEvent.keyDown(window, { key: 'r' })
-    expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
+    expect(useUiStore.getState().inlineCompose).toEqual({ mode: 'reply', post })
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(post.uri)}`)
   })
 
   it('keeps a shortcut while a control inside the card has focus', () => {
@@ -910,7 +912,7 @@ describe('PostCard actions', () => {
       error: null,
     })
     const post = postFixture()
-    const location = memoryLocation({ path: '/' })
+    const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     render(
       <QueryClientProvider client={queryClient}>
@@ -925,7 +927,37 @@ describe('PostCard actions', () => {
     fireEvent.keyDown(replyButton, { key: 'r' })
 
     // an in-card control keeps its own activation, and the card still answers
-    expect(useUiStore.getState().compose).toEqual({ mode: 'reply', post })
+    expect(useUiStore.getState().inlineCompose).toEqual({ mode: 'reply', post })
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(post.uri)}`)
+  })
+
+  it('keeps its route when replying on the post own thread', () => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:test', handle: 'test.bsky.social' },
+      pending: false,
+      error: null,
+    })
+    const post = postFixture()
+    const location = memoryLocation({
+      path: '/thread',
+      searchPath: `uri=${encodeURIComponent(post.uri)}`,
+      record: true,
+    })
+    const queryClient = createTestQueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook} searchHook={location.searchHook}>
+          <PostCard post={post} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    const before = location.history.length
+    fireEvent.click(screen.getByRole('button', { name: 'reply' }))
+    expect(useUiStore.getState().inlineCompose).toEqual({ mode: 'reply', post })
+    // the thread route already shows this post, so no navigation is recorded
+    expect(location.history).toHaveLength(before)
   })
 
   it('leaves its shortcuts to an interactive control outside the card', () => {

@@ -5,7 +5,7 @@ import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router, useLocation, useSearch } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
-import { createReply } from '../lib/actions'
+import { createPost } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { draftKeyFor, readDraft } from '../lib/drafts'
 import type { ComposeRequest } from '../lib/ui'
@@ -17,7 +17,6 @@ import { ComposeDialog } from './ComposeDialog'
 
 vi.mock('../lib/actions', () => ({
   createPost: vi.fn(async () => ({ uri: 'at://post', cid: 'post-cid' })),
-  createReply: vi.fn(async () => ({ uri: 'at://reply', cid: 'reply-cid' })),
 }))
 
 function LocationProbe() {
@@ -108,26 +107,22 @@ function stubTypeahead() {
   return transport
 }
 
-const MODE_REQUESTS: readonly ComposeRequest[] = [
-  { mode: 'post', post: null },
-  { mode: 'reply', post: postFixture() },
-]
+const MODE_REQUESTS: readonly ComposeRequest[] = [{ mode: 'post', post: null }]
 
 /** Opens a reply whose mention list is already settled with two actors. */
 async function openMentionOptions() {
   stubTypeahead()
-  const post = postFixture()
   renderComposer(composerClientWithActors())
-  open({ mode: 'reply', post })
+  open({ mode: 'post', post: null })
   const input = composerInput('hi @ad', 6)
   const first = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
   expect(input).toHaveAttribute('aria-activedescendant', first.id)
-  return { input, post, first }
+  return { input, first }
 }
 
 function awaitingGate() {
   const gate = Promise.withResolvers<{ uri: string; cid: string }>()
-  vi.mocked(createReply).mockReturnValueOnce(gate.promise)
+  vi.mocked(createPost).mockReturnValueOnce(gate.promise)
   return gate
 }
 
@@ -200,7 +195,7 @@ beforeEach(() => {
 })
 
 describe('ComposeDialog', () => {
-  it('sends a reply, keeps feed pages and invalidates everything else', async () => {
+  it('sends a post, keeps feed pages and invalidates everything else', async () => {
     const post = postFixture()
     const queryClient = createTestQueryClient()
     const feedKey = ['feed', 'api.bsky.app', 'discover', 'anonymous']
@@ -213,11 +208,11 @@ describe('ComposeDialog', () => {
     queryClient.setQueryData(threadKey, { posts: [] })
 
     const memory = renderComposer(queryClient)
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
     type('hello')
     submit()
 
-    await waitFor(() => expect(createReply).toHaveBeenCalledWith('hello', post))
+    await waitFor(() => expect(createPost).toHaveBeenCalledWith('hello'))
     await waitFor(() => expect(queryClient.getQueryState(threadKey)?.isInvalidated).toBe(true))
     expect(queryClient.getQueryState(feedKey)?.isInvalidated).toBe(false)
     expect(screen.getByTestId('location')).toHaveTextContent('/thread?uri=at%3A%2F%2Fx')
@@ -225,53 +220,33 @@ describe('ComposeDialog', () => {
   })
 
   it('sends with ctrl+enter', async () => {
-    const post = postFixture()
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
     type('sent fast')
 
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter', ctrlKey: true })
 
-    await waitFor(() => expect(createReply).toHaveBeenCalledWith('sent fast', post))
+    await waitFor(() => expect(createPost).toHaveBeenCalledWith('sent fast'))
     expect(useUiStore.getState().compose).toBeNull()
   })
 
-  it('keeps a post draft when the request switches to reply before the delay', async () => {
-    const post = postFixture()
+  it('restores the draft when the same target comes back', () => {
     renderComposer()
+
     open({ mode: 'post', post: null })
-    type('post draft')
-
-    open({ mode: 'reply', post })
-    type('reply draft')
-
-    expect(readDraft(draftKeyFor('post', null, OWNER)).text).toBe('post draft')
-    await waitFor(() =>
-      expect(readDraft(draftKeyFor('reply', post.uri, OWNER)).text).toBe('reply draft'),
-    )
-  })
-
-  it('restores independent drafts when the same target comes back', () => {
-    const post = postFixture()
-    renderComposer()
-
-    open({ mode: 'reply', post })
     type('first composition')
     open({ mode: 'post', post: null })
-    type('second composition')
-    open({ mode: 'reply', post })
 
     expect(screen.getByRole('textbox')).toHaveValue('first composition')
   })
 
   it('leaves a reopened draft alone when a dismissed identical send resolves', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
+    const key = draftKeyFor('post', null, OWNER)
     const gate = Promise.withResolvers<{ uri: string; cid: string }>()
-    vi.mocked(createReply).mockReturnValueOnce(gate.promise)
+    vi.mocked(createPost).mockReturnValueOnce(gate.promise)
 
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
     type('same text')
     submit()
 
@@ -282,7 +257,7 @@ describe('ComposeDialog', () => {
     expect(dismissed.text).toBe('same text')
     expect(dismissed.revision).not.toBeNull()
 
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
     expect(screen.getByRole('textbox')).toHaveValue('same text')
     // claiming a fresh revision on open is what protects the reopened draft
     const reopened = readDraft(key)
@@ -291,7 +266,7 @@ describe('ComposeDialog', () => {
     expect(reopened.revision).not.toBe(dismissed.revision)
 
     await act(async () => {
-      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+      gate.resolve({ uri: 'at://post', cid: 'post-cid' })
     })
 
     // the late send still owns only the pair it saved, never this newer revision
@@ -304,12 +279,11 @@ describe('ComposeDialog', () => {
   })
 
   it('keeps the draft and shows the failure when a send is rejected', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
-    vi.mocked(createReply).mockRejectedValueOnce(new Error('pds said no'))
+    const key = draftKeyFor('post', null, OWNER)
+    vi.mocked(createPost).mockRejectedValueOnce(new Error('pds said no'))
 
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
     type('keep me')
     submit()
 
@@ -319,10 +293,9 @@ describe('ComposeDialog', () => {
   })
 
   it('clears a differently worded autosave after a failed flush and a successful send', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
+    const key = draftKeyFor('post', null, OWNER)
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     type('old text')
     await waitFor(() => expect(readDraft(key).text).toBe('old text'))
@@ -336,11 +309,11 @@ describe('ComposeDialog', () => {
 
     const gate = awaitingGate()
     submit()
-    await waitFor(() => expect(createReply).toHaveBeenCalledWith('new text', post))
+    await waitFor(() => expect(createPost).toHaveBeenCalledWith('new text'))
 
     writes.allow()
     await act(async () => {
-      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+      gate.resolve({ uri: 'at://post', cid: 'post-cid' })
     })
 
     await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
@@ -348,8 +321,7 @@ describe('ComposeDialog', () => {
   })
 
   it('clears the original read snapshot when the claim and the final flush both fail', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
+    const key = draftKeyFor('post', null, OWNER)
     localStorage.setItem(
       'benday:drafts',
       JSON.stringify({ [key]: { text: 'seeded draft', updatedAt: 1, revision: 'known-revision' } }),
@@ -357,7 +329,7 @@ describe('ComposeDialog', () => {
     const writes = failWrites(2)
 
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     expect(screen.getByRole('textbox')).toHaveValue('seeded draft')
     expect(screen.getByText(STORAGE_WARNING)).toHaveAttribute('role', 'status')
@@ -365,13 +337,13 @@ describe('ComposeDialog', () => {
     const gate = awaitingGate()
     type('submitted text')
     submit()
-    await waitFor(() => expect(createReply).toHaveBeenCalledWith('submitted text', post))
+    await waitFor(() => expect(createPost).toHaveBeenCalledWith('submitted text'))
     // no write was accepted, so the original record is still what cleanup owns
     expect(readDraft(key).text).toBe('seeded draft')
 
     writes.allow()
     await act(async () => {
-      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+      gate.resolve({ uri: 'at://post', cid: 'post-cid' })
     })
 
     await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
@@ -379,11 +351,10 @@ describe('ComposeDialog', () => {
   })
 
   it('warns while storage is unreadable, then clears the warning after a later save', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
+    const key = draftKeyFor('post', null, OWNER)
     const reads = stubStorageReads()
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const warning = screen.getByText(STORAGE_WARNING)
     expect(warning).toHaveAttribute('role', 'status')
@@ -408,10 +379,9 @@ describe('ComposeDialog', () => {
   })
 
   it('keeps a sent composition open without a second post when cleanup fails', async () => {
-    const post = postFixture()
-    const key = draftKeyFor('reply', post.uri, OWNER)
+    const key = draftKeyFor('post', null, OWNER)
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     type('outbox')
     await waitFor(() => expect(readDraft(key).text).toBe('outbox'))
@@ -428,31 +398,30 @@ describe('ComposeDialog', () => {
     expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
     expect(screen.getByRole('button', { name: 'sent' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'close' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'reply' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'post' })).toBeNull()
 
     fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
     await act(async () => undefined)
-    expect(createReply).toHaveBeenCalledTimes(1)
+    expect(createPost).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'close' }))
     expect(useUiStore.getState().compose).toBeNull()
     await act(async () => undefined)
     // closing a submitted composition never autosaves it again
-    expect(createReply).toHaveBeenCalledTimes(1)
+    expect(createPost).toHaveBeenCalledTimes(1)
     expect(readDraft(key)).toEqual(stored)
   })
 
   it('counts graphemes for the submission boundary', async () => {
-    const post = postFixture()
     renderComposer()
-    open({ mode: 'reply', post })
-    const send = screen.getAllByRole('button').find((button) => button.textContent === 'reply')
+    open({ mode: 'post', post: null })
+    const send = screen.getAllByRole('button').find((button) => button.textContent === 'post')
     if (send === undefined) throw new Error('missing send button')
 
     type('a'.repeat(301))
     expect(send).toBeDisabled()
     submit()
-    expect(createReply).not.toHaveBeenCalled()
+    expect(createPost).not.toHaveBeenCalled()
 
     type('👩‍👩‍👧‍👦'.repeat(50))
     expect(send).toBeEnabled()
@@ -462,9 +431,8 @@ describe('ComposeDialog', () => {
   })
 
   it('accepts a suggestion with a trailing space at the caret', async () => {
-    const post = postFixture()
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: 'hi @ad' } })
@@ -480,9 +448,8 @@ describe('ComposeDialog', () => {
   })
 
   it('accepts a mention before existing text without merging or doubling the separator', async () => {
-    const post = postFixture()
     renderComposer(composerClientWithActor('ad', 'ada.test'))
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @ad there', 6)
     const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
@@ -505,9 +472,8 @@ describe('ComposeDialog', () => {
   })
 
   it('keeps a comma after the accepted mention and never adds a space', async () => {
-    const post = postFixture()
     renderComposer(composerClientWithActor('ad', 'ada.test'))
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @ad, there', 6)
     const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
@@ -519,9 +485,8 @@ describe('ComposeDialog', () => {
   })
 
   it('treats a trailing dot as punctuation instead of part of the handle', async () => {
-    const post = postFixture()
     renderComposer(composerClientWithActor('ad', 'ada.test'))
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @ad.', 7)
     const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
@@ -533,9 +498,8 @@ describe('ComposeDialog', () => {
   })
 
   it('keeps a typed hashtag literal and opens no suggestion list', async () => {
-    const post = postFixture()
     renderComposer()
-    open({ mode: 'reply', post })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('look #tag.', 10)
     await act(async () => {
@@ -564,8 +528,8 @@ describe('ComposeDialog', () => {
 
   it('counts graphemes and gates sending from the shared footer', () => {
     renderComposer()
-    open({ mode: 'reply', post: postFixture() })
-    const send = screen.getByRole('button', { name: 'reply' })
+    open({ mode: 'post', post: null })
+    const send = screen.getByRole('button', { name: 'post' })
     expect(screen.getByText('0/300')).toHaveAttribute('data-over', 'false')
 
     type('a'.repeat(301))
@@ -574,18 +538,6 @@ describe('ComposeDialog', () => {
 
     type('a'.repeat(300))
     expect(send).toBeEnabled()
-  })
-
-  it('truncates a target excerpt without splitting an emoji', () => {
-    const family = '👩‍👩‍👧‍👦'
-    const post = postFixture({ text: `${'a'.repeat(116)}${family}${'b'.repeat(40)}` })
-    renderComposer()
-    open({ mode: 'reply', post })
-
-    const excerpt = document.querySelector('.b-compose__target-text')?.textContent ?? ''
-    expect(excerpt.length).toBeGreaterThan(0)
-    expect(excerpt).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
-    expect(excerpt).not.toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
   })
 
   it.each(MODE_REQUESTS)('exposes a native $mode textbox as compose $mode', ({ mode, post }) => {
@@ -605,7 +557,7 @@ describe('ComposeDialog', () => {
 
   it('names the suggestion listbox and active option only while options exist', async () => {
     renderComposer(composerClientWithActors())
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @ad', 6)
     const option = await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
@@ -634,7 +586,7 @@ describe('ComposeDialog', () => {
     queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY })
     queryClient.setQueryData(key, actors(['a1.test', 'a2.test', 'a3.test', 'a4.test', 'a5.test']))
     renderComposer(queryClient)
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @a', 5)
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(5))
@@ -673,7 +625,7 @@ describe('ComposeDialog', () => {
       expect(input).toHaveValue('hi @ad')
       expect(input).toHaveAttribute('aria-activedescendant', first.id)
     }
-    expect(createReply).not.toHaveBeenCalled()
+    expect(createPost).not.toHaveBeenCalled()
   })
 
   it('moves and accepts only on the bare arrow, enter and tab chords', async () => {
@@ -698,12 +650,12 @@ describe('ComposeDialog', () => {
   })
 
   it('sends once on the exact send chord while the suggestion list is open', async () => {
-    const { input, post } = await openMentionOptions()
+    const { input } = await openMentionOptions()
 
     expect(fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })).toBe(false)
 
-    await waitFor(() => expect(createReply).toHaveBeenCalledTimes(1))
-    expect(createReply).toHaveBeenCalledWith('hi @ad', post)
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(1))
+    expect(createPost).toHaveBeenCalledWith('hi @ad')
     // the chord sends the draft instead of accepting the highlighted handle
     expect(input).not.toHaveValue('hi @ada.test ')
   })
@@ -712,7 +664,7 @@ describe('ComposeDialog', () => {
     stubTypeahead()
     const gate = awaitingGate()
     renderComposer(composerClientWithActors())
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     const input = composerInput('hi @ad', 6)
     await screen.findByRole('option', { name: '@ada.test' }, { timeout: 2000 })
@@ -722,7 +674,7 @@ describe('ComposeDialog', () => {
 
     expect(input).not.toBeDisabled()
     expect(document.activeElement).toBe(input)
-    expect(screen.getByRole('button', { name: 'reply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'post' })).toBeDisabled()
     expect(input).not.toHaveAttribute('aria-controls')
     expect(input).not.toHaveAttribute('aria-activedescendant')
     expect(screen.queryByRole('listbox')).toBeNull()
@@ -733,7 +685,7 @@ describe('ComposeDialog', () => {
     expect(document.getElementById(describedBy[0] ?? '')).toHaveTextContent('/300')
 
     await act(async () => {
-      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+      gate.resolve({ uri: 'at://post', cid: 'post-cid' })
     })
     await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
   })
@@ -741,28 +693,28 @@ describe('ComposeDialog', () => {
   it('keeps the editor focused when the pending send starts from the button', async () => {
     const gate = awaitingGate()
     renderComposer()
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     type('hello')
     const input = screen.getByRole('textbox')
     if (!(input instanceof HTMLTextAreaElement)) throw new Error('missing compose textarea')
-    fireEvent.click(screen.getByRole('button', { name: 'reply' }))
+    fireEvent.click(screen.getByRole('button', { name: 'post' }))
 
     await waitFor(() => expect(input.readOnly).toBe(true))
     expect(document.activeElement).toBe(input)
     expect(input).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: 'reply' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'post' })).toBeDisabled()
 
     await act(async () => {
-      gate.resolve({ uri: 'at://reply', cid: 'reply-cid' })
+      gate.resolve({ uri: 'at://post', cid: 'post-cid' })
     })
     await waitFor(() => expect(useUiStore.getState().compose).toBeNull())
   })
 
   it('associates the count and the submission error with the editor', async () => {
-    vi.mocked(createReply).mockRejectedValueOnce(new Error('pds said no'))
+    vi.mocked(createPost).mockRejectedValueOnce(new Error('pds said no'))
     renderComposer()
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     type('keep me')
     submit()
@@ -779,7 +731,7 @@ describe('ComposeDialog', () => {
 
   it('marks the editor invalid and announces the limit crossing once', async () => {
     renderComposer()
-    open({ mode: 'reply', post: postFixture() })
+    open({ mode: 'post', post: null })
 
     const input = screen.getByRole('textbox')
     const status = screen.getByRole('status')

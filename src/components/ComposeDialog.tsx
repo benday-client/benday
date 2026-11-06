@@ -1,6 +1,6 @@
 import { useComposeForm } from '../hooks/useComposeForm'
 import type { ComposeRequest } from '../lib/ui'
-import { ComposeActions, ComposeField, ComposeHint, ComposeTarget } from './ComposeField'
+import { ComposeActions, ComposeField, ComposeHint } from './ComposeField'
 import { Dialog } from './ui'
 
 export interface ComposeDialogProps {
@@ -23,15 +23,13 @@ export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
   return (
     <Dialog
       open={open}
-      title={form.mode === 'post' ? 'compose' : form.mode}
+      title="compose"
       onClose={form.close}
       className="b-compose"
       headerClose
       headExtra={<ComposeHint />}
-      footer={<ComposeActions form={form} label={form.mode} />}
+      footer={<ComposeActions form={form} label="post" />}
     >
-      <ComposeTarget form={form} />
-
       <ComposeField form={form} inputClassName="b-compose__input" />
     </Dialog>
   )
