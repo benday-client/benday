@@ -6,7 +6,6 @@ import { useAuthStore } from '../lib/auth'
 import { type PortableSettings, serializeSettings } from '../lib/settingsTransfer'
 import { SETTINGS_STORAGE_KEY, useSettings } from '../lib/store'
 import { createTestQueryClient } from '../test/queryClient'
-import { installTransport, jsonResponse } from '../test/transport'
 import { SettingsDialog } from './SettingsDialog'
 
 function dialogElement(container: HTMLElement): HTMLDialogElement {
@@ -122,73 +121,10 @@ describe('SettingsDialog keyboard', () => {
   })
 })
 
-function seedSettings(patch: { labelers?: string[] } = {}) {
-  useSettings.setState({ labelers: patch.labelers ?? [] })
-}
-
-describe('SettingsDialog labelers', () => {
-  beforeEach(() => {
-    delete document.documentElement.dataset['theme']
-    seedSettings({})
-  })
-
-  it('rejects labeler dids the sdk would refuse', () => {
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'labeler did' })
-    const addButton = screen.getByRole('button', { name: 'add labeler' })
-
-    for (const value of ['did:plc', 'did:plcabc', 'did:plc:']) {
-      fireEvent.change(input, { target: { value } })
-      expect(addButton).toBeDisabled()
-      expect(screen.getByText('enter a did')).toBeInTheDocument()
-    }
-    expect(useSettings.getState().labelers).toEqual([])
-
-    fireEvent.change(input, { target: { value: 'did:plc:bendaylabeler' } })
-    expect(addButton).toBeEnabled()
-    expect(screen.queryByText('enter a did')).toBeNull()
-  })
-
-  it('stops adding at the cap and keeps the typed did', () => {
-    const transport = installTransport()
-    transport.route('GET', 'https://api.bsky.app/xrpc/app.bsky.labeler.getServices', () =>
-      jsonResponse(200, { views: [] }),
-    )
-    const dids = Array.from({ length: 20 }, (_, index) => `did:plc:labeler${index}`)
-    seedSettings({ labelers: dids })
-
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'labeler did' })
-    fireEvent.change(input, { target: { value: 'did:plc:extralabeler' } })
-
-    const addButton = screen.getByRole('button', { name: 'add labeler' })
-    expect(addButton).toBeDisabled()
-    expect(screen.getByText('labeler limit is 20')).toBeInTheDocument()
-
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(input).toHaveValue('did:plc:extralabeler')
-    expect(useSettings.getState().labelers).toHaveLength(20)
-
-    // freeing a slot makes the same typed did addable again
-    const removeButtons = screen.getAllByRole('button', { name: /^remove / })
-    const firstRemove = removeButtons[0]
-    if (firstRemove === undefined) throw new Error('no remove control rendered')
-    fireEvent.click(firstRemove)
-    expect(useSettings.getState().labelers).toHaveLength(19)
-    expect(screen.queryByText('labeler limit is 20')).toBeNull()
-    expect(addButton).toBeEnabled()
-
-    fireEvent.click(addButton)
-    expect(useSettings.getState().labelers).toHaveLength(20)
-    expect(useSettings.getState().labelers).toContain('did:plc:extralabeler')
-  })
-})
-
 describe('SettingsDialog keyboard shortcuts setting', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
     localStorage.clear()
-    seedSettings({})
     useSettings.setState({ keyboardShortcuts: true, imageEffects: true, highContrast: false })
   })
 
@@ -216,7 +152,6 @@ describe('SettingsDialog keyboard shortcuts setting', () => {
     expect(useSettings.getState().imageEffects).toBe(before.imageEffects)
     expect(useSettings.getState().highContrast).toBe(before.highContrast)
     expect(useSettings.getState().theme).toBe(before.theme)
-    expect(useSettings.getState().labelers).toBe(before.labelers)
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
@@ -288,7 +223,6 @@ function renderReopenableSettings() {
 describe('SettingsDialog search', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
-    seedSettings({})
   })
 
   it('matches every token of a natural multi-word query', () => {
@@ -338,37 +272,9 @@ describe('SettingsDialog search', () => {
   })
 })
 
-describe('SettingsDialog field associations', () => {
-  beforeEach(() => {
-    delete document.documentElement.dataset['theme']
-    seedSettings({})
-  })
-
-  it('associates an invalid labeler did with its error and names each remove control', () => {
-    const transport = installTransport()
-    transport.route('GET', 'https://api.bsky.app/xrpc/app.bsky.labeler.getServices', () =>
-      jsonResponse(200, { views: [] }),
-    )
-    seedSettings({ labelers: ['did:plc:firstlabeler', 'did:plc:secondlabeler'] })
-    renderSettings()
-    const input = screen.getByRole('textbox', { name: 'labeler did' })
-
-    fireEvent.change(input, { target: { value: 'not-a-did' } })
-
-    const error = screen.getByRole('alert')
-    expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(error).toHaveTextContent('enter a did')
-    expect(input.getAttribute('aria-describedby')).toBe(error.id)
-
-    expect(screen.getByRole('button', { name: 'remove did:plc:firstlabeler' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'remove did:plc:secondlabeler' })).toBeInTheDocument()
-  })
-})
-
 describe('SettingsDialog theme markers', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
-    seedSettings({})
     useSettings.setState({
       theme: 'oxide',
       appearance: 'dark',
@@ -399,7 +305,6 @@ describe('SettingsDialog sign-out ownership', () => {
 
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
-    seedSettings({})
     useAuthStore.setState({
       status: 'authenticated',
       account: { did: 'did:plc:settingsowner', handle: 'owner.test' },
@@ -470,7 +375,6 @@ describe('SettingsDialog import limits', () => {
     imageEffects: true,
     highContrast: false,
     keyboardShortcuts: true,
-    labelers: [],
   }
 
   function pickFile(container: HTMLElement, file: File): void {

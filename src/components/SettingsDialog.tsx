@@ -2,21 +2,16 @@ import {
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   useEffect,
-  useId,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react'
 import { isEditableTarget } from '../hooks/useHotkeys'
-import { useLabelerDetails } from '../hooks/useLabelerDetails'
-import { fetchLabelerPrefs } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { matchesSearchTokens } from '../lib/searchTokens'
 import {
   parseSettingsFileJson,
   SETTINGS_FILE_NAME,
-  SETTINGS_LABELER_LIMIT,
-  sanitizeLabeler,
   serializeSettings,
 } from '../lib/settingsTransfer'
 import { useSettings } from '../lib/store'
@@ -29,7 +24,7 @@ import {
   themeSeason,
 } from '../lib/themes'
 import { ThemePreview } from './ThemePreview'
-import { Button, Dialog, Tag, TextInput } from './ui'
+import { Button, Dialog } from './ui'
 
 interface SettingSearchEntry {
   id: string
@@ -46,7 +41,6 @@ const SETTING_SEARCH: readonly SettingSearchEntry[] = [
     label: 'appearance',
     keywords: `theme themes colors image effects dither grunge contrast high mode maximum preview accessibility readable keyboard shortcuts wcag single key halloween seasonal october light dark system ${Object.values(THEME_LABELS).join(' ')}`,
   },
-  { id: 'settings-labelers', label: 'labelers', keywords: 'labels moderation did import account' },
   { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
   { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
 ]
@@ -70,29 +64,19 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const setHighContrast = useSettings((state) => state.setHighContrast)
   const keyboardShortcuts = useSettings((state) => state.keyboardShortcuts)
   const setKeyboardShortcuts = useSettings((state) => state.setKeyboardShortcuts)
-  const labelers = useSettings((state) => state.labelers)
-  const addLabeler = useSettings((state) => state.addLabeler)
-  const removeLabeler = useSettings((state) => state.removeLabeler)
   const importSettings = useSettings((state) => state.importSettings)
   const account = useAuthStore((state) => state.account)
   const pending = useAuthStore((state) => state.pending)
   const signOut = useAuthStore((state) => state.signOut)
-  const [labelerInput, setLabelerInput] = useState('')
-  const [importingLabelers, setImportingLabelers] = useState(false)
-  const [importError, setImportError] = useState<string | null>(null)
   const [transferError, setTransferError] = useState<string | null>(null)
   const [transferNotice, setTransferNotice] = useState<string | null>(null)
   const [settingQuery, setSettingQuery] = useState('')
   const settingsFileInput = useRef<HTMLInputElement>(null)
   const settingSearchRef = useRef<HTMLInputElement>(null)
-  const formId = useId()
-  const labelerFieldId = `${formId}-labeler`
-  const labelerErrorId = `${formId}-labeler-error`
   // Monotonic id of the currently open instance. A sign-out captures it so a
   // completion can only close the opening it was started from.
   const openingRef = useRef(0)
   const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
-  const details = useLabelerDetails(labelers, open)
   const today = new Date()
   const themeGroups = [...availableThemeGroups(today)].reverse()
   const seasonalThemesHidden = SEASONAL_THEMES.some((item) => !themeAvailable(item, today))
@@ -115,10 +99,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     setSignOutOpening(null)
     if (!open) return
     setSettingQuery('')
-    // a fresh open starts clean; the host field and an in-flight transfer stay
-    // untouched while the dialog remains open
-    setLabelerInput('')
-    setImportError(null)
+    // a fresh open starts clean; an in-flight transfer stays untouched while
+    // the dialog remains open
     setTransferError(null)
     setTransferNotice(null)
   }, [open])
@@ -140,33 +122,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       window.removeEventListener('keydown', handleSearchKey)
     }
   }, [open])
-
-  const labelerDid = sanitizeLabeler(labelerInput)
-  const labelerLimitReached = labelers.length >= SETTINGS_LABELER_LIMIT
-  const canAddLabeler = labelerDid !== null && !labelerLimitReached
-  const labelerInvalid =
-    labelerInput.trim().length > 0 && labelerDid === null && !labelerLimitReached
-  const detailByDid = new Map(details.labelers.map((labeler) => [labeler.did, labeler]))
-
-  const add = () => {
-    if (labelerDid === null || labelerLimitReached) return
-    addLabeler(labelerDid)
-    setLabelerInput('')
-  }
-
-  const importFromAccount = async () => {
-    if (importingLabelers) return
-    setImportingLabelers(true)
-    setImportError(null)
-    try {
-      const dids = await fetchLabelerPrefs()
-      for (const did of dids) addLabeler(did)
-    } catch {
-      setImportError('could not read account labelers')
-    } finally {
-      setImportingLabelers(false)
-    }
-  }
 
   const handleSignOut = async () => {
     if (pending || signOutOpening !== null) return
@@ -193,7 +148,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       imageEffects,
       highContrast,
       keyboardShortcuts,
-      labelers,
     })
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -419,105 +373,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       </section>
 
       <section
-        id="settings-labelers"
-        className="b-settings__section"
-        data-hidden={sectionHidden('settings-labelers')}
-      >
-        <h3 className="b-settings__heading">labelers</h3>
-        <p className="b-settings__note">
-          these labeler services are asked for labels on feed reads. labels still render as tags.
-        </p>
-        {details.isPending ? <p className="b-settings__note">resolving labeler services</p> : null}
-        {details.error !== null ? (
-          <p className="b-settings__error" role="alert">
-            could not resolve labeler details
-          </p>
-        ) : null}
-        <ul className="b-settings__labelers">
-          {labelers.map((did) => {
-            const detail = detailByDid.get(did)
-            const name = detail?.displayName ?? did
-            return (
-              <li key={did} className="b-settings__labeler">
-                <span className="b-settings__labeler-main">
-                  <span className="b-settings__labeler-name">{name}</span>
-                  <span className="b-settings__labeler-did">@{detail?.handle ?? did}</span>
-                  {detail !== undefined ? (
-                    <span className="b-settings__labeler-meta">
-                      <Tag>{detail.labelCount} labels</Tag>
-                    </span>
-                  ) : null}
-                </span>
-                <Button
-                  variant="ghost"
-                  aria-label={`remove ${name}`}
-                  onClick={() => {
-                    removeLabeler(did)
-                  }}
-                >
-                  remove
-                </Button>
-              </li>
-            )
-          })}
-        </ul>
-        {labelers.length === 0 ? <p className="b-settings__note">no labelers configured</p> : null}
-        {account !== null ? (
-          <div className="b-settings__row">
-            <Button
-              variant="outline"
-              disabled={importingLabelers}
-              onClick={() => void importFromAccount()}
-            >
-              {importingLabelers ? 'importing' : 'import from account'}
-            </Button>
-          </div>
-        ) : null}
-        {importError !== null ? (
-          <p className="b-settings__error" role="alert">
-            {importError}
-          </p>
-        ) : null}
-        <div className="b-settings__labeler-add">
-          <TextInput
-            id={labelerFieldId}
-            label="labeler did"
-            placeholder="did:plc:…"
-            value={labelerInput}
-            aria-invalid={labelerInvalid ? true : undefined}
-            aria-describedby={labelerInvalid ? labelerErrorId : undefined}
-            onChange={(event) => {
-              setLabelerInput(event.target.value)
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter') return
-              event.preventDefault()
-              add()
-            }}
-          />
-          <Button variant="outline" disabled={!canAddLabeler} onClick={add}>
-            add labeler
-          </Button>
-        </div>
-        {labelerLimitReached ? (
-          <p className="b-settings__note">labeler limit is {SETTINGS_LABELER_LIMIT}</p>
-        ) : null}
-        {labelerInvalid ? (
-          <p className="b-settings__error" id={labelerErrorId} role="alert">
-            enter a did
-          </p>
-        ) : null}
-      </section>
-
-      <section
         id="settings-transfer"
         className="b-settings__section"
         data-hidden={sectionHidden('settings-transfer')}
       >
         <h3 className="b-settings__heading">transfer</h3>
         <p className="b-settings__note">
-          move theme and labelers between browsers with one json file. sessions, credentials, drafts
-          and account data are never included.
+          move the theme between browsers with one json file. sessions, credentials, drafts and
+          account data are never included.
         </p>
         <div className="b-settings__row">
           <Button variant="outline" onClick={exportSettings}>

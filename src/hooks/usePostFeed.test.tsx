@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchFeedPage } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
-import { useSettings } from '../lib/store'
 import type { FeedSource, PostModel } from '../lib/types'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
@@ -84,7 +83,7 @@ describe('usePostFeed', () => {
     expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false)
   })
 
-  it('does not refetch on remount, reconnect, focus or a labeler change', async () => {
+  it('does not refetch on remount, reconnect or focus', async () => {
     const queryClient = createTestQueryClient()
     vi.mocked(fetchFeedPage).mockResolvedValue(page(['one'], null))
 
@@ -98,7 +97,6 @@ describe('usePostFeed', () => {
     act(() => {
       window.dispatchEvent(new Event('online'))
       window.dispatchEvent(new Event('visibilitychange'))
-      useSettings.setState({ labelers: ['did:plc:labeler'] })
     })
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 30))

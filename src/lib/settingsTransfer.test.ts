@@ -8,8 +8,6 @@ import {
   parseSettingsFileJson,
   SETTINGS_FILE_NAME,
   SETTINGS_FILE_VERSION,
-  sanitizeLabeler,
-  sanitizeLabelers,
   serializeSettings,
 } from './settingsTransfer'
 import { useSettings } from './store'
@@ -18,7 +16,7 @@ import type { Theme } from './types'
 
 const FIXED_TIME = new Date('2026-10-30T12:00:00.000Z')
 
-function portable(theme: Theme, labelers: string[]): PortableSettings {
+function portable(theme: Theme): PortableSettings {
   const scheme = THEME_SCHEMES[theme]
   return {
     theme,
@@ -28,18 +26,16 @@ function portable(theme: Theme, labelers: string[]): PortableSettings {
     imageEffects: true,
     highContrast: false,
     keyboardShortcuts: true,
-    labelers,
   }
 }
 
-const SAMPLE = portable('bone', ['did:plc:alpha', 'did:plc:beta'])
+const SAMPLE = portable('bone')
 
 function validFile(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: SETTINGS_FILE_VERSION,
     exportedAt: FIXED_TIME.toISOString(),
     theme: 'bone',
-    labelers: ['did:plc:alpha'],
     ...overrides,
   }
 }
@@ -60,7 +56,6 @@ describe('settings file format', () => {
         'highContrast',
         'imageEffects',
         'keyboardShortcuts',
-        'labelers',
         'lightTheme',
         'theme',
         'version',
@@ -69,7 +64,6 @@ describe('settings file format', () => {
     expect(file.version).toBe(SETTINGS_FILE_VERSION)
     expect(file.exportedAt).toBe(FIXED_TIME.toISOString())
     expect(file.theme).toBe('bone')
-    expect(file.labelers).toEqual(['did:plc:alpha', 'did:plc:beta'])
   })
 
   it('round-trips through serialize and parse', () => {
@@ -90,7 +84,6 @@ describe('settings file format', () => {
     if (normalized === null) throw new Error('expected the dirty snapshot to normalize')
     const file = buildSettingsFile(normalized, FIXED_TIME)
     expect(file.theme).toBe('cyberpunk')
-    expect(file.labelers).toEqual(['did:plc:alpha', 'did:plc:beta'])
   })
 })
 
@@ -125,7 +118,6 @@ describe('credential and session exclusion', () => {
         'highContrast',
         'imageEffects',
         'keyboardShortcuts',
-        'labelers',
         'lightTheme',
         'theme',
         'version',
@@ -146,7 +138,6 @@ describe('credential and session exclusion', () => {
       'highContrast',
       'imageEffects',
       'keyboardShortcuts',
-      'labelers',
       'lightTheme',
       'theme',
     ])
@@ -244,7 +235,7 @@ describe('theme normalization', () => {
     const result = parseSettingsFile(validFile({ theme: 'dead-leaves' }))
     expect(result).toEqual({
       ok: true,
-      settings: portable('dead-leaves', ['did:plc:alpha']),
+      settings: portable('dead-leaves'),
     })
   })
 
@@ -259,59 +250,12 @@ describe('theme normalization', () => {
   })
 })
 
-describe('labeler sanitization', () => {
-  it('trims and validates individual dids', () => {
-    expect(sanitizeLabeler('  did:plc:alpha  ')).toBe('did:plc:alpha')
-    expect(sanitizeLabeler('did:')).toBeNull()
-    expect(sanitizeLabeler('https://example.com')).toBeNull()
-    expect(sanitizeLabeler(7)).toBeNull()
-  })
-
-  it('rejects values the sdk would refuse in a labeler header', () => {
-    // these pass a startsWith('did:') check but fail the sdk's isDid, and the
-    // agent throws on them while building the accept-labelers header
-    expect(sanitizeLabeler('did:plc')).toBeNull()
-    expect(sanitizeLabeler('did:plcabc')).toBeNull()
-    expect(sanitizeLabeler('did:plc:')).toBeNull()
-    expect(sanitizeLabeler(' did:plc: ')).toBeNull()
-    expect(sanitizeLabeler('did:plc:bendaylabeler')).toBe('did:plc:bendaylabeler')
-  })
-
-  it('drops invalid entries, deduplicates and keeps order', () => {
-    expect(
-      sanitizeLabelers([
-        'did:plc:alpha',
-        ' did:plc:alpha ',
-        'nope',
-        'did:plc:beta',
-        null,
-        12,
-        '',
-        'did:plc:gamma',
-      ]),
-    ).toEqual(['did:plc:alpha', 'did:plc:beta', 'did:plc:gamma'])
-  })
-
-  it('caps the list at the store limit', () => {
-    const many = Array.from({ length: 25 }, (_, index) => `did:plc:${index}`)
-    const kept = sanitizeLabelers(many)
-    expect(kept).toHaveLength(20)
-    expect(kept[0]).toBe('did:plc:0')
-    expect(kept[19]).toBe('did:plc:19')
-  })
-
-  it('returns an empty list for non-arrays', () => {
-    expect(sanitizeLabelers('did:plc:alpha')).toEqual([])
-    expect(sanitizeLabelers(null)).toEqual([])
-  })
-})
-
 describe('settings file validation', () => {
   it('accepts a minimally valid document', () => {
     const result = parseSettingsFile(validFile())
     expect(result).toEqual({
       ok: true,
-      settings: portable('bone', ['did:plc:alpha']),
+      settings: portable('bone'),
     })
   })
 
@@ -332,19 +276,6 @@ describe('settings file validation', () => {
     expect(newer).toEqual({ ok: false, error: 'unsupported settings file version 2' })
     const missing = parseSettingsFile(validFile({ version: undefined }))
     expect(missing).toEqual({ ok: false, error: 'settings file has no valid version' })
-  })
-
-  it('rejects malformed labeler lists but tolerates junk entries', () => {
-    expect(parseSettingsFile(validFile({ labelers: 'did:plc:alpha' }))).toEqual({
-      ok: false,
-      error: 'settings file has an invalid labeler list',
-    })
-
-    const mixed = parseSettingsFile(validFile({ labelers: ['did:plc:alpha', 8, 'junk'] }))
-    expect(mixed).toEqual({
-      ok: true,
-      settings: portable('bone', ['did:plc:alpha']),
-    })
   })
 
   it('reports unreadable json distinctly from invalid documents', () => {
@@ -368,7 +299,6 @@ describe('settings file validation', () => {
       'highContrast',
       'imageEffects',
       'keyboardShortcuts',
-      'labelers',
       'lightTheme',
       'theme',
     ])
@@ -378,14 +308,11 @@ describe('settings file validation', () => {
 describe('store settings import', () => {
   beforeEach(() => {
     localStorage.clear()
-    useSettings.setState({ theme: 'void', labelers: [] })
+    useSettings.setState({ theme: 'void' })
   })
 
-  it('applies theme and labelers together', () => {
-    const applied = useSettings.getState().importSettings({
-      theme: 'bone',
-      labelers: ['did:plc:alpha', 'did:plc:beta'],
-    })
+  it('applies the theme and its appearance together', () => {
+    const applied = useSettings.getState().importSettings({ theme: 'bone' })
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       theme: 'bone',
@@ -393,15 +320,11 @@ describe('store settings import', () => {
       lightTheme: 'bone',
       darkTheme: 'void',
       imageEffects: true,
-      labelers: ['did:plc:alpha', 'did:plc:beta'],
     })
   })
 
   it('normalizes values while importing', () => {
-    const applied = useSettings.getState().importSettings({
-      theme: 'duotone',
-      labelers: [' did:plc:alpha ', 'did:plc:alpha', 'nope', 'did:plc:beta'],
-    })
+    const applied = useSettings.getState().importSettings({ theme: 'duotone' })
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       theme: 'cyberpunk',
@@ -409,30 +332,21 @@ describe('store settings import', () => {
       lightTheme: 'bone',
       darkTheme: 'cyberpunk',
       imageEffects: true,
-      labelers: ['did:plc:alpha', 'did:plc:beta'],
     })
   })
 
   it('leaves state untouched for malformed input', () => {
     const before = useSettings.getState()
-    for (const value of [
-      null,
-      {},
-      { theme: 'neon', labelers: [] },
-      { theme: 'bone', labelers: 'did:plc:alpha' },
-      { theme: 'bone' },
-    ]) {
+    for (const value of [null, {}, { theme: 'neon' }, { theme: 3 }]) {
       expect(useSettings.getState().importSettings(value)).toBe(false)
       const after = useSettings.getState()
       expect(after.theme).toBe(before.theme)
-      expect(after.labelers).toBe(before.labelers)
     }
   })
 
   it('ignores credential fields passed alongside a valid snapshot', () => {
     const applied = useSettings.getState().importSettings({
       theme: 'bone',
-      labelers: ['did:plc:alpha'],
       accessJwt: 'secret',
       refreshToken: 'secret',
       session: { token: 'secret' },
@@ -441,7 +355,6 @@ describe('store settings import', () => {
     const state = useSettings.getState()
     expect('accessJwt' in state).toBe(false)
     expect('session' in state).toBe(false)
-    expect(state.labelers).toEqual(['did:plc:alpha'])
   })
 
   it('accepts the normalized result of a parsed file', () => {
@@ -454,6 +367,7 @@ describe('store settings import', () => {
 
   it('normalizes bare snapshots through normalizePortableSettings', () => {
     expect(normalizePortableSettings(SAMPLE)).toEqual(SAMPLE)
-    expect(normalizePortableSettings({ ...SAMPLE, labelers: 'nope' })).toBeNull()
+    // retired fields are ignored rather than carried into the snapshot
+    expect(normalizePortableSettings({ ...SAMPLE, labelers: 'nope' })).toEqual(SAMPLE)
   })
 })

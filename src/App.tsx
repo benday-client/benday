@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
 import { type AroundNavHandler, Link, Route, Router, Switch, useLocation, useSearch } from 'wouter'
@@ -14,9 +14,10 @@ import { SettingsDialog } from './components/SettingsDialog'
 import { SignedOutCard } from './components/SignedOutCard'
 import { TopBar } from './components/TopBar'
 import { EmptyState, ErrorNotice, Progress } from './components/ui'
+import { useAccountLabelers } from './hooks/useAccountLabelers'
 import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useInputMode } from './hooks/useInputMode'
-import { getAuthAgent, useAuthStore } from './lib/auth'
+import { useAuthStore } from './lib/auth'
 import { installCursors } from './lib/cursors'
 import { goBackOrFallback, THREAD_FALLBACK_VIEW, withAppHistory } from './lib/history'
 import {
@@ -26,8 +27,6 @@ import {
   matchesChord,
   type PrimaryModifier,
 } from './lib/keymap'
-import { applyConfiguredLabelers } from './lib/labelers'
-import { invalidateNonFeedQueries } from './lib/queries'
 import { useSettings } from './lib/store'
 import { resolveTheme, themeColor } from './lib/themes'
 import { uiOwnsKeyboard, useUiStore } from './lib/ui'
@@ -170,13 +169,10 @@ function AppShell() {
   const previousViewRef = useRef<string | null>(null)
   const previousPathRef = useRef<string | null>(null)
   const previousTabRef = useRef<string | null>(null)
-  const queryClient = useQueryClient()
   const authStatus = useAuthStore((state) => state.status)
   const authenticated = authStatus === 'authenticated'
   const restoreError = useAuthStore((state) => state.restoreError)
-  const labelers = useSettings((state) => state.labelers)
-  const labelerKey = labelers.join('\n')
-  const lastLabelerKeyRef = useRef(labelerKey)
+  useAccountLabelers()
   useInputMode()
 
   const theme = useSettings((state) => state.theme)
@@ -255,14 +251,6 @@ function AppShell() {
     closing.addEventListener('close', handleClose, { once: true })
     return () => closing.removeEventListener('close', handleClose)
   }, [pathname])
-
-  useEffect(() => {
-    if (lastLabelerKeyRef.current === labelerKey) return
-    lastLabelerKeyRef.current = labelerKey
-    const agent = getAuthAgent()
-    if (agent !== null) applyConfiguredLabelers(agent)
-    void invalidateNonFeedQueries(queryClient)
-  }, [labelerKey, queryClient])
 
   useEffect(() => {
     // Contrast first: the palette a theme resolves to depends on the scheme,

@@ -1,5 +1,5 @@
-import { AppBskyActorDefs, AppBskyFeedDefs, AppBskyLabelerDefs, AtpAgent } from '@atproto/api'
-import { getAuthAgent, requireViewerAgent } from './auth'
+import { AppBskyActorDefs, AppBskyFeedDefs, AtpAgent, isDid } from '@atproto/api'
+import { requireViewerAgent } from './auth'
 import { applyConfiguredLabelers } from './labelers'
 import {
   flattenThread,
@@ -329,50 +329,20 @@ export async function fetchTagSuggestions(query: string): Promise<string[]> {
   }
 }
 
-export async function fetchLabelerPrefs(): Promise<string[]> {
-  const agent = getAuthAgent()
-  if (agent === null) return []
-  const prefs = await agent.clone().app.bsky.actor.getPreferences()
+/**
+ * Reads the signed-in account's own labeler subscriptions. The request runs as
+ * the account the key names, so a delayed load can never borrow a newer one.
+ */
+export async function fetchLabelerPrefsFor(viewerDid: string): Promise<string[]> {
+  const prefs = await requireViewerAgent(viewerDid).clone().app.bsky.actor.getPreferences()
   const dids: string[] = []
   for (const pref of prefs.data.preferences) {
-    if (AppBskyActorDefs.isLabelersPref(pref)) {
-      for (const labeler of pref.labelers) dids.push(labeler.did)
+    if (!AppBskyActorDefs.isLabelersPref(pref)) continue
+    for (const labeler of pref.labelers) {
+      if (isDid(labeler.did)) dids.push(labeler.did)
     }
   }
   return [...new Set(dids)]
-}
-
-export interface LabelerSummary {
-  did: string
-  handle: string
-  displayName: string
-  description: string
-  avatar: string | null
-  labelCount: number
-}
-
-export async function fetchLabelerSummaries(dids: readonly string[]): Promise<LabelerSummary[]> {
-  if (dids.length === 0) return []
-  const agent = createAgent()
-  const response = await agent.app.bsky.labeler.getServices({ dids: [...dids], detailed: true })
-  const summaries: LabelerSummary[] = []
-
-  for (const view of response.data.views) {
-    if (!AppBskyLabelerDefs.isLabelerViewDetailed(view)) continue
-    summaries.push({
-      did: view.creator.did,
-      handle: view.creator.handle,
-      displayName:
-        view.creator.displayName !== undefined && view.creator.displayName.length > 0
-          ? view.creator.displayName
-          : view.creator.handle,
-      description: view.creator.description ?? '',
-      avatar: view.creator.avatar ?? null,
-      labelCount: view.policies.labelValues.length,
-    })
-  }
-
-  return summaries
 }
 
 export async function fetchPinnedFeeds(viewerDid: string): Promise<PinnedFeedModel[]> {

@@ -1,4 +1,3 @@
-import { isDid } from '@atproto/api'
 import { isRecord } from './records'
 import { isTheme, THEME_SCHEMES } from './themes'
 import type { Theme } from './types'
@@ -8,9 +7,6 @@ export const SETTINGS_FILE_NAME = 'benday-settings.json'
 
 /** Bump only together with an explicit parser branch for older versions. */
 export const SETTINGS_FILE_VERSION = 1
-
-/** Mirrors the persisted labeler cap in the settings store. */
-export const SETTINGS_LABELER_LIMIT = 20
 
 /**
  * The only portable preferences. Everything else the app persists — sessions,
@@ -28,7 +24,6 @@ export interface PortableSettings {
   highContrast: boolean
   /** Bare single-character shortcuts; modifier chords stay available (WCAG 2.1.4). */
   keyboardShortcuts: boolean
-  labelers: string[]
 }
 
 export interface SettingsFile extends PortableSettings {
@@ -39,31 +34,6 @@ export interface SettingsFile extends PortableSettings {
 export type SettingsParseResult =
   | { ok: true; settings: PortableSettings }
   | { ok: false; error: string }
-
-/**
- * Trims a labeler did and rejects anything the SDK would refuse to put in a
- * labeler header. Validation belongs to the same predicate the wire uses.
- */
-export function sanitizeLabeler(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const trimmed = value.trim()
-  return isDid(trimmed) ? trimmed : null
-}
-
-/**
- * Keeps valid, unique labeler dids in their original order. Non-string and
- * malformed entries are dropped, and the result is capped like the store.
- */
-export function sanitizeLabelers(value: unknown, limit = SETTINGS_LABELER_LIMIT): string[] {
-  if (!Array.isArray(value)) return []
-  const kept = new Set<string>()
-  for (const item of value) {
-    if (kept.size >= limit) break
-    const did = sanitizeLabeler(item)
-    if (did !== null) kept.add(did)
-  }
-  return [...kept]
-}
 
 /**
  * Maps a stored theme to a current theme. `duotone` is the only legacy name;
@@ -113,8 +83,6 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
   // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
   const theme = normalizeTheme(value['theme'])
   if (theme === null) return null
-  const rawLabelers = value['labelers']
-  if (!Array.isArray(rawLabelers)) return null
   return {
     theme,
     ...portableAppearance(
@@ -126,7 +94,6 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
       value['highContrast'],
     ),
     keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
-    labelers: sanitizeLabelers(rawLabelers),
   }
 }
 
@@ -150,7 +117,6 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
       settings.highContrast,
     ),
     keyboardShortcuts: normalizeBoolean(settings.keyboardShortcuts, true),
-    labelers: sanitizeLabelers(settings.labelers),
   }
 }
 
@@ -182,9 +148,6 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
   const theme = normalizeTheme(value['theme'])
   if (theme === null) return fail('settings file has an invalid theme')
 
-  const rawLabelers = value['labelers']
-  if (!Array.isArray(rawLabelers)) return fail('settings file has an invalid labeler list')
-
   return {
     ok: true,
     settings: {
@@ -198,7 +161,6 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
         value['highContrast'],
       ),
       keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
-      labelers: sanitizeLabelers(rawLabelers),
     },
   }
 }

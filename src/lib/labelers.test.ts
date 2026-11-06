@@ -1,18 +1,42 @@
 import { AtpAgent } from '@atproto/api'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { installTransport, jsonResponse } from '../test/transport'
+import { clearAccountLabelers, currentAccountLabelers, setAccountLabelers } from './accountLabelers'
 import { applyConfiguredLabelers } from './labelers'
-import { useSettings } from './store'
 
 const SERVICE = 'https://pds.test'
 const VALID = 'did:plc:bendayvalidlabeler'
+const OTHER = 'did:plc:bendayotherlabeler'
+
+describe('account labeler registry', () => {
+  beforeEach(() => {
+    clearAccountLabelers()
+  })
+
+  it('keeps valid unique dids in order', () => {
+    setAccountLabelers('did:plc:alice', [VALID, 'did:plc', VALID, OTHER, 'not-a-did'])
+    expect(currentAccountLabelers()).toEqual([VALID, OTHER])
+  })
+
+  it('clears when the owner changes before a new list arrives', () => {
+    setAccountLabelers('did:plc:alice', [VALID])
+    setAccountLabelers('did:plc:bravo', [])
+    expect(currentAccountLabelers()).toEqual([])
+  })
+
+  it('clears on demand', () => {
+    setAccountLabelers('did:plc:alice', [VALID])
+    clearAccountLabelers()
+    expect(currentAccountLabelers()).toEqual([])
+  })
+})
 
 describe('applyConfiguredLabelers', () => {
   beforeEach(() => {
-    useSettings.setState({ labelers: [] })
+    clearAccountLabelers()
   })
 
-  it('sends only the valid stored labelers in the outbound request header', async () => {
+  it('sends only the valid account labelers in the outbound request header', async () => {
     const transport = installTransport()
     transport.route('GET', `${SERVICE}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, {
@@ -21,11 +45,9 @@ describe('applyConfiguredLabelers', () => {
       }),
     )
 
-    // live or persisted settings are untrusted: bad dids that the SDK would
-    // reject must never reach the agent, which validates every entry
-    useSettings.setState({
-      labelers: [VALID, 'did:plc', 'did:plcabc', 'did:plc:', ' not-a-did '],
-    })
+    // the registry sanitizes at its boundary; the wire predicate still guards
+    // the header, which the SDK validates for every entry
+    setAccountLabelers('did:plc:alice', [VALID, 'did:plc', 'did:plcabc', 'did:plc:'])
 
     const agent = new AtpAgent({ service: SERVICE })
     expect(() => applyConfiguredLabelers(agent)).not.toThrow()
@@ -43,13 +65,11 @@ describe('applyConfiguredLabelers', () => {
     expect(configured).toEqual([VALID])
   })
 
-  it('configures an agent with no labelers when every stored did is invalid', async () => {
+  it('configures an agent with no labelers when the registry is empty', async () => {
     const transport = installTransport()
     transport.route('GET', `${SERVICE}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(200, { did: 'did:plc:someone', handle: 'someone.test' }),
     )
-
-    useSettings.setState({ labelers: ['did:plc', 'did:plc:'] })
 
     const agent = new AtpAgent({ service: SERVICE })
     applyConfiguredLabelers(agent)

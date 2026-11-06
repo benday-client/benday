@@ -12,7 +12,6 @@ describe('settings storage sync', () => {
       imageEffects: true,
       highContrast: false,
       keyboardShortcuts: true,
-      labelers: [],
     })
   })
 
@@ -24,7 +23,6 @@ describe('settings storage sync', () => {
       darkTheme: 'void',
       imageEffects: true,
       highContrast: true,
-      labelers: [],
     })
 
     expect(applied).toBe(true)
@@ -54,7 +52,6 @@ describe('settings storage sync', () => {
         darkTheme: 'void',
         imageEffects: true,
         highContrast: true,
-        labelers: [],
       },
     }
     const raw = JSON.stringify(stored)
@@ -76,7 +73,6 @@ describe('settings storage sync', () => {
         lightTheme: 'bone',
         darkTheme: 'oxide',
         imageEffects: false,
-        labelers: ['did:plc:ar7c4by46qjdydhdevvrndac'],
       },
     }
     const raw = JSON.stringify(stored)
@@ -88,7 +84,6 @@ describe('settings storage sync', () => {
       expect(useSettings.getState().theme).toBe('oxide')
     })
     expect(useSettings.getState().imageEffects).toBe(false)
-    expect(useSettings.getState().labelers).toEqual(['did:plc:ar7c4by46qjdydhdevvrndac'])
   })
 
   it('defaults keyboard shortcuts on and persists a toggle', async () => {
@@ -120,7 +115,6 @@ describe('settings storage sync', () => {
         darkTheme: 'void',
         imageEffects: true,
         keyboardShortcuts: false,
-        labelers: [],
       },
     })
     localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
@@ -143,7 +137,6 @@ describe('settings storage sync', () => {
         darkTheme: 'void',
         imageEffects: true,
         keyboardShortcuts: 'off',
-        labelers: [],
       },
     })
     localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
@@ -161,7 +154,6 @@ describe('settings storage sync', () => {
       darkTheme: 'void',
       imageEffects: true,
       highContrast: false,
-      labelers: [],
     } as const
 
     useSettings.getState().setKeyboardShortcuts(false)
@@ -184,60 +176,5 @@ describe('settings storage sync', () => {
     if (persisted === null) throw new Error('settings were not persisted')
     const stored = JSON.parse(persisted) as { state?: { keyboardShortcuts?: boolean } }
     expect(stored.state?.keyboardShortcuts).toBe(true)
-  })
-})
-
-describe('labeler validation', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    useSettings.setState({ labelers: [] })
-  })
-
-  it('refuses a did the sdk would reject when adding one', () => {
-    const { addLabeler } = useSettings.getState()
-    addLabeler('did:plc')
-    addLabeler('did:plcabc')
-    addLabeler('did:plc:')
-    expect(useSettings.getState().labelers).toEqual([])
-
-    addLabeler('did:plc:bendaylabeler')
-    expect(useSettings.getState().labelers).toEqual(['did:plc:bendaylabeler'])
-  })
-
-  it('drops invalid dids from an imported settings file', () => {
-    const applied = useSettings.getState().importSettings({
-      theme: 'void',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'void',
-      imageEffects: true,
-      highContrast: false,
-      labelers: ['did:plc:bendaylabeler', 'did:plc', 'did:plcabc', 'did:plc:'],
-    })
-
-    expect(applied).toBe(true)
-    expect(useSettings.getState().labelers).toEqual(['did:plc:bendaylabeler'])
-  })
-
-  it('drops invalid dids from storage written by another tab', async () => {
-    const stored = {
-      version: 1,
-      state: {
-        theme: 'void',
-        appearance: 'dark',
-        lightTheme: 'bone',
-        darkTheme: 'void',
-        imageEffects: true,
-        labelers: ['did:plc:bendaylabeler', 'did:plc', 'did:plcabc'],
-      },
-    }
-    const raw = JSON.stringify(stored)
-    localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
-
-    window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_STORAGE_KEY, newValue: raw }))
-
-    await vi.waitFor(() => {
-      expect(useSettings.getState().labelers).toEqual(['did:plc:bendaylabeler'])
-    })
   })
 })

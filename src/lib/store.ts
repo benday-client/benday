@@ -1,13 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { isRecord } from './records'
-import {
-  normalizePortableSettings,
-  normalizeTheme,
-  SETTINGS_LABELER_LIMIT,
-  sanitizeLabeler,
-  sanitizeLabelers,
-} from './settingsTransfer'
+import { normalizePortableSettings, normalizeTheme } from './settingsTransfer'
 import { resolveTheme, THEME_SCHEMES } from './themes'
 import type { Theme } from './types'
 
@@ -40,7 +34,6 @@ interface SettingsState {
   imageEffects: boolean
   highContrast: boolean
   keyboardShortcuts: boolean
-  labelers: string[]
   setTheme: (theme: Theme) => void
   setAppearance: (appearance: AppearanceMode) => void
   setLightTheme: (theme: Theme) => void
@@ -50,8 +43,6 @@ interface SettingsState {
   setKeyboardShortcuts: (enabled: boolean) => void
   syncSystemTheme: () => void
   setActiveTheme: (theme: Theme) => void
-  addLabeler: (did: string) => void
-  removeLabeler: (did: string) => void
   /**
    * Validates a bare portable settings snapshot and applies every portable
    * preference in one update. Invalid input leaves the existing state untouched.
@@ -69,7 +60,6 @@ export const useSettings = create<SettingsState>()(
       imageEffects: true,
       highContrast: false,
       keyboardShortcuts: true,
-      labelers: [],
       setTheme: (theme) =>
         set({
           theme,
@@ -112,18 +102,6 @@ export const useSettings = create<SettingsState>()(
         if (next !== state.theme) set({ theme: next })
       },
       setActiveTheme: (theme) => set({ theme }),
-      addLabeler: (did) => {
-        const labeler = sanitizeLabeler(did)
-        if (labeler === null) return
-        set((state) => ({
-          labelers: state.labelers.includes(labeler)
-            ? state.labelers
-            : [...state.labelers, labeler].slice(0, SETTINGS_LABELER_LIMIT),
-        }))
-      },
-      removeLabeler: (did) => {
-        set((state) => ({ labelers: state.labelers.filter((labeler) => labeler !== did) }))
-      },
       importSettings: (value) => {
         const settings = normalizePortableSettings(value)
         if (settings === null) return false
@@ -137,7 +115,6 @@ export const useSettings = create<SettingsState>()(
           imageEffects: settings.imageEffects,
           highContrast: settings.highContrast,
           keyboardShortcuts: settings.keyboardShortcuts,
-          labelers: settings.labelers,
         })
         return true
       },
@@ -153,7 +130,6 @@ export const useSettings = create<SettingsState>()(
         imageEffects: state.imageEffects,
         highContrast: state.highContrast,
         keyboardShortcuts: state.keyboardShortcuts,
-        labelers: state.labelers,
       }),
       merge: (persisted, current) => {
         if (!isRecord(persisted)) return current
@@ -187,9 +163,6 @@ export const useSettings = create<SettingsState>()(
           typeof stored['keyboardShortcuts'] === 'boolean'
             ? stored['keyboardShortcuts']
             : current.keyboardShortcuts
-        const labelers = Array.isArray(stored['labelers'])
-          ? sanitizeLabelers(stored['labelers'])
-          : current.labelers
         return {
           ...current,
           theme: selectedTheme(appearance, lightTheme, darkTheme),
@@ -199,7 +172,6 @@ export const useSettings = create<SettingsState>()(
           imageEffects,
           highContrast,
           keyboardShortcuts,
-          labelers,
         }
       },
     },
@@ -207,7 +179,7 @@ export const useSettings = create<SettingsState>()(
 )
 
 // The persist middleware only reads storage at startup. Rehydrate when another
-// tab writes the same key so theme, appview and labeler changes follow the user
+// tab writes the same key so appearance changes follow the user
 // across tabs without a reload.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {

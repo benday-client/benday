@@ -1,6 +1,7 @@
 import type { Agent, AtpSessionData, AtpSessionEvent } from '@atproto/api'
 import { AtpAgent } from '@atproto/api'
 import { create } from 'zustand'
+import { clearAccountLabelers } from './accountLabelers'
 import { normalizeAppViewHost } from './appviews'
 import { errorInfo } from './errors'
 import { resolveHandleDid } from './identity'
@@ -330,6 +331,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return false
     }
 
+    // a new account must never inherit the previous account's labelers
+    clearAccountLabelers()
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = epoch
@@ -410,6 +413,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return
     }
 
+    // the portal account replaces whatever list the previous one had
+    clearAccountLabelers()
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = epoch
@@ -435,6 +440,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
 
   signOut: async () => {
+    clearAccountLabelers()
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = null
