@@ -485,7 +485,6 @@ export default function ThreadView() {
               post={focusPost}
               focused={focusedReply === null}
               replies={thread.isPending && focus === undefined ? loadingReplies : replyList}
-              showReplyContext={parentUri === null}
             />
             {replyDock}
           </div>

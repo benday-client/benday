@@ -822,31 +822,6 @@ describe('PostCard actions', () => {
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('opens the focused post thread when a reply row is clicked', async () => {
-    const location = memoryLocation({ path: '/', record: true })
-    const queryClient = createTestQueryClient()
-    const post = postFixture({ replyCount: 1 })
-    const reply = postFixture({
-      uri: 'at://did:plc:test/app.bsky.feed.post/reply-1',
-      text: 'a reply that opens',
-    })
-    queryClient.setQueryData(['top-comments', 'anonymous', post.uri], [reply])
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Router hook={location.hook}>
-          <PostCard post={post} />
-        </Router>
-      </QueryClientProvider>,
-    )
-
-    await screen.findByText('a reply that opens')
-    const row = document.querySelector('.b-post-card__comment')
-    expect(row).not.toBeNull()
-    fireEvent.click(row as Element)
-    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(reply.uri)}`)
-  })
-
   it('opens a quoted post with 0 even when the post owns a reply list', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
@@ -1004,7 +979,7 @@ describe('PostCard actions', () => {
     expect(deletePost).not.toHaveBeenCalled()
   })
 
-  it('renders the parent preview for a reply', () => {
+  it('renders no parent preview on an ordinary list card', () => {
     const post = postFixture({
       replyContext: {
         uri: 'at://did:plc:parent/app.bsky.feed.post/1',
@@ -1032,9 +1007,8 @@ describe('PostCard actions', () => {
       </QueryClientProvider>,
     )
 
-    expect(screen.getByText('replying to')).toBeInTheDocument()
-    expect(screen.getByText('the post being answered')).toBeInTheDocument()
-    expect(screen.getByText('@parent.bsky.social')).toBeInTheDocument()
+    expect(screen.queryByText('replying to')).toBeNull()
+    expect(screen.queryByText('the post being answered')).toBeNull()
   })
 
   it('does not offer deletion when the post uri belongs to another repo', () => {

@@ -6,7 +6,6 @@ import {
   fetchPinnedFeeds,
   fetchProfile,
   fetchThread,
-  fetchTopComments,
   pinnedFeedUris,
 } from './atproto'
 import { useAuthStore } from './auth'
@@ -207,39 +206,17 @@ describe('fetchFeedPage', () => {
     expect(transport.calls.map((call) => new URL(call.url).origin)).toEqual([APPVIEW, APPVIEW])
   })
 
-  it('keeps resolved parent contexts when a later batch fails', async () => {
-    const parents = Array.from(
-      { length: 26 },
-      (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
-    )
+  it('never hydrates reply parents on a list page', async () => {
+    const parent = 'at://did:plc:test/app.bsky.feed.post/parent-0'
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
-      jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
+      jsonResponse(200, { posts: [wirePost(1, parent)] }),
     )
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, (request) => {
-      const uris = new URL(request.url).searchParams.getAll('uris')
-      if (uris.includes('at://did:plc:test/app.bsky.feed.post/parent-25')) {
-        return jsonResponse(500, { error: 'InternalServerError', message: 'batch failed' })
-      }
-      return jsonResponse(200, {
-        posts: uris.map((uri) => ({
-          uri,
-          cid: CID,
-          author: { did: 'did:plc:test', handle: 'test.bsky.social' },
-          record: {
-            $type: 'app.bsky.feed.post',
-            text: 'parent',
-            createdAt: '2026-10-29T12:00:00.000Z',
-          },
-          indexedAt: '2026-10-29T12:00:00.000Z',
-        })),
-      })
-    })
 
     const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, null)
 
-    expect(page.posts).toHaveLength(26)
-    expect(page.posts.filter((post) => post.replyContext !== null)).toHaveLength(25)
-    expect(page.posts[25]?.replyContext).toBeNull()
+    expect(page.posts).toHaveLength(1)
+    expect(page.posts[0]?.replyContext).toBeNull()
+    expect(transport.calls.some((call) => call.url.includes('getPosts'))).toBe(false)
   })
 
   it('drops a search author the canonical appview reports as muted', async () => {
@@ -288,7 +265,7 @@ describe('fetchFeedPage', () => {
     expect(viewerStateCalls).toEqual([])
   })
 
-  it('prunes hidden reply contexts, quotes and media quotes from a search page', async () => {
+  it('prunes hidden quotes and media quotes from a search page', async () => {
     const parentUri = `at://${HIDDEN_DID}/app.bsky.feed.post/parent`
     const visibleParentUri = 'at://did:plc:test/app.bsky.feed.post/visible-parent'
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
@@ -309,14 +286,6 @@ describe('fetchFeedPage', () => {
         ],
       }),
     )
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, () =>
-      jsonResponse(200, {
-        posts: [
-          { ...hiddenWirePost(9), uri: parentUri },
-          { ...wirePost(8), uri: visibleParentUri },
-        ],
-      }),
-    )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
       jsonResponse(200, {
         profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
@@ -327,10 +296,9 @@ describe('fetchFeedPage', () => {
     const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, ALICE.did)
     const byText = new Map(page.posts.map((post) => [post.text, post]))
 
+    // list pages carry no reply-parent context for either post
     expect(byText.get('post 1')?.replyContext).toBeNull()
-    // the same read still resolves a visible parent, so the null above is the
-    // moderation result, not a missing context
-    expect(byText.get('post 5')?.replyContext?.author.handle).toBe('test.bsky.social')
+    expect(byText.get('post 5')?.replyContext).toBeNull()
     expect(byText.get('post 2')?.embed).toBeNull()
     // a record-with-media keeps its images when only the quoted post is hidden
     expect(byText.get('post 3')?.embed).toEqual({
@@ -399,31 +367,6 @@ describe('fetchFeedPage', () => {
 
     expect(page.posts).toHaveLength(1)
     expect(page.posts[0]?.embed).toBeNull()
-  })
-
-  it('prunes a hidden quote from top comments', async () => {
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPostThread`, () =>
-      jsonResponse(200, {
-        thread: threadViewPost(wirePost(1), [
-          threadViewPost({
-            ...wirePost(2),
-            embed: quoteEmbed(HIDDEN_AUTHOR, 'hidden quote'),
-            likeCount: 5,
-          }),
-        ]),
-      }),
-    )
-    transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfiles`, () =>
-      jsonResponse(200, {
-        profiles: [{ did: HIDDEN_DID, handle: 'hidden.test', viewer: { muted: true } }],
-      }),
-    )
-    await signIn(ALICE, PDS_A)
-
-    const comments = await fetchTopComments('at://did:plc:test/app.bsky.feed.post/1', ALICE.did)
-
-    expect(comments.map((comment) => comment.text)).toEqual(['post 2'])
-    expect(comments[0]?.embed).toBeNull()
   })
 })
 
@@ -802,49 +745,6 @@ describe('opaque post records', () => {
 })
 
 describe('hydration batches', () => {
-  it('starts reply-parent batches together and keeps the batch that answered', async () => {
-    const parents = Array.from(
-      { length: 26 },
-      (_, index) => `at://did:plc:test/app.bsky.feed.post/parent-${index}`,
-    )
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
-      jsonResponse(200, { posts: parents.map((parent, index) => wirePost(index, parent)) }),
-    )
-    // neither batch may answer before both have started: a serial read would
-    // deadlock here instead of quietly passing
-    let started = 0
-    const bothStarted = Promise.withResolvers<void>()
-    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getPosts`, async (request) => {
-      started += 1
-      if (started === 2) bothStarted.resolve()
-      await bothStarted.promise
-
-      const requested = new URL(request.url).searchParams.getAll('uris')
-      if (requested.length === 1) {
-        return jsonResponse(500, { error: 'InternalServerError', message: 'no parents' })
-      }
-      return jsonResponse(200, {
-        posts: requested.map((uri) => ({
-          uri,
-          cid: CID,
-          author: VISIBLE_AUTHOR,
-          record: {
-            $type: 'app.bsky.feed.post',
-            text: 'a parent',
-            createdAt: '2026-10-29T12:00:00.000Z',
-          },
-          indexedAt: '2026-10-29T12:00:00.000Z',
-        })),
-      })
-    })
-
-    const page = await fetchFeedPage({ kind: 'search', query: 'cats' }, null)
-
-    expect(page.posts.slice(0, 25).every((post) => post.replyContext !== null)).toBe(true)
-    // the failed batch keeps only its own reply context missing
-    expect(page.posts[25]?.replyContext).toBeNull()
-  })
-
   it('starts hidden-author batches together and keeps the batch that answered', async () => {
     const dids = Array.from({ length: 26 }, (_, index) => `did:plc:author${index}`)
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>

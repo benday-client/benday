@@ -285,78 +285,10 @@
   letter-spacing: 0.04em;
 }
 
-.b-post-card__reply-context {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: var(--space-1) var(--space-2);
-  border-left: 2px solid var(--line-strong);
-  background: var(--panel);
-}
-
-.b-post-card__reply-context-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  color: var(--text-muted);
-  font-size: var(--step--2);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.b-post-card__reply-context-author {
-  color: var(--text-link);
-  text-decoration-color: var(--blue);
-  text-decoration-line: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
-
-.b-post-card__reply-context-author:hover {
-  color: var(--text-link);
-  text-decoration-color: var(--blue);
-  text-decoration-thickness: 2px;
-}
-
-.b-post-card__reply-context-text {
-  display: -webkit-box;
-  color: var(--text-muted);
-  font-size: var(--step--1);
-  line-height: 1.45;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
 .b-post-card__labels {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-}
-
-.b-post-card__comments {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: var(--space-1);
-  padding-top: var(--space-2);
-  border-top: 1px dashed var(--line);
-  overflow: hidden;
-}
-
-.b-post-card__comments-label {
-  margin-bottom: var(--space-1);
-  color: var(--ink);
-  font-size: var(--step--1);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.b-post-card__comments-note {
-  color: var(--text-muted);
-  font-size: var(--step--1);
 }
 
 .b-post-card__comment-list {

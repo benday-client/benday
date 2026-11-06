@@ -12,7 +12,6 @@ import {
 } from 'react'
 import { Link, useLocation } from 'wouter'
 import { isEditableTarget, isInteractiveTarget } from '../hooks/useHotkeys'
-import { useTopComments } from '../hooks/useTopComments'
 import { displayedCount, useActionStore } from '../lib/actionStore'
 import { deletePost, type FeedFeedbackEvent } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
@@ -47,7 +46,6 @@ export interface PostCardProps {
   focused?: boolean
   eyebrow?: string
   replies?: ReactNode
-  showReplyContext?: boolean
   onFeedback?: (post: PostModel, event: FeedFeedbackEvent) => Promise<void>
   onDismiss?: (uri: string) => void
   onOpen?: (post: PostModel) => void
@@ -105,7 +103,6 @@ function PostCardView({
   focused = false,
   eyebrow,
   replies,
-  showReplyContext = true,
   onFeedback,
   onDismiss,
   onOpen,
@@ -130,7 +127,6 @@ function PostCardView({
   const ownsOutsideCard = (target: EventTarget | null): boolean =>
     isInteractiveTarget(target) &&
     !(target instanceof Node && cardRef.current?.contains(target) === true)
-  const [inView, setInView] = useState(false)
   // a labelled post hides its media until the reader asks for it
   const [revealed, setRevealed] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -197,10 +193,6 @@ function PostCardView({
   }, [clearDeleteArmTimer, owner])
   const own =
     accountDid !== null && accountDid === post.author.did && isOwnPostUri(post.uri, accountDid)
-  const topComments = useTopComments(
-    post.uri,
-    replies === undefined && inView && post.replyCount > 0,
-  )
   const entry = useActionStore((state) => state.byUri[post.uri])
   const openCompose = useUiStore((state) => state.openCompose)
   const openInlineCompose = useUiStore((state) => state.openInlineCompose)
@@ -299,30 +291,6 @@ function PostCardView({
     setFeedbackError(null)
     setCopyState('idle')
   }, [owner])
-
-  useEffect(() => {
-    const node = cardRef.current
-    if (node === null) return
-
-    if (typeof IntersectionObserver === 'undefined') {
-      setInView(true)
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return
-        setInView(true)
-        observer.disconnect()
-      },
-      { root: node.closest('.b-deck'), rootMargin: '200px 0px' },
-    )
-
-    observer.observe(node)
-    return () => {
-      observer.disconnect()
-    }
-  }, [])
 
   useEffect(() => {
     if (!focused) return
@@ -579,7 +547,7 @@ function PostCardView({
     if (!(target instanceof HTMLElement)) return
     if (
       target.closest(
-        'a, button, input, textarea, select, summary, label, dialog, [role="button"], [role="link"], [contenteditable="true"], .b-post-card__comments, .b-post-card__media, .b-post-card__foot',
+        'a, button, input, textarea, select, summary, label, dialog, [role="button"], [role="link"], [contenteditable="true"], .b-post-card__media, .b-post-card__foot',
       ) !== null
     ) {
       return
@@ -630,29 +598,6 @@ function PostCardView({
           </span>
         </div>
 
-        {showReplyContext && post.replyContext !== null ? (
-          <div className="b-post-card__reply-context">
-            <div className="b-post-card__reply-context-head">
-              <span>replying to</span>
-              <Link
-                href={`/thread?uri=${encodeURIComponent(post.replyContext.uri)}`}
-                className="b-post-card__reply-context-author"
-              >
-                @{post.replyContext.author.handle}
-              </Link>
-            </div>
-            {post.replyContext.text.length > 0 ? (
-              <FacetText
-                text={post.replyContext.text}
-                facets={post.replyContext.facets}
-                className="b-post-card__reply-context-text"
-              />
-            ) : (
-              <span className="b-post-card__reply-context-text">[no text]</span>
-            )}
-          </div>
-        ) : null}
-
         {post.text.length > 0 ? (
           <FacetText text={post.text} facets={post.facets} className="b-post-card__text" />
         ) : (
@@ -695,57 +640,6 @@ function PostCardView({
         ) : null}
 
         {replies}
-
-        {replies === undefined && inView && post.replyCount > 0 ? (
-          <section className="b-post-card__comments" aria-label="top comments">
-            <p className="b-post-card__comments-label">top comments</p>
-            {topComments.isPending ? (
-              <p className="b-post-card__comments-note">loading comments</p>
-            ) : topComments.error !== null && topComments.comments.length === 0 ? (
-              <p className="b-post-card__comments-note">comments unavailable</p>
-            ) : topComments.comments.length === 0 ? (
-              <p className="b-post-card__comments-note">no visible comments</p>
-            ) : (
-              <ul className="b-post-card__comment-list">
-                {topComments.comments.map((comment) => (
-                  <li
-                    key={comment.uri}
-                    className="b-post-card__comment"
-                    // biome-ignore lint/a11y/noNoninteractiveTabindex: the whole reply opens its thread
-                    tabIndex={0}
-                    onClick={(event) => {
-                      const target = event.target
-                      if (target instanceof HTMLElement && target.closest('a') !== null) return
-                      navigate(`/thread?uri=${encodeURIComponent(comment.uri)}`)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      const target = event.target
-                      if (target instanceof HTMLElement && target.closest('a') !== null) return
-                      event.preventDefault()
-                      navigate(`/thread?uri=${encodeURIComponent(comment.uri)}`)
-                    }}
-                  >
-                    <Link
-                      href={`/profile/${encodeURIComponent(comment.author.handle)}`}
-                      className="b-post-card__comment-author"
-                    >
-                      @{comment.author.handle}
-                    </Link>
-                    <FacetText
-                      text={comment.text}
-                      facets={comment.facets}
-                      className="b-post-card__comment-text"
-                    />
-                    {comment.likeCount > 0 ? (
-                      <span className="b-post-card__comment-likes">like {comment.likeCount}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ) : null}
       </div>
 
       <footer className="b-post-card__foot">

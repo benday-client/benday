@@ -11,7 +11,6 @@ import {
   mapProfileViewer,
   postAuthorDids,
   pruneHiddenPost,
-  replyContextFromPost,
   threadAuthorDids,
 } from './model'
 import type {
@@ -54,41 +53,6 @@ export function createAgent(): AtpAgent {
   const agent = new AtpAgent({ service: APPVIEW_ORIGIN })
   applyConfiguredLabelers(agent)
   return agent
-}
-
-async function attachReplyContexts(agent: AtpAgent, posts: PostModel[]): Promise<PostModel[]> {
-  const missing = posts.filter(
-    (post) => post.isReply && post.replyContext === null && post.replyParent !== null,
-  )
-  if (missing.length === 0) return posts
-
-  const parentUris = [...new Set(missing.flatMap((post) => post.replyParent?.uri ?? []))]
-  const parents = new Map<string, PostModel>()
-
-  // the batches are independent reads, so they start together and merge in
-  // source order; one failed batch keeps the contexts the others resolved
-  const batches: string[][] = []
-  for (let index = 0; index < parentUris.length; index += 25) {
-    batches.push(parentUris.slice(index, index + 25))
-  }
-  const settled = await Promise.allSettled(
-    batches.map((batch) => agent.app.bsky.feed.getPosts({ uris: batch })),
-  )
-  for (const result of settled) {
-    if (result.status === 'rejected') continue
-    for (const view of result.value.data.posts) {
-      const parent = mapPostView(view)
-      if (hidesAuthor(parent.author)) continue
-      parents.set(view.uri, parent)
-    }
-  }
-
-  return posts.map((post) => {
-    const parentUri = post.replyParent?.uri
-    const parent = parentUri === undefined ? undefined : parents.get(parentUri)
-    if (parent === undefined) return post
-    return { ...post, replyContext: replyContextFromPost(parent) }
-  })
 }
 
 /**
@@ -205,10 +169,7 @@ export async function fetchFeedPage(
       return {
         posts: await dropHiddenAuthors(
           viewerDid,
-          await attachReplyContexts(
-            agent,
-            response.data.posts.map(mapPostView).filter((post) => !hidesAuthor(post.author)),
-          ),
+          response.data.posts.map(mapPostView).filter((post) => !hidesAuthor(post.author)),
         ),
         cursor: normalizeCursor(response.data.cursor),
       }
@@ -355,24 +316,4 @@ export async function fetchThread(uri: string, viewerDid: string | null): Promis
   // hidden ancestors, replies and quote authors never enter the model
   const hidden = await hiddenAuthorDids(viewerDid, threadAuthorDids(raw))
   return flattenThread(raw, hidden)
-}
-
-export async function fetchTopComments(
-  uri: string,
-  viewerDid: string | null,
-): Promise<PostModel[]> {
-  const agent = createAgent()
-  const response = await agent.getPostThread({ uri, depth: 1, parentHeight: 0 })
-  const thread = response.data.thread
-  if (!AppBskyFeedDefs.isThreadViewPost(thread)) return []
-
-  const replies = thread.replies ?? []
-  const posts = replies
-    .filter(AppBskyFeedDefs.isThreadViewPost)
-    .map((reply) => mapPostView(reply.post))
-    .filter((post) => !hidesAuthor(post.author))
-
-  return (await dropHiddenAuthors(viewerDid, posts))
-    .sort((left, right) => right.likeCount - left.likeCount)
-    .slice(0, 3)
 }

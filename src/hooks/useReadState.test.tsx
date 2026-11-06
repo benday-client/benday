@@ -2,18 +2,16 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchPinnedFeeds, fetchTopComments } from '../lib/atproto'
+import { fetchPinnedFeeds } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import type { PinnedFeedModel } from '../lib/types'
 import { createTestQueryClient } from '../test/queryClient'
 import { usePinnedFeeds } from './usePinnedFeeds'
-import { useTopComments } from './useTopComments'
 
 vi.mock('../lib/atproto', () => ({
   fetchPinnedFeeds: vi.fn(),
   fetchProfile: vi.fn(),
   fetchThread: vi.fn(),
-  fetchTopComments: vi.fn(),
 }))
 
 function wrapper(queryClient: QueryClient) {
@@ -33,44 +31,7 @@ const PINNED: PinnedFeedModel = {
 
 beforeEach(() => {
   vi.mocked(fetchPinnedFeeds).mockReset()
-  vi.mocked(fetchTopComments).mockReset()
   useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
-})
-
-describe('useTopComments', () => {
-  it('reports a failure only when there is nothing to show', async () => {
-    vi.mocked(fetchTopComments).mockRejectedValue(new Error('comments failed'))
-    const queryClient = createTestQueryClient()
-
-    const { result } = renderHook(() => useTopComments('at://post/1', true), {
-      wrapper: wrapper(queryClient),
-    })
-
-    // the hooks retry once before reporting, and the default delay is a second
-    await waitFor(() => expect(result.current.error).not.toBeNull(), { timeout: 4000 })
-    expect(result.current.error?.message).toBe('comments failed')
-    expect(result.current.comments).toEqual([])
-  })
-
-  it('does not report pending for an enabled card without a usable uri', async () => {
-    const queryClient = createTestQueryClient()
-
-    const { result } = renderHook(() => useTopComments('', true), { wrapper: wrapper(queryClient) })
-
-    expect(result.current.isPending).toBe(false)
-    expect(result.current.comments).toEqual([])
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(fetchTopComments).not.toHaveBeenCalled()
-  })
-
-  it('reads nothing while the card is not asking', async () => {
-    const queryClient = createTestQueryClient()
-
-    renderHook(() => useTopComments('at://post/1', false), { wrapper: wrapper(queryClient) })
-
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(fetchTopComments).not.toHaveBeenCalled()
-  })
 })
 
 describe('usePinnedFeeds', () => {
