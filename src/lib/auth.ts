@@ -32,7 +32,7 @@ interface AuthState {
   // portal path was skipped without pretending the credential attempt failed
   restoreError: string | null
   restore: () => Promise<void>
-  signIn: (identifier: string, password: string, pds?: string) => Promise<boolean>
+  signIn: (identifier: string, password: string) => Promise<boolean>
   signInWithPortal: (identifier: string) => Promise<void>
   signOut: () => Promise<void>
   clearError: () => void
@@ -165,7 +165,7 @@ async function resolvePds(identifier: string): Promise<{ did: string; service: s
         }
       }
     } catch {
-      // fall back to the entryway; a supplied pds bypasses this path entirely
+      // fall back to the entryway when discovery cannot name a pds
     }
   }
 
@@ -323,7 +323,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
   },
 
-  signIn: async (identifier, password, pds) => {
+  signIn: async (identifier, password) => {
     const cleaned = identifier.trim().replace(/^@/, '')
     if (cleaned.length === 0 || password.length === 0) {
       set({ error: 'handle and app password are required', pending: false })
@@ -342,14 +342,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
 
     try {
-      let service: string
-      if (pds !== undefined && pds.trim().length > 0) {
-        const normalized = normalizeAppViewHost(pds)
-        if (normalized === null) throw new Error('the pds must be an https origin')
-        service = normalized
-      } else {
-        service = (await resolvePds(cleaned)).service
-      }
+      const service = (await resolvePds(cleaned)).service
       if (epoch !== authEpoch) return false
 
       const candidate = makeAgent(service)

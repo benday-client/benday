@@ -128,7 +128,13 @@ async function signInAsAlice(): Promise<void> {
     jsonResponse(200, { posts: [] }),
   )
   routeDiscoverGenerator()
-  const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
+  transport.route('GET', `https://plc.directory/${'did:plc:alice'}`, () =>
+    jsonResponse(200, {
+      id: 'did:plc:alice',
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
+  const ok = await useAuthStore.getState().signIn('did:plc:alice', 'app-pass')
   expect(ok).toBe(true)
 }
 

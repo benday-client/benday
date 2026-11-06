@@ -142,7 +142,13 @@ beforeEach(async () => {
   transport.route('POST', `${PDS}/xrpc/com.atproto.server.createSession`, () =>
     jsonResponse(200, SESSION),
   )
-  const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
+  transport.route('GET', `https://plc.directory/${VIEWER_DID}`, () =>
+    jsonResponse(200, {
+      id: VIEWER_DID,
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
+  const ok = await useAuthStore.getState().signIn(VIEWER_DID, 'app-pass')
   expect(ok).toBe(true)
 })
 

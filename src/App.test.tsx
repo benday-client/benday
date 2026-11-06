@@ -97,8 +97,14 @@ async function signInShell(): Promise<TestTransport> {
   transport.route('GET', `${PDS}/xrpc/app.bsky.notification.listNotifications`, () =>
     jsonResponse(200, { notifications: [] }),
   )
+  transport.route('GET', `https://plc.directory/${SESSION.did}`, () =>
+    jsonResponse(200, {
+      id: SESSION.did,
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
   routeDiscoverMetadata(transport)
-  const ok = await useAuthStore.getState().signIn('shell.test', 'app-pass', PDS)
+  const ok = await useAuthStore.getState().signIn(SESSION.did, 'app-pass')
   expect(ok).toBe(true)
   return transport
 }

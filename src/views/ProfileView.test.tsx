@@ -156,7 +156,13 @@ async function signInAsAlice(): Promise<void> {
   transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
     jsonResponse(200, { posts: [] }),
   )
-  const ok = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
+  transport.route('GET', `https://plc.directory/${SESSION.did}`, () =>
+    jsonResponse(200, {
+      id: SESSION.did,
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
+  const ok = await useAuthStore.getState().signIn(SESSION.did, 'app-pass')
   expect(ok).toBe(true)
 }
 

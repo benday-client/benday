@@ -75,12 +75,18 @@ beforeEach(async () => {
   transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getPosts`, () =>
     jsonResponse(200, { posts: [] }),
   )
+  transport.route('GET', `https://plc.directory/${ALICE.did}`, () =>
+    jsonResponse(200, {
+      id: ALICE.did,
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
   await useAuthStore.getState().signOut()
   transport.calls.length = 0
 })
 
 async function signIn(): Promise<void> {
-  await expect(useAuthStore.getState().signIn(ALICE.handle, 'password', PDS)).resolves.toBe(true)
+  await expect(useAuthStore.getState().signIn(ALICE.did, 'password')).resolves.toBe(true)
 }
 
 function seenBodies(): unknown[] {

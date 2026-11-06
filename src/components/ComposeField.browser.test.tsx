@@ -69,7 +69,13 @@ async function signIn(transport: TestTransport): Promise<void> {
   transport.route('POST', `${PDS}/xrpc/com.atproto.server.deleteSession`, () =>
     jsonResponse(200, {}),
   )
-  expect(await useAuthStore.getState().signIn(ALICE.handle, 'password', PDS)).toBe(true)
+  transport.route('GET', `https://plc.directory/${ALICE.did}`, () =>
+    jsonResponse(200, {
+      id: ALICE.did,
+      service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+    }),
+  )
+  expect(await useAuthStore.getState().signIn(ALICE.did, 'password')).toBe(true)
 }
 
 /** Types the mention prefix and waits until the settled typeahead paints. */

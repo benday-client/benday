@@ -141,9 +141,15 @@ function routeQuietViewerReads(host = PDS_A): void {
 }
 
 async function signIn(session: AtpSessionData, service: string): Promise<void> {
-  await expect(useAuthStore.getState().signIn(session.handle, 'password', service)).resolves.toBe(
-    true,
+  transport.route('GET', `https://plc.directory/${session.did}`, () =>
+    jsonResponse(200, {
+      id: session.did,
+      service: [
+        { id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: service },
+      ],
+    }),
   )
+  await expect(useAuthStore.getState().signIn(session.did, 'password')).resolves.toBe(true)
 }
 
 describe('fetchFeedPage', () => {

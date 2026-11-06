@@ -459,7 +459,13 @@ describe('layout invariants', () => {
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', () =>
       jsonResponse(200, SESSION),
     )
-    const signedIn = await useAuthStore.getState().signIn('alice.test', 'app-pass', PDS)
+    transport.route('GET', `https://plc.directory/${VIEWER_DID}`, () =>
+      jsonResponse(200, {
+        id: VIEWER_DID,
+        service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+      }),
+    )
+    const signedIn = await useAuthStore.getState().signIn(VIEWER_DID, 'app-pass')
     expect(signedIn).toBe(true)
 
     const rows = [notificationRow('one'), notificationRow('two'), notificationRow('three')]

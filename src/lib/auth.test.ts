@@ -43,7 +43,7 @@ const BOB: AtpSessionData = {
 }
 
 function sessionFor(identifier: string): AtpSessionData {
-  return identifier.startsWith('bob') ? BOB : ALICE
+  return identifier.includes('bob') ? BOB : ALICE
 }
 
 function storedSession(): AtpSessionData | null {
@@ -97,9 +97,21 @@ beforeEach(async () => {
   transport.route('POST', 'https://bsky.social/xrpc/com.atproto.server.createSession', () =>
     jsonResponse(200, ALICE),
   )
-  transport.route('POST', 'https://pds.benday.test/xrpc/com.atproto.server.createSession', () =>
-    jsonResponse(200, ALICE),
-  )
+  // password sign-in discovers the pds from the account's did document
+  for (const did of [ALICE.did, BOB.did]) {
+    transport.route('GET', `https://plc.directory/${did}`, () =>
+      jsonResponse(200, {
+        id: did,
+        service: [
+          {
+            id: '#atproto_pds',
+            type: 'AtprotoPersonalDataServer',
+            serviceEndpoint: 'https://pds.test',
+          },
+        ],
+      }),
+    )
+  }
   transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', (request) => {
     const body = request.body === null ? {} : (JSON.parse(request.body) as { identifier?: string })
     return jsonResponse(200, sessionFor(body.identifier ?? ''))
@@ -117,9 +129,7 @@ function routeRefresh(session: AtpSessionData): void {
 }
 
 async function signInAs(session: AtpSessionData): Promise<void> {
-  await expect(
-    useAuthStore.getState().signIn(session.handle, 'password', 'https://pds.test'),
-  ).resolves.toBe(true)
+  await expect(useAuthStore.getState().signIn(session.did, 'password')).resolves.toBe(true)
 }
 
 describe('sign-in transitions', () => {
@@ -132,7 +142,7 @@ describe('sign-in transitions', () => {
       () => gate.promise,
     )
 
-    const pending = useAuthStore.getState().signIn('bob.test', 'password', 'https://pds.test')
+    const pending = useAuthStore.getState().signIn('did:plc:bob', 'password')
     expect(useAuthStore.getState()).toMatchObject({
       status: 'authenticated',
       pending: true,
@@ -165,7 +175,7 @@ describe('sign-in transitions', () => {
         typeof body === 'object' && body !== null && 'identifier' in body
           ? body.identifier
           : undefined
-      if (identifier === 'bob.test') return bobGate.promise
+      if (identifier === 'did:plc:bob') return bobGate.promise
       return jsonResponse(200, sessionFor(typeof identifier === 'string' ? identifier : ''))
     })
     const revocations: Array<{ url: string; authorization: string | undefined }> = []
@@ -174,7 +184,14 @@ describe('sign-in transitions', () => {
       return jsonResponse(200, {})
     })
 
-    const stale = useAuthStore.getState().signIn('bob.test', 'password', 'https://pds.test')
+    const stale = useAuthStore.getState().signIn('did:plc:bob', 'password')
+    // discovery runs first, so wait until the candidate's login is in flight
+    // before the newer sign-in claims the epoch
+    await vi.waitFor(() =>
+      expect(
+        transport.calls.some((call) => call.url.endsWith('/xrpc/com.atproto.server.createSession')),
+      ).toBe(true),
+    )
     await signInAs(ALICE)
     bobGate.resolve(jsonResponse(200, BOB))
 
@@ -199,7 +216,7 @@ describe('sign-in transitions', () => {
       () => gate.promise,
     )
 
-    const pending = useAuthStore.getState().signIn('bob.test', 'password', 'https://pds.test')
+    const pending = useAuthStore.getState().signIn('did:plc:bob', 'password')
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
       jsonResponse(401, { error: 'ExpiredToken', message: 'expired' }),
     )
@@ -234,9 +251,7 @@ describe('sign-in transitions', () => {
       }),
     )
 
-    await expect(
-      useAuthStore.getState().signIn('bob.test', 'wrong', 'https://pds.test'),
-    ).resolves.toBe(false)
+    await expect(useAuthStore.getState().signIn('did:plc:bob', 'wrong')).resolves.toBe(false)
 
     expect(useAuthStore.getState()).toMatchObject({
       status: 'anonymous',
@@ -535,16 +550,5 @@ describe('did discovery', () => {
     )
 
     expect(createSessionHost()).toBe('https://bsky.social')
-  })
-
-  it('bypasses discovery entirely when a pds is supplied', async () => {
-    await expect(
-      useAuthStore.getState().signIn('did:plc:alice', 'password', 'https://pds.benday.test'),
-    ).resolves.toBe(true)
-
-    expect(transport.calls).toHaveLength(1)
-    expect(transport.calls[0]?.url).toBe(
-      'https://pds.benday.test/xrpc/com.atproto.server.createSession',
-    )
   })
 })

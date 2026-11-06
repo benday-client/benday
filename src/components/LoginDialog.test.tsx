@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../lib/auth'
-import { installTransport, jsonResponse } from '../test/transport'
+import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
 import { LoginDialog } from './LoginDialog'
 
 const oauthControl = vi.hoisted(() => ({ portalError: 'portal unavailable' }))
@@ -40,11 +40,28 @@ function formOf(container: HTMLElement): HTMLFormElement {
   return form
 }
 
+const RESOLVE = 'https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle'
+
+/** Every sign-in discovers its pds now: route the resolver and both did documents. */
+function routeDiscovery(transport: TestTransport): void {
+  transport.route('GET', RESOLVE, (request) => {
+    const handle = new URL(request.url).searchParams.get('handle')
+    return jsonResponse(200, { did: handle === 'someone.else' ? 'did:plc:else' : SESSION.did })
+  })
+  for (const did of [SESSION.did, 'did:plc:else']) {
+    transport.route('GET', `https://plc.directory/${did}`, () =>
+      jsonResponse(200, {
+        id: did,
+        service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+      }),
+    )
+  }
+}
+
 function inputs() {
   return {
     identifier: screen.getByLabelText('handle or did'),
     password: screen.getByLabelText('password or app password'),
-    pds: screen.getByLabelText('pds host'),
   }
 }
 
@@ -52,7 +69,6 @@ function fillLogin(identifier: string, password: string): void {
   const fields = inputs()
   fireEvent.change(fields.identifier, { target: { value: identifier } })
   fireEvent.change(fields.password, { target: { value: password } })
-  fireEvent.change(fields.pds, { target: { value: PDS } })
 }
 
 async function flush(): Promise<void> {
@@ -79,6 +95,7 @@ describe('LoginDialog opening ownership', () => {
 
   it('closes only when the sign-in still owns the open dialog', async () => {
     const transport = installTransport()
+    routeDiscovery(transport)
     transport.route('POST', CREATE_SESSION, () => jsonResponse(200, SESSION))
 
     const { container } = renderOpen()
@@ -95,6 +112,7 @@ describe('LoginDialog opening ownership', () => {
   async function reopenWhilePending(response: () => Response) {
     const gate = Promise.withResolvers<void>()
     const transport = installTransport()
+    routeDiscovery(transport)
     transport.route('POST', CREATE_SESSION, async () => {
       await gate.promise
       return response()
@@ -130,7 +148,8 @@ describe('LoginDialog opening ownership', () => {
       jsonResponse(200, SESSION),
     )
 
-    expect(JSON.parse(transport.calls[0]?.body ?? '{}')).toEqual({
+    const attempt = transport.calls.find((call) => call.url === CREATE_SESSION)
+    expect(JSON.parse(attempt?.body ?? '{}')).toEqual({
       identifier: 'fresh.test',
       password: 'first password',
     })
@@ -157,6 +176,7 @@ describe('LoginDialog opening ownership', () => {
 
   it('alerts for a failure that belongs to the current opening', async () => {
     const transport = installTransport()
+    routeDiscovery(transport)
     transport.route('POST', CREATE_SESSION, () =>
       jsonResponse(401, {
         error: 'AuthenticationRequired',
@@ -189,6 +209,7 @@ describe('LoginDialog opening ownership', () => {
 
   it('associates a shown failure with both credential fields', async () => {
     const transport = installTransport()
+    routeDiscovery(transport)
     transport.route('POST', CREATE_SESSION, () =>
       jsonResponse(401, {
         error: 'AuthenticationRequired',
@@ -216,6 +237,7 @@ describe('LoginDialog opening ownership', () => {
 
   it('clears the failing association when the dialog reopens', async () => {
     const transport = installTransport()
+    routeDiscovery(transport)
     transport.route('POST', CREATE_SESSION, () =>
       jsonResponse(401, {
         error: 'AuthenticationRequired',

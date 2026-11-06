@@ -19,7 +19,6 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
   const error = useAuthStore((state) => state.error)
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const [pds, setPds] = useState('')
   const formId = useId()
   const identifierId = `${formId}-identifier`
   const passwordId = `${formId}-password`
@@ -39,7 +38,6 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
     if (open) {
       setIdentifier('')
       setPassword('')
-      setPds('')
       clearError()
       return
     }
@@ -60,8 +58,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
 
     const opening = openingRef.current
     setAttemptOpening(opening)
-    const host = pds.trim()
-    const ok = await signIn(identifier, password, host.length > 0 ? host : undefined)
+    const ok = await signIn(identifier, password)
     if (ok && openingRef.current === opening) close()
   }
 
@@ -138,18 +135,6 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
             setPassword(event.target.value)
           }}
         />
-
-        <details className="b-auth__advanced">
-          <summary>pds (optional)</summary>
-          <TextInput
-            label="pds host"
-            placeholder="https://bsky.social"
-            value={pds}
-            onChange={(event) => {
-              setPds(event.target.value)
-            }}
-          />
-        </details>
 
         {shownError !== null ? (
           <p className="b-auth__error" id={errorId} role="alert">

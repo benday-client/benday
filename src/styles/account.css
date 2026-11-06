@@ -53,41 +53,6 @@
   content: "";
 }
 
-.b-auth__advanced {
-  border: 1px solid var(--line);
-  border-radius: 0;
-  background: var(--void);
-}
-
-.b-auth__advanced > summary {
-  padding: var(--space-1) var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--step--1);
-  letter-spacing: 0.06em;
-  list-style: none;
-  text-transform: lowercase;
-  cursor: pointer;
-}
-
-.b-auth__advanced > summary::-webkit-details-marker {
-  display: none;
-}
-
-.b-auth__advanced > summary::before {
-  margin-right: var(--space-1);
-  color: var(--blue);
-  content: "+";
-}
-
-.b-auth__advanced[open] > summary::before {
-  content: "-";
-}
-
-.b-auth__advanced > .b-input {
-  padding: var(--space-2);
-  border-top: 1px solid var(--line);
-}
-
 .b-auth__note {
   display: flex;
   flex-wrap: wrap;
