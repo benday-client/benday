@@ -40,14 +40,6 @@ export interface SearchActorModel {
   description: string
 }
 
-export interface SearchFeedModel {
-  uri: string
-  displayName: string
-  creatorHandle: string
-  description: string
-  likeCount: number
-}
-
 export type FacetFeature =
   | { kind: 'mention'; did: string; handle: string }
   | { kind: 'link'; uri: string }

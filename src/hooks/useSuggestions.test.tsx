@@ -2,14 +2,12 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchActorSuggestions, fetchTagSuggestions } from '../lib/atproto'
+import { fetchActorSuggestions } from '../lib/atproto'
 import { createTestQueryClient } from '../test/queryClient'
 import { useActorSuggestions } from './useActorSuggestions'
-import { useTagSuggestions } from './useTagSuggestions'
 
 vi.mock('../lib/atproto', () => ({
   fetchActorSuggestions: vi.fn(),
-  fetchTagSuggestions: vi.fn(),
 }))
 
 function wrapper(queryClient: QueryClient) {
@@ -22,7 +20,6 @@ beforeEach(() => {
   vi.mocked(fetchActorSuggestions).mockResolvedValue([
     { did: 'did:plc:ada', handle: 'ada.test', displayName: 'Ada', avatar: null },
   ])
-  vi.mocked(fetchTagSuggestions).mockResolvedValue(['pho'])
 })
 
 describe('useActorSuggestions', () => {
@@ -54,22 +51,5 @@ describe('useActorSuggestions', () => {
     await waitFor(() => expect(fetchActorSuggestions).not.toHaveBeenCalled())
     expect(result.current.suggestions).toEqual([])
     expect(result.current.isPending).toBe(false)
-  })
-})
-
-describe('useTagSuggestions', () => {
-  it('clears the previous tag list as soon as the query moves', async () => {
-    const queryClient = createTestQueryClient()
-    const { result, rerender } = renderHook(
-      ({ query }: { query: string }) => useTagSuggestions(query, true),
-      { wrapper: wrapper(queryClient), initialProps: { query: 'pho' } },
-    )
-    await waitFor(() => expect(result.current.tags).toEqual(['pho']))
-
-    rerender({ query: 'banh' })
-    expect(result.current.tags).toEqual([])
-    expect(result.current.isPending).toBe(true)
-
-    await waitFor(() => expect(fetchTagSuggestions).toHaveBeenLastCalledWith('banh'))
   })
 })

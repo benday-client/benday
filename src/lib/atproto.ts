@@ -20,7 +20,6 @@ import type {
   PostModel,
   ProfileModel,
   SearchActorModel,
-  SearchFeedModel,
   ThreadModel,
 } from './types'
 
@@ -250,64 +249,6 @@ export async function fetchActorSearch(query: string, limit = 25): Promise<Searc
   }))
 }
 
-export async function fetchFeedSearch(query: string): Promise<SearchFeedModel[]> {
-  const agent = createAgent()
-  // the unspecced endpoint is the only public feed-generator search in the SDK;
-  // its `query` parameter filters by text, so it is a real search, not a guess
-  const response = await agent.app.bsky.unspecced.getPopularFeedGenerators({ query, limit: 25 })
-  return response.data.feeds.map((feed) => ({
-    uri: feed.uri,
-    displayName: feed.displayName,
-    creatorHandle: feed.creator.handle,
-    description: feed.description ?? '',
-    likeCount: feed.likeCount ?? 0,
-  }))
-}
-
-export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): string[] {
-  const uris: string[] = []
-  for (const pref of preferences) {
-    if (AppBskyActorDefs.isSavedFeedsPrefV2(pref)) {
-      for (const item of pref.items) {
-        if (item.type === 'feed' && item.pinned) uris.push(item.value)
-      }
-    } else if (AppBskyActorDefs.isSavedFeedsPref(pref)) {
-      uris.push(...pref.pinned)
-    }
-  }
-  return [...new Set(uris)]
-}
-
-export async function fetchTagSuggestions(query: string): Promise<string[]> {
-  const agent = createAgent()
-
-  try {
-    const response = await agent.app.bsky.feed.searchPosts({
-      q: `#${query}`,
-      limit: 30,
-      sort: 'latest',
-    })
-
-    const counts = new Map<string, number>()
-    for (const post of response.data.posts.map(mapPostView)) {
-      for (const facet of post.facets) {
-        if (facet.feature.kind !== 'tag') continue
-        const tag = facet.feature.tag
-        if (!tag.toLowerCase().startsWith(query.toLowerCase())) continue
-        counts.set(tag, (counts.get(tag) ?? 0) + 1)
-      }
-    }
-
-    const tags = [...counts.entries()]
-      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-      .map(([tag]) => tag)
-      .slice(0, 6)
-    return tags.length > 0 ? tags : [query]
-  } catch {
-    return query.length > 0 ? [query] : []
-  }
-}
-
 /**
  * Reads the signed-in account's own labeler subscriptions. The request runs as
  * the account the key names, so a delayed load can never borrow a newer one.
@@ -324,6 +265,20 @@ export async function fetchLabelerPrefsFor(viewerDid: string): Promise<string[]>
   return [...new Set(dids)]
 }
 
+export function pinnedFeedUris(preferences: AppBskyActorDefs.Preferences): string[] {
+  const uris: string[] = []
+  for (const pref of preferences) {
+    if (AppBskyActorDefs.isSavedFeedsPrefV2(pref)) {
+      for (const item of pref.items) {
+        if (item.type === 'feed' && item.pinned) uris.push(item.value)
+      }
+    } else if (AppBskyActorDefs.isSavedFeedsPref(pref)) {
+      uris.push(...pref.pinned)
+    }
+  }
+  return [...new Set(uris)]
+}
+
 export async function fetchPinnedFeeds(viewerDid: string): Promise<PinnedFeedModel[]> {
   const agent = requireViewerAgent(viewerDid)
 
@@ -333,8 +288,8 @@ export async function fetchPinnedFeeds(viewerDid: string): Promise<PinnedFeedMod
 
   const generators = new Map<string, AppBskyFeedDefs.GeneratorView>()
   try {
-    // Keep the private pinned-feed URI list away from a user-selected custom
-    // appview. The canonical appview already serves public generator metadata.
+    // the private pinned-feed URI list stays on the account's pds; the
+    // canonical appview only serves the public generator metadata
     const reader = agent.withProxy('bsky_appview', 'did:web:api.bsky.app')
     const response = await reader.app.bsky.feed.getFeedGenerators({
       feeds: unique,

@@ -396,7 +396,7 @@ describe('SearchView query submission', () => {
     expect(screen.queryByText('public one')).toBeNull()
   })
 
-  it('searches users and feeds through the peek deck and escapes back to results', async () => {
+  it('searches users through the peek deck and escapes back to results', async () => {
     renderSearch('q=cats')
     await screen.findByText('public one')
 
@@ -416,14 +416,31 @@ describe('SearchView query submission', () => {
     expect(screen.queryByLabelText('search modes')).toBeNull()
     expect(screen.getByLabelText('search users')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('change search mode, users'))
-    fireEvent.click(screen.getByLabelText('show feeds'))
+    // there is no feed-generator target and no feed search request behind it
+    expect(screen.queryByLabelText('show feeds')).toBeNull()
+    expect(callsTo(SEARCH_FEEDS)).toHaveLength(0)
+  })
 
-    await screen.findByText('all cats')
-    expect(screen.getByLabelText('search feeds')).toBeInTheDocument()
-    expect(callsTo(SEARCH_FEEDS)).toHaveLength(1)
-    expect(new URL(callsTo(SEARCH_FEEDS)[0]?.url ?? '').searchParams.get('query')).toBe('cats')
-    expect(screen.queryByLabelText('search users')).toBeNull()
+  it('suggests accounts only and sends a typed hashtag as search text', async () => {
+    renderSearch('')
+    const input = queryInput()
+
+    typeAt(input, '#cats', 5)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(callsTo(SEARCH_ACTORS)).toHaveLength(0)
+
+    pressEnter(input)
+    await screen.findByText('public one')
+    const searches = callsTo(SEARCH_POSTS)
+    expect(new URL(searches.at(-1)?.url ?? '').searchParams.get('q')).toBe('#cats')
+
+    typeAt(input, 'hi @ad', 6)
+    const option = await screen.findByRole('option', { name: /@ada\.test/ })
+    expect(option).toBeInTheDocument()
+    expect(callsTo('/xrpc/app.bsky.actor.searchActorsTypeahead')).toHaveLength(1)
   })
 
   it('clears the field and query with escape, then blurs to the deck', async () => {

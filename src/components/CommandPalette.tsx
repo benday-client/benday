@@ -15,7 +15,6 @@ import {
   useActorSuggestions,
 } from '../hooks/useActorSuggestions'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
-import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { bindingFor, matchesBinding } from '../lib/keymap'
@@ -109,7 +108,7 @@ interface PaletteCommand {
 }
 
 interface PaletteSuggestion extends SuggestionItem {
-  kind: 'mention' | 'tag'
+  kind: 'mention'
 }
 
 export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: CommandPaletteProps) {
@@ -137,19 +136,13 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
     token?.kind === 'mention' ? token.query : '',
     token?.kind === 'mention',
   )
-  const tagSuggestions = useTagSuggestions(
-    token?.kind === 'tag' ? token.query : '',
-    token?.kind === 'tag',
-  )
-
-  const shaped = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
+  const shaped = buildSuggestions(token, actorSuggestions.suggestions)
   // the palette is the one surface that also labels which marker an item came
   // from, so its rows keep their own discriminant
   const suggestions: PaletteSuggestion[] =
-    token === null ? [] : shaped.map((item) => ({ ...item, kind: token.kind }))
+    token === null ? [] : shaped.map((item) => ({ ...item, kind: 'mention' }))
 
-  const suggestionsPending =
-    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
+  const suggestionsPending = actorSuggestions.isPending
 
   useEffect(() => {
     if (!open) return
@@ -323,9 +316,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
       meta: suggestion.detail,
       keywords: '',
       run: () => {
-        const parsed = parseCommand(
-          suggestion.kind === 'tag' ? `#${suggestion.value}` : `@${suggestion.value}`,
-        )
+        const parsed = parseCommand(`@${suggestion.value}`)
         if (parsed !== null) {
           remember(parsed.href, parsed.label)
           navigate(parsed.href)
@@ -556,7 +547,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
         {filtered.length === 0 ? (
           <p className="b-palette__empty">
             {suggestionsPending
-              ? 'searching handles and tags'
+              ? 'searching accounts'
               : 'no matching command · enter searches the network'}
           </p>
         ) : (

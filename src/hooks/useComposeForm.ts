@@ -30,7 +30,6 @@ import {
   useActorSuggestions,
 } from './useActorSuggestions'
 import { isImeComposing } from './useHotkeys'
-import { useTagSuggestions } from './useTagSuggestions'
 
 export const MAX_GRAPHEMES = 300
 const EXCERPT_LENGTH = 120
@@ -284,15 +283,8 @@ export function useComposeForm({
     token?.kind === 'mention' ? token.query : '',
     token?.kind === 'mention',
   )
-  const tagSuggestions = useTagSuggestions(
-    token?.kind === 'tag' ? token.query : '',
-    token?.kind === 'tag',
-  )
-
-  const suggestions = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
-
-  const suggestionsPending =
-    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
+  const suggestions = buildSuggestions(token, actorSuggestions.suggestions)
+  const suggestionsPending = actorSuggestions.isPending
   const showSuggestions =
     !pending && token !== null && (suggestionsPending || suggestions.length > 0)
   const activeSuggestion =

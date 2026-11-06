@@ -1,4 +1,4 @@
-export type SearchMode = 'posts' | 'feeds' | 'users'
+export type SearchMode = 'posts' | 'users'
 
 export interface SearchModeOption {
   mode: SearchMode
@@ -11,11 +11,6 @@ export const SEARCH_MODES: readonly SearchModeOption[] = [
     mode: 'posts',
     name: 'posts',
     description: 'posts whose text or author matches the query',
-  },
-  {
-    mode: 'feeds',
-    name: 'feeds',
-    description: 'feed generators matching the query',
   },
   {
     mode: 'users',

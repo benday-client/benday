@@ -2,18 +2,17 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchActorSearch, fetchFeedSearch, fetchThread } from '../lib/atproto'
+import { fetchActorSearch, fetchThread } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
-import type { SearchActorModel, SearchFeedModel, ThreadModel } from '../lib/types'
+import type { SearchActorModel, ThreadModel } from '../lib/types'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
-import { useActorSearch, useFeedSearch, useThread } from './useBskyQueries'
+import { useActorSearch, useThread } from './useBskyQueries'
 
 vi.mock('../lib/atproto', () => ({
   fetchActorSearch: vi.fn(),
   fetchFeedGenerator: vi.fn(),
   fetchFeedPage: vi.fn(),
-  fetchFeedSearch: vi.fn(),
   fetchProfile: vi.fn(),
   fetchThread: vi.fn(),
 }))
@@ -45,7 +44,6 @@ function threadFixture(): ThreadModel {
 beforeEach(() => {
   vi.mocked(fetchThread).mockReset()
   vi.mocked(fetchActorSearch).mockReset()
-  vi.mocked(fetchFeedSearch).mockReset()
   useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
 })
 
@@ -149,37 +147,5 @@ describe('search result hooks', () => {
     expect(result.current.data).toEqual(rows)
     expect(result.current.isFetching).toBe(false)
     expect(vi.mocked(fetchActorSearch).mock.calls).toEqual([['cats']])
-  })
-
-  it('reports a failed rescan while keeping the feed rows', async () => {
-    const queryClient = createTestQueryClient()
-    const rows: SearchFeedModel[] = [
-      {
-        uri: 'at://did:plc:rocket/app.bsky.feed.generator/cats',
-        displayName: 'all cats',
-        creatorHandle: 'rocket.test',
-        description: 'a feed of cats',
-        likeCount: 3,
-      },
-    ]
-    const key = ['search-feeds', 'cats']
-    queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY, retryDelay: 0 })
-    queryClient.setQueryData(key, rows, { updatedAt: Date.now() - 60_000 })
-    vi.mocked(fetchFeedSearch).mockRejectedValue(new Error('rescan failed'))
-
-    const { result } = renderHook(() => useFeedSearch('cats'), {
-      wrapper: wrapper(queryClient),
-    })
-    await waitFor(() => expect(result.current.data).toHaveLength(1))
-    expect(result.current.error).toBeNull()
-
-    await act(async () => {
-      result.current.retry()
-    })
-
-    await waitFor(() => expect(result.current.error?.message).toBe('rescan failed'))
-    expect(result.current.data).toEqual(rows)
-    expect(result.current.isFetching).toBe(false)
-    expect(vi.mocked(fetchFeedSearch).mock.calls).toEqual([['cats']])
   })
 })

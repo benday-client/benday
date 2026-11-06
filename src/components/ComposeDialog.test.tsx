@@ -525,20 +525,18 @@ describe('ComposeDialog', () => {
     expect(input.value.charAt(input.selectionStart)).toBe('.')
   })
 
-  it('accepts a hashtag before a trailing dot without moving it', async () => {
+  it('keeps a typed hashtag literal and opens no suggestion list', async () => {
     const post = postFixture()
     renderComposer()
     open({ mode: 'reply', post })
 
     const input = composerInput('look #tag.', 10)
-    const label = await screen.findByText('#tag')
-    const option = label.closest('button')
-    if (option === null) throw new Error('missing tag option')
-    fireEvent.click(option)
+    await act(async () => {
+      await Promise.resolve()
+    })
 
     expect(input).toHaveValue('look #tag.')
-    await waitFor(() => expect(input.selectionStart).toBe(9))
-    expect(input.value.charAt(input.selectionStart)).toBe('.')
+    expect(screen.queryByRole('listbox')).toBeNull()
   })
 
   it('renders the shared composer head and actions', () => {

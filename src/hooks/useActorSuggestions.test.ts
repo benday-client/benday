@@ -20,12 +20,8 @@ describe('suggestionAt punctuation boundaries', () => {
       query: 'ad',
       kind: 'mention',
     })
-    expect(suggestionAt('look #tag.', 10)).toEqual({
-      start: 5,
-      end: 9,
-      query: 'tag',
-      kind: 'tag',
-    })
+    // a typed hashtag is ordinary search text and never opens suggestions
+    expect(suggestionAt('look #tag.', 10)).toBeNull()
   })
 
   it('keeps a trailing hyphen outside the replacement span', () => {
@@ -96,13 +92,6 @@ describe('insertSuggestion', () => {
       cursor: 6,
     })
   })
-
-  it('inserts hashtags with their marker', () => {
-    expect(insertSuggestion('look #ph', tokenAt('look #ph', 8), 'photography')).toEqual({
-      text: 'look #photography ',
-      cursor: 18,
-    })
-  })
 })
 
 describe('buildSuggestions', () => {
@@ -114,28 +103,17 @@ describe('buildSuggestions', () => {
       { did: 'did:plc:amir', handle: 'amir.test', displayName: 'amir', avatar: null },
     ]
 
-    expect(buildSuggestions(token('@ad'), actors, []).map((item) => item.value)).toEqual([
+    expect(buildSuggestions(token('@ad'), actors).map((item) => item.value)).toEqual([
       'ada.test',
       'amir.test',
     ])
-    expect(buildSuggestions(token('@nobody'), [], [])).toEqual([
+    expect(buildSuggestions(token('@nobody'), [])).toEqual([
       { key: 'literal-handle', value: 'nobody', label: '@nobody', detail: 'handle' },
     ])
   })
 
-  it('never fabricates an empty mention or tag', () => {
-    expect(buildSuggestions(token('hi @'), [], [])).toEqual([])
-    expect(buildSuggestions(token('hi #'), [], [])).toEqual([])
-    expect(buildSuggestions(null, [], [])).toEqual([])
-  })
-
-  it('prefers fetched tags and falls back to the nonempty literal', () => {
-    expect(buildSuggestions(token('#ten'), [], ['tensorpunk', 'tensorfield'])).toEqual([
-      { key: 'tag:tensorpunk', value: 'tensorpunk', label: '#tensorpunk', detail: 'tag' },
-      { key: 'tag:tensorfield', value: 'tensorfield', label: '#tensorfield', detail: 'tag' },
-    ])
-    expect(buildSuggestions(token('#ten'), [], [])).toEqual([
-      { key: 'tag:ten', value: 'ten', label: '#ten', detail: 'tag' },
-    ])
+  it('never fabricates an empty mention', () => {
+    expect(buildSuggestions(token('hi @'), [])).toEqual([])
+    expect(buildSuggestions(null, [])).toEqual([])
   })
 })

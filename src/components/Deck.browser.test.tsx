@@ -603,7 +603,7 @@ describe('Deck with shared mode cards', () => {
     // the profile-only card hides its count; every search card shows one
     expect(container.querySelectorAll('.b-mode-card__count')).toHaveLength(SEARCH_MODES.length)
 
-    await userEvent.click(screen.getByRole('button', { name: 'show feeds' }))
+    await userEvent.click(screen.getByRole('button', { name: 'show users' }))
     expect(onSelect).toHaveBeenCalledTimes(1)
   })
 

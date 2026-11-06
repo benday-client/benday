@@ -18,25 +18,20 @@ import {
   suggestionAt,
   useActorSuggestions,
 } from '../hooks/useActorSuggestions'
-import { useActorSearch, useFeedSearch, usePostFeed } from '../hooks/useBskyQueries'
+import { useActorSearch, usePostFeed } from '../hooks/useBskyQueries'
 import { useDealFlash } from '../hooks/useDealFlash'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
-import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { useViewerSync } from '../hooks/useViewerSync'
 import { useAuthStore } from '../lib/auth'
 import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { resultCountLabel, SEARCH_MODES, type SearchMode, searchModeName } from '../lib/searchModes'
-import type { PostModel, SearchActorModel, SearchFeedModel } from '../lib/types'
+import type { PostModel, SearchActorModel } from '../lib/types'
 import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
 
 function actorHref(handle: string): string {
   return `/profile/${encodeURIComponent(handle)}`
-}
-
-function feedHref(uri: string): string {
-  return `/feed?uri=${encodeURIComponent(uri)}`
 }
 
 function ActorCard({ actor }: { actor: SearchActorModel }) {
@@ -61,28 +56,6 @@ function ActorCard({ actor }: { actor: SearchActorModel }) {
         </div>
         {actor.description.length > 0 ? (
           <p className="b-search-card__description">{actor.description}</p>
-        ) : null}
-      </div>
-    </article>
-  )
-}
-
-function FeedResultCard({ feed }: { feed: SearchFeedModel }) {
-  return (
-    <article className="b-frame b-search-card">
-      <header className="b-frame__head">
-        <span className="b-frame__label mono-label">feed</span>
-        <span className="b-frame__meta">{feed.likeCount} likes</span>
-      </header>
-      <div className="b-frame__body b-search-card__body">
-        <div className="b-search-card__names">
-          <Link href={feedHref(feed.uri)} className="b-search-card__name">
-            {feed.displayName}
-          </Link>
-          <span className="b-search-card__handle">@{feed.creatorHandle}</span>
-        </div>
-        {feed.description.length > 0 ? (
-          <p className="b-search-card__description">{feed.description}</p>
         ) : null}
       </div>
     </article>
@@ -129,15 +102,8 @@ export default function SearchView() {
     token?.kind === 'mention' ? token.query : '',
     token?.kind === 'mention',
   )
-  const tagSuggestions = useTagSuggestions(
-    token?.kind === 'tag' ? token.query : '',
-    token?.kind === 'tag',
-  )
-
-  const suggestions = buildSuggestions(token, actorSuggestions.suggestions, tagSuggestions.tags)
-
-  const suggestionsPending =
-    token?.kind === 'tag' ? tagSuggestions.isPending : actorSuggestions.isPending
+  const suggestions = buildSuggestions(token, actorSuggestions.suggestions)
+  const suggestionsPending = actorSuggestions.isPending
   const showSuggestions = token !== null && (suggestionsPending || suggestions.length > 0)
   const activeSuggestion =
     suggestions.length > 0 ? Math.min(selectedSuggestion, suggestions.length - 1) : 0
@@ -145,10 +111,8 @@ export default function SearchView() {
   // only the active mode fetches; the others keep whatever they already cached
   const feed = usePostFeed({ kind: 'search', query }, mode === 'posts')
   const users = useActorSearch(query, mode === 'users')
-  const feeds = useFeedSearch(query, mode === 'feeds')
   const posts = feed.data ?? []
   const userResults = users.data ?? []
-  const feedResults = feeds.data ?? []
   useViewerSync(posts)
 
   const deckStateKey = JSON.stringify(['search-results', mode, query])
@@ -159,19 +123,16 @@ export default function SearchView() {
   const modeCounts: Record<SearchMode, number | null> = {
     posts: feed.data === null ? null : posts.length,
     users: users.data === null ? null : userResults.length,
-    feeds: feeds.data === null ? null : feedResults.length,
   }
   const modeIndex = Math.max(
     0,
     SEARCH_MODES.findIndex((option) => option.mode === mode),
   )
 
-  const activeData: readonly unknown[] | null =
-    mode === 'posts' ? feed.data : mode === 'users' ? users.data : feeds.data
-  const activeError = mode === 'posts' ? feed.error : mode === 'users' ? users.error : feeds.error
-  const activeFetching =
-    mode === 'posts' ? feed.isFetching : mode === 'users' ? users.isFetching : feeds.isFetching
-  const activeRetry = mode === 'posts' ? feed.retry : mode === 'users' ? users.retry : feeds.retry
+  const activeData: readonly unknown[] | null = mode === 'posts' ? feed.data : users.data
+  const activeError = mode === 'posts' ? feed.error : users.error
+  const activeFetching = mode === 'posts' ? feed.isFetching : users.isFetching
+  const activeRetry = mode === 'posts' ? feed.retry : users.retry
   const failure = useRetainedError(
     // the viewer belongs to the identity only for posts, whose rows carry
     // viewer-filtered state; users and feeds resolve independently
@@ -292,10 +253,8 @@ export default function SearchView() {
     if (next.length > 0 && next === query) {
       if (mode === 'posts') {
         feed.retry()
-      } else if (mode === 'users') {
-        users.retry()
       } else {
-        feeds.retry()
+        users.retry()
       }
     } else if (next.length > 0) {
       setSearchParams({ q: next }, { replace: true })
@@ -465,7 +424,7 @@ export default function SearchView() {
             aria-label="suggestions"
           >
             {suggestionsPending && suggestions.length === 0 ? (
-              <p className="b-compose__suggestion-note">searching</p>
+              <p className="b-compose__suggestion-note">searching accounts</p>
             ) : (
               suggestions.map((suggestion, index) => (
                 <button
@@ -635,47 +594,7 @@ export default function SearchView() {
                 : {})}
             />
           </div>
-        ) : (
-          <div className="b-deck-stage" data-deal={dealMode === 'results' ? 'true' : undefined}>
-            <Deck
-              items={feedResults}
-              getKey={(feedResult) => feedResult.uri}
-              renderItem={(feedResult) => <FeedResultCard feed={feedResult} />}
-              onActivate={(feedResult) => {
-                navigate(feedHref(feedResult.uri))
-              }}
-              pending={feeds.isPending && activeInfo === null}
-              label="search feeds"
-              stateKey={deckStateKey}
-              empty={
-                emptyQuery ? (
-                  quietBand
-                ) : activeInfo !== null ? (
-                  <ErrorNotice
-                    title={activeInfo.title}
-                    message={activeInfo.detail}
-                    retrying={failure.retrying}
-                    onRetry={() => {
-                      failure.retry(activeRetry)
-                    }}
-                  />
-                ) : (
-                  <EmptyState title="no feeds found" hint="no generators matched this query" />
-                )
-              }
-              {...(wide
-                ? {
-                    onExitStart: () => {
-                      switchModeDeck(true)
-                      requestDeckFocus()
-                    },
-                    leadingPeek: modePeek,
-                    leadingPeekInteractive: true,
-                  }
-                : {})}
-            />
-          </div>
-        )}
+        ) : null}
       </div>
     </section>
   )

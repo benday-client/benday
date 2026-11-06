@@ -14,7 +14,7 @@ export interface MentionToken {
 }
 
 export interface SuggestionToken extends MentionToken {
-  kind: 'mention' | 'tag'
+  kind: 'mention'
 }
 
 const TOKEN_CHAR = /[\p{L}\p{N}._-]/u
@@ -29,26 +29,15 @@ export interface SuggestionItem {
 }
 
 /**
- * The one list shape every suggestion surface shows: fetched actors or tags
- * when they answered, a nonempty literal token otherwise, and nothing for an
- * empty mention or tag (an empty replacement would delete the marker itself).
+ * The one list shape every suggestion surface shows: fetched accounts when they
+ * answered, a nonempty literal handle otherwise, and nothing for an empty
+ * mention (an empty replacement would delete the marker itself).
  */
 export function buildSuggestions(
   token: SuggestionToken | null,
   actors: readonly ActorSuggestion[],
-  tags: readonly string[],
 ): SuggestionItem[] {
   if (token === null) return []
-
-  if (token.kind === 'tag') {
-    const values = tags.length > 0 ? tags : token.query.length > 0 ? [token.query] : []
-    return values.map((tag) => ({
-      key: `tag:${tag}`,
-      value: tag,
-      label: `#${tag}`,
-      detail: 'tag',
-    }))
-  }
 
   if (token.query.length === 0) return []
   if (actors.length === 0) {
@@ -66,12 +55,10 @@ export function buildSuggestions(
 
 export function suggestionAt(text: string, cursor: number): SuggestionToken | null {
   const before = text.slice(0, cursor)
-  const match = /(^|\s)([@#])([\p{L}\p{N}._-]*)$/u.exec(before)
+  const match = /(^|\s)@([\p{L}\p{N}._-]*)$/u.exec(before)
   if (match === null) return null
 
-  const marker = match[2]
-  if (marker !== '@' && marker !== '#') return null
-  const start = before.lastIndexOf(marker)
+  const start = before.lastIndexOf('@')
   if (start < 0) return null
 
   let end = cursor
@@ -80,7 +67,7 @@ export function suggestionAt(text: string, cursor: number): SuggestionToken | nu
   // around the token, so the replacement span and its query stop before them
   while (end > start + 1 && TRAILING_TOKEN_PUNCTUATION[text.charAt(end - 1)] === true) end -= 1
   const query = text.slice(start + 1, Math.min(cursor, end))
-  return { start, end, query, kind: marker === '@' ? 'mention' : 'tag' }
+  return { start, end, query, kind: 'mention' }
 }
 
 /**
@@ -93,8 +80,7 @@ export function insertSuggestion(
   token: SuggestionToken,
   value: string,
 ): { text: string; cursor: number } {
-  const marker = token.kind === 'tag' ? '#' : '@'
-  const inserted = `${marker}${value}`
+  const inserted = `@${value}`
   const head = text.slice(0, token.start)
   const suffix = text.slice(token.end)
   let next = `${head}${inserted}${suffix}`

@@ -1,12 +1,6 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import {
-  fetchActorSearch,
-  fetchFeedPage,
-  fetchFeedSearch,
-  fetchProfile,
-  fetchThread,
-} from '../lib/atproto'
+import { fetchActorSearch, fetchFeedPage, fetchProfile, fetchThread } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
 import { normalizeError } from '../lib/errors'
 import type {
@@ -16,7 +10,6 @@ import type {
   ProfileModel,
   QueryState,
   SearchActorModel,
-  SearchFeedModel,
   ThreadModel,
 } from '../lib/types'
 
@@ -203,34 +196,6 @@ export function useActorSearch(query: string, enabled = true): QueryState<Search
     isFetching: result.isFetching,
     // a failed rescan keeps the rows already on screen, so its error is
     // reported beside them instead of being hidden until the deck empties
-    error: normalizeError(result.error),
-    retry: () => {
-      void result.refetch()
-    },
-  }
-}
-
-export function useFeedSearch(query: string, enabled = true): QueryState<SearchFeedModel[]> {
-  const normalized = query.trim()
-  const active = enabled && normalized.length > 0
-
-  const result = useQuery({
-    queryKey: ['search-feeds', normalized],
-    queryFn: () => fetchFeedSearch(normalized),
-    enabled: active,
-    staleTime: FEED_STALE_TIME,
-    retry: false,
-    retryOnMount: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-  })
-
-  return {
-    data: result.data ?? null,
-    isPending: active ? result.isPending : false,
-    isFetching: result.isFetching,
-    // same contract as actor search: retained rows plus a reported failure
     error: normalizeError(result.error),
     retry: () => {
       void result.refetch()
