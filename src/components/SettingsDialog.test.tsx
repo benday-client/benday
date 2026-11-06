@@ -229,7 +229,7 @@ describe('SettingsDialog search', () => {
     renderSettings()
     const search = screen.getByRole('searchbox', { name: 'search settings' })
 
-    for (const query of ['high contrast', 'maximum preview']) {
+    for (const query of ['high contrast', 'dither grunge']) {
       fireEvent.change(search, { target: { value: query } })
       expect(document.getElementById('settings-appearance')?.getAttribute('data-hidden')).not.toBe(
         'true',
@@ -269,34 +269,6 @@ describe('SettingsDialog search', () => {
     expect(document.getElementById('settings-account')?.getAttribute('data-hidden')).not.toBe(
       'true',
     )
-  })
-})
-
-describe('SettingsDialog theme markers', () => {
-  beforeEach(() => {
-    delete document.documentElement.dataset['theme']
-    useSettings.setState({
-      theme: 'oxide',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'oxide',
-    })
-  })
-
-  it('marks the effective theme current and keeps the saved slot pressed', () => {
-    renderSettings()
-
-    const current = screen.getByRole('button', { name: 'oxide' })
-    expect(current).toHaveAttribute('aria-pressed', 'true')
-    expect(current).toHaveAttribute('aria-current', 'true')
-
-    const savedLight = screen.getByRole('button', { name: 'bone' })
-    expect(savedLight).toHaveAttribute('aria-pressed', 'true')
-    expect(savedLight).not.toHaveAttribute('aria-current')
-
-    const unselected = screen.getByRole('button', { name: 'void' })
-    expect(unselected).toHaveAttribute('aria-pressed', 'false')
-    expect(unselected).not.toHaveAttribute('aria-current')
   })
 })
 
@@ -368,10 +340,7 @@ describe('SettingsDialog sign-out ownership', () => {
 describe('SettingsDialog import limits', () => {
   const MAX_BYTES = 256 * 1024
   const SAMPLE: PortableSettings = {
-    theme: 'oxide',
     appearance: 'dark',
-    lightTheme: 'bone',
-    darkTheme: 'oxide',
     imageEffects: true,
     highContrast: false,
     keyboardShortcuts: true,
@@ -411,6 +380,6 @@ describe('SettingsDialog import limits', () => {
     pickFile(container, file)
 
     expect(await screen.findByText('settings imported')).toBeInTheDocument()
-    expect(useSettings.getState().theme).toBe('oxide')
+    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
   })
 })

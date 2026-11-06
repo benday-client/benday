@@ -1,22 +1,4 @@
-export type Theme =
-  | 'void'
-  | 'bone'
-  | 'oxide'
-  | 'phosphor'
-  | 'catppuccin-mocha'
-  | 'catppuccin-latte'
-  | 'dracula'
-  | 'atom'
-  | 'github-dark'
-  | 'github-light'
-  | 'cyberpunk'
-  | 'cottagecore'
-  | 'truth-to-materials'
-  | 'bluesky'
-  | 'pumpkin-ember'
-  | 'toxic-midnight'
-  | 'candy-crypt'
-  | 'dead-leaves'
+export type Theme = 'catppuccin-mocha' | 'catppuccin-latte'
 
 export interface StrongRefModel {
   uri: string

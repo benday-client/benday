@@ -72,16 +72,9 @@ describe('CommandPalette', () => {
   beforeEach(() => {
     localStorage.clear()
     pinnedState.feeds = []
-    useSettings.setState({ theme: 'void' })
+    useSettings.setState({ appearance: 'dark', theme: 'catppuccin-mocha' })
     useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
     useUiStore.setState({ dialog: null })
-  })
-
-  it('sets a theme from the command prompt', () => {
-    const { onClose } = renderPalette()
-    submit('theme cyberpunk 2077')
-    expect(useSettings.getState().theme).toBe('cyberpunk')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('opens the signed-in profile with the @me command', () => {

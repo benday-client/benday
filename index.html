@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="void" data-contrast="normal">
+<html lang="en" data-theme="catppuccin-mocha" data-contrast="normal">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,106 +8,71 @@
       content="benday — a dithered, tensorpunk client for the bluesky network"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#07090c" />
+    <meta name="theme-color" content="#1e1e2e" />
     <link rel="icon" type="image/svg+xml" href="/benday.svg" />
     <title>benday // bluesky client</title>
     <script>
       try {
         const colors = {
-          void: '#07090c',
-          bone: '#ddd6c6',
-          oxide: '#0b0705',
-          phosphor: '#040906',
           'catppuccin-mocha': '#1e1e2e',
           'catppuccin-latte': '#eff1f5',
-          dracula: '#282a36',
-          atom: '#282c34',
-          'github-dark': '#0d1117',
-          'github-light': '#ffffff',
-          cyberpunk: '#000000',
-          cottagecore: '#f2ebd8',
-          'truth-to-materials': '#858585',
-          bluesky: '#f9fafb',
-          'pumpkin-ember': '#160b06',
-          'toxic-midnight': '#05100b',
-          'candy-crypt': '#1a0a1e',
-          'dead-leaves': '#120f08',
         }
-        const lightThemes = new Set([
+        // same rule the store merges with: an explicit mode wins, then the
+        // legacy palette's scheme, then system
+        const legacyLight = new Set([
           'bone',
           'catppuccin-latte',
-          'github-light',
           'cottagecore',
           'truth-to-materials',
           'bluesky',
+          'github-light',
         ])
-        const octoberOnly = new Set([
+        const legacyDark = new Set([
+          'void',
+          'oxide',
+          'phosphor',
+          'catppuccin-mocha',
+          'dracula',
+          'atom',
+          'github-dark',
+          'cyberpunk',
           'pumpkin-ember',
           'toxic-midnight',
           'candy-crypt',
           'dead-leaves',
+          'duotone',
         ])
-        // same rule the store merges with: the legacy name is cyberpunk
-        const normalize = (value) => {
-          if (value === 'duotone') return 'cyberpunk'
-          return typeof value === 'string' && Object.hasOwn(colors, value) ? value : null
-        }
         const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
         const state =
           typeof stored === 'object' && stored !== null && typeof stored.state === 'object'
             ? stored.state
             : null
-        const highContrast = state?.highContrast === true
-        // a fresh store.merge: the explicit pair wins, then the legacy theme for
-        // its own scheme, then bone/void; the appearance follows the same order
-        const legacyTheme = normalize(state?.theme)
-        const lightTheme =
-          normalize(state?.lightTheme) ??
-          (legacyTheme !== null && lightThemes.has(legacyTheme) ? legacyTheme : 'bone')
-        const darkTheme =
-          normalize(state?.darkTheme) ??
-          (legacyTheme !== null && !lightThemes.has(legacyTheme) ? legacyTheme : 'void')
+        const legacyTheme = typeof state?.theme === 'string' ? state.theme : null
         const appearance =
           state?.appearance === 'light' ||
           state?.appearance === 'dark' ||
           state?.appearance === 'system'
             ? state.appearance
             : legacyTheme !== null
-              ? lightThemes.has(legacyTheme)
+              ? legacyLight.has(legacyTheme)
                 ? 'light'
-                : 'dark'
-              : 'dark'
+                : legacyDark.has(legacyTheme)
+                  ? 'dark'
+                  : 'system'
+              : 'system'
         const prefersLight =
           typeof window.matchMedia === 'function' &&
           window.matchMedia('(prefers-color-scheme: light)').matches
-        let theme =
-          appearance === 'light'
-            ? lightTheme
-            : appearance === 'dark'
-              ? darkTheme
-              : prefersLight
-                ? lightTheme
-                : darkTheme
-        const outOfSeason = octoberOnly.has(theme) && new Date().getMonth() !== 9
-        if (outOfSeason) theme = 'void'
-        // paint first: dataset and chrome meta never depend on a successful
-        // storage write-back, so a quota failure cannot leave the wrong theme
+        const theme =
+          appearance === 'light' || (appearance === 'system' && prefersLight)
+            ? 'catppuccin-latte'
+            : 'catppuccin-mocha'
+        const highContrast = state?.highContrast === true
         document.documentElement.dataset.contrast = highContrast ? 'high' : 'normal'
         document.documentElement.dataset.theme = theme
         const meta = document.querySelector('meta[name="theme-color"]')
         if (meta !== null) {
-          meta.setAttribute(
-            'content',
-            highContrast ? (lightThemes.has(theme) ? '#ffffff' : '#000000') : colors[theme],
-          )
-        }
-        // Only normalizations are written back. The stored pair stays exactly as
-        // the reader chose it, so October restores the seasonal theme.
-        if (state !== null && (state.theme === 'duotone' || outOfSeason)) {
-          state.theme = theme
-          try {
-            localStorage.setItem('benday:settings', JSON.stringify(stored))
-          } catch {}
+          meta.setAttribute('content', highContrast ? (theme === 'catppuccin-latte' ? '#ffffff' : '#000000') : colors[theme])
         }
       } catch {}
     </script>

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import indexHtml from '../../index.html?raw'
-import { THEME_COLORS } from '../lib/themes'
 
 // Deliberately not imported from the store: this file must prove the bootstrap
 // paints before any app module is evaluated.
@@ -17,8 +16,6 @@ function bootstrapSource(): string {
 }
 
 const SOURCE = bootstrapSource()
-const OCTOBER = new Date(2026, 9, 15, 12, 0, 0)
-const NOVEMBER = new Date(2026, 10, 15, 12, 0, 0)
 
 function runBootstrap(): void {
   // exactly what a browser executes before the module graph loads
@@ -48,160 +45,107 @@ beforeEach(() => {
     document.head.appendChild(meta)
   }
   meta.setAttribute('content', '#000000')
-  vi.useFakeTimers({ now: NOVEMBER })
 })
 
 describe('the first-paint bootstrap', () => {
-  it('applies an explicit dark pair before React and keeps the meta in step', () => {
-    storedSettings({ appearance: 'dark', lightTheme: 'bone', darkTheme: 'phosphor' })
+  it('paints an explicit dark mode as mocha before React', () => {
+    storedSettings({ appearance: 'dark' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('phosphor')
-    expect(themeColor()).toBe('#040906')
+    expect(rootTheme()).toBe('catppuccin-mocha')
+    expect(themeColor()).toBe('#1e1e2e')
   })
 
-  it('applies an explicit light pair', () => {
-    storedSettings({ appearance: 'light', lightTheme: 'github-light', darkTheme: 'void' })
+  it('paints an explicit light mode as latte', () => {
+    storedSettings({ appearance: 'light' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('github-light')
-    expect(themeColor()).toBe('#ffffff')
+    expect(rootTheme()).toBe('catppuccin-latte')
+    expect(themeColor()).toBe('#eff1f5')
   })
 
   it('reads the system preference through matchMedia', () => {
-    storedSettings({ appearance: 'system', lightTheme: 'cottagecore', darkTheme: 'dracula' })
+    storedSettings({ appearance: 'system' })
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('light') }))
-
     runBootstrap()
+    expect(rootTheme()).toBe('catppuccin-latte')
 
-    expect(rootTheme()).toBe('cottagecore')
+    delete document.documentElement.dataset['theme']
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    runBootstrap()
+    expect(rootTheme()).toBe('catppuccin-mocha')
   })
 
-  it('uses the legacy theme only for its own scheme', () => {
+  it('derives the mode from a legacy palette', () => {
+    storedSettings({ theme: 'bone' })
+    runBootstrap()
+    expect(rootTheme()).toBe('catppuccin-latte')
+
+    delete document.documentElement.dataset['theme']
     storedSettings({ theme: 'dracula' })
-
     runBootstrap()
-
-    expect(rootTheme()).toBe('dracula')
-  })
-
-  it('falls back to bone and void when the pair is missing or invalid', () => {
-    storedSettings({ appearance: 'light', lightTheme: 'not-a-theme', darkTheme: 42 })
-    runBootstrap()
-    expect(rootTheme()).toBe('bone')
+    expect(rootTheme()).toBe('catppuccin-mocha')
 
     delete document.documentElement.dataset['theme']
-    storedSettings({ appearance: 'dark' })
+    storedSettings({ theme: 'duotone' })
     runBootstrap()
-    expect(rootTheme()).toBe('void')
+    expect(rootTheme()).toBe('catppuccin-mocha')
   })
 
-  it('normalizes the legacy duotone name in the pair', () => {
-    storedSettings({ appearance: 'light', lightTheme: 'duotone', darkTheme: 'void' })
+  it('falls back to system when the mode and legacy palette are unusable', () => {
+    storedSettings({ appearance: 'void', theme: 'neon' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('cyberpunk')
+    expect(rootTheme()).toBe('catppuccin-mocha')
   })
 
-  it('keeps an October pair in October and falls back to void in November', () => {
-    storedSettings({ appearance: 'dark', lightTheme: 'bone', darkTheme: 'dead-leaves' })
-
-    vi.setSystemTime(OCTOBER)
-    runBootstrap()
-    expect(rootTheme()).toBe('dead-leaves')
-
-    delete document.documentElement.dataset['theme']
-    vi.setSystemTime(NOVEMBER)
-    runBootstrap()
-    expect(rootTheme()).toBe('void')
-  })
-
-  it('keeps the stored pair when the seasonal fallback fires', () => {
-    storedSettings({ appearance: 'dark', lightTheme: 'bone', darkTheme: 'dead-leaves' })
-    vi.setSystemTime(NOVEMBER)
-
-    runBootstrap()
-
-    const stored = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) ?? '{}')
-    expect(stored.state.darkTheme).toBe('dead-leaves')
-    expect(stored.state.lightTheme).toBe('bone')
-    expect(stored.state.theme).toBe('void')
-  })
-
-  it('still paints when the normalization write-back throws', () => {
+  it('ignores the retired pair and labelers', () => {
     storedSettings({
-      highContrast: true,
-      appearance: 'dark',
+      appearance: 'light',
       lightTheme: 'bone',
       darkTheme: 'dead-leaves',
-    })
-    vi.setSystemTime(NOVEMBER)
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('quota', 'QuotaExceededError')
-    })
-    try {
-      expect(() => runBootstrap()).not.toThrow()
-    } finally {
-      setItem.mockRestore()
-    }
-
-    expect(rootTheme()).toBe('void')
-    expect(document.documentElement.dataset['contrast']).toBe('high')
-    expect(themeColor()).toBe('#000000')
-  })
-
-  it('uses a white chrome colour for a high contrast light theme', () => {
-    storedSettings({
-      highContrast: true,
-      appearance: 'light',
-      lightTheme: 'catppuccin-latte',
-      darkTheme: 'void',
+      labelers: ['did:plc:junk'],
     })
 
     runBootstrap()
 
     expect(rootTheme()).toBe('catppuccin-latte')
-    expect(themeColor()).toBe('#ffffff')
   })
 
-  it('uses a black chrome colour for a high contrast dark theme', () => {
-    storedSettings({
-      highContrast: true,
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'phosphor',
-    })
-
+  it('uses the palette chrome colours when contrast is normal', () => {
+    storedSettings({ highContrast: false, appearance: 'light' })
     runBootstrap()
+    expect(themeColor()).toBe('#eff1f5')
 
-    expect(rootTheme()).toBe('phosphor')
+    delete document.documentElement.dataset['theme']
+    storedSettings({ highContrast: false, appearance: 'dark' })
+    runBootstrap()
+    expect(themeColor()).toBe('#1e1e2e')
+  })
+
+  it('uses a white or black chrome colour in high contrast', () => {
+    storedSettings({ highContrast: true, appearance: 'light' })
+    runBootstrap()
+    expect(document.documentElement.dataset['contrast']).toBe('high')
+    expect(themeColor()).toBe('#ffffff')
+
+    delete document.documentElement.dataset['theme']
+    storedSettings({ highContrast: true, appearance: 'dark' })
+    runBootstrap()
     expect(themeColor()).toBe('#000000')
   })
 
-  it('uses the palette chrome colour when contrast is normal', () => {
-    storedSettings({ highContrast: false, appearance: 'dark', darkTheme: 'oxide' })
-
-    runBootstrap()
-
-    expect(themeColor()).toBe(THEME_COLORS.oxide)
-  })
-
-  it('keeps the saved contrast and guards malformed storage', () => {
-    storedSettings({ highContrast: true, appearance: 'dark', darkTheme: 'oxide' })
-    runBootstrap()
-    expect(document.documentElement.dataset['contrast']).toBe('high')
-
+  it('guards malformed storage', () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, 'not json at all')
-    delete document.documentElement.dataset['theme']
     expect(() => runBootstrap()).not.toThrow()
     expect(rootTheme()).toBeUndefined()
 
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ state: 'nonsense' }))
     runBootstrap()
-    expect(rootTheme()).toBe('void')
+    expect(rootTheme()).toBe('catppuccin-mocha')
   })
 })
 

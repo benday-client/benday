@@ -15,15 +15,6 @@ import {
   serializeSettings,
 } from '../lib/settingsTransfer'
 import { useSettings } from '../lib/store'
-import {
-  availableThemeGroups,
-  SEASONAL_THEMES,
-  THEME_EFFECTS,
-  THEME_LABELS,
-  themeAvailable,
-  themeSeason,
-} from '../lib/themes'
-import { ThemePreview } from './ThemePreview'
 import { Button, Dialog } from './ui'
 
 interface SettingSearchEntry {
@@ -39,7 +30,8 @@ const SETTING_SEARCH: readonly SettingSearchEntry[] = [
   {
     id: 'settings-appearance',
     label: 'appearance',
-    keywords: `theme themes colors image effects dither grunge contrast high mode maximum preview accessibility readable keyboard shortcuts wcag single key halloween seasonal october light dark system ${Object.values(THEME_LABELS).join(' ')}`,
+    keywords:
+      'theme themes colors image effects dither grunge contrast high mode maximum accessibility readable keyboard shortcuts wcag single key light dark system',
   },
   { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
   { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
@@ -51,13 +43,8 @@ export interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const theme = useSettings((state) => state.theme)
   const appearance = useSettings((state) => state.appearance)
   const setAppearance = useSettings((state) => state.setAppearance)
-  const lightTheme = useSettings((state) => state.lightTheme)
-  const darkTheme = useSettings((state) => state.darkTheme)
-  const setLightTheme = useSettings((state) => state.setLightTheme)
-  const setDarkTheme = useSettings((state) => state.setDarkTheme)
   const imageEffects = useSettings((state) => state.imageEffects)
   const setImageEffects = useSettings((state) => state.setImageEffects)
   const highContrast = useSettings((state) => state.highContrast)
@@ -77,15 +64,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   // completion can only close the opening it was started from.
   const openingRef = useRef(0)
   const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
-  const today = new Date()
-  const themeGroups = [...availableThemeGroups(today)].reverse()
-  const seasonalThemesHidden = SEASONAL_THEMES.some((item) => !themeAvailable(item, today))
   const settingMatches = SETTING_SEARCH.filter((entry) =>
     matchesSearchTokens(`${entry.label} ${entry.keywords}`, settingQuery),
-  )
-  const visibleEffectThemes = appearance === 'system' ? [lightTheme, darkTheme] : [theme]
-  const imageEffectAvailable = visibleEffectThemes.some(
-    (visibleTheme) => THEME_EFFECTS[visibleTheme] !== 'none',
   )
   const queryActive = settingQuery.trim().length > 0
   const sectionHidden = (id: string): 'true' | undefined =>
@@ -141,10 +121,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     setTransferError(null)
     setTransferNotice(null)
     const json = serializeSettings({
-      theme,
       appearance,
-      lightTheme,
-      darkTheme,
       imageEffects,
       highContrast,
       keyboardShortcuts,
@@ -288,15 +265,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
           <input
             type="checkbox"
             checked={imageEffects}
-            disabled={!imageEffectAvailable}
             onChange={(event) => {
               setImageEffects(event.currentTarget.checked)
             }}
           />
           <span>image effects</span>
-          <span className="b-settings__toggle-note">
-            {!imageEffectAvailable ? 'visible themes keep images raw' : 'dither and grunge'}
-          </span>
+          <span className="b-settings__toggle-note">dither and grunge</span>
         </label>
         <label className="b-settings__toggle">
           <input
@@ -322,54 +296,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             single keys like f and j; modifier chords always work
           </span>
         </label>
-        <ThemePreview />
-        <div className="b-settings__theme-groups">
-          {themeGroups.map((group) => {
-            const selected = group.scheme === 'light' ? lightTheme : darkTheme
-            return (
-              <section className="b-settings__theme-group" key={group.scheme}>
-                <h4 className="b-settings__subheading mono-label">{group.scheme}</h4>
-                <div className="b-settings__themes">
-                  {group.themes.map((item) => {
-                    // the four seasonal palettes are halloween specials, not
-                    // year-round choices
-                    const halloween = themeSeason(item) !== null
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        className="b-settings__theme"
-                        data-active={selected === item ? 'true' : 'false'}
-                        data-current={theme === item ? 'true' : 'false'}
-                        data-seasonal={halloween ? 'true' : undefined}
-                        aria-pressed={selected === item}
-                        aria-current={theme === item ? 'true' : undefined}
-                        aria-label={
-                          halloween ? `${THEME_LABELS[item]}, halloween special` : undefined
-                        }
-                        onClick={() => {
-                          if (group.scheme === 'light') {
-                            setLightTheme(item)
-                          } else {
-                            setDarkTheme(item)
-                          }
-                        }}
-                      >
-                        <span>{THEME_LABELS[item]}</span>
-                        {halloween ? (
-                          <span className="b-settings__theme-tag">halloween</span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-        {seasonalThemesHidden ? (
-          <p className="b-settings__note">halloween themes return in october</p>
-        ) : null}
       </section>
 
       <section
@@ -379,8 +305,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       >
         <h3 className="b-settings__heading">transfer</h3>
         <p className="b-settings__note">
-          move the theme between browsers with one json file. sessions, credentials, drafts and
-          account data are never included.
+          move appearance, effects and shortcuts between browsers with one json file. sessions,
+          credentials, drafts and account data are never included.
         </p>
         <div className="b-settings__row">
           <Button variant="outline" onClick={exportSettings}>

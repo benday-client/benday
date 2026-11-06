@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   buildSettingsFile,
   normalizePortableSettings,
-  normalizeTheme,
   type PortableSettings,
   parseSettingsFile,
   parseSettingsFileJson,
@@ -11,31 +10,21 @@ import {
   serializeSettings,
 } from './settingsTransfer'
 import { useSettings } from './store'
-import { THEME_SCHEMES } from './themes'
-import type { Theme } from './types'
 
 const FIXED_TIME = new Date('2026-10-30T12:00:00.000Z')
 
-function portable(theme: Theme): PortableSettings {
-  const scheme = THEME_SCHEMES[theme]
-  return {
-    theme,
-    appearance: scheme,
-    lightTheme: scheme === 'light' ? theme : 'bone',
-    darkTheme: scheme === 'dark' ? theme : 'void',
-    imageEffects: true,
-    highContrast: false,
-    keyboardShortcuts: true,
-  }
+const SAMPLE: PortableSettings = {
+  appearance: 'dark',
+  imageEffects: true,
+  highContrast: false,
+  keyboardShortcuts: true,
 }
-
-const SAMPLE = portable('bone')
 
 function validFile(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: SETTINGS_FILE_VERSION,
     exportedAt: FIXED_TIME.toISOString(),
-    theme: 'bone',
+    ...SAMPLE,
     ...overrides,
   }
 }
@@ -51,19 +40,16 @@ describe('settings file format', () => {
     expect(Object.keys(file).sort()).toEqual(
       [
         'appearance',
-        'darkTheme',
         'exportedAt',
         'highContrast',
         'imageEffects',
         'keyboardShortcuts',
-        'lightTheme',
-        'theme',
         'version',
       ].sort(),
     )
     expect(file.version).toBe(SETTINGS_FILE_VERSION)
     expect(file.exportedAt).toBe(FIXED_TIME.toISOString())
-    expect(file.theme).toBe('bone')
+    expect(file.appearance).toBe('dark')
   })
 
   it('round-trips through serialize and parse', () => {
@@ -78,12 +64,17 @@ describe('settings file format', () => {
 
   it('normalizes the exported snapshot instead of trusting its fields', () => {
     const normalized = normalizePortableSettings({
-      theme: 'duotone',
-      labelers: [' did:plc:alpha ', 'did:plc:alpha', 'nope', 42, 'did:plc:beta'],
+      appearance: 'system',
+      imageEffects: 'yes',
+      highContrast: 1,
+      keyboardShortcuts: null,
     })
-    if (normalized === null) throw new Error('expected the dirty snapshot to normalize')
-    const file = buildSettingsFile(normalized, FIXED_TIME)
-    expect(file.theme).toBe('cyberpunk')
+    expect(normalized).toEqual({
+      appearance: 'system',
+      imageEffects: true,
+      highContrast: false,
+      keyboardShortcuts: true,
+    })
   })
 })
 
@@ -100,12 +91,9 @@ describe('credential and session exclusion', () => {
     profile: { did: 'did:plc:secret', handle: 'secret.test' },
     did: 'did:plc:secret',
     handle: 'secret.test',
-    appViewExtra: 'secret-appview-jwt',
   }
 
   it('never exports fields beyond the portable preferences', () => {
-    // structurally compatible with the portable snapshot, with exactly the
-    // extra keys that must never reach the file
     const dirty = { ...SAMPLE, ...secrets }
     const json = serializeSettings(dirty, FIXED_TIME)
     const parsed = JSON.parse(json) as Record<string, unknown>
@@ -113,13 +101,10 @@ describe('credential and session exclusion', () => {
     expect(Object.keys(parsed).sort()).toEqual(
       [
         'appearance',
-        'darkTheme',
         'exportedAt',
         'highContrast',
         'imageEffects',
         'keyboardShortcuts',
-        'lightTheme',
-        'theme',
         'version',
       ].sort(),
     )
@@ -134,14 +119,35 @@ describe('credential and session exclusion', () => {
     if (!result.ok) return
     expect(Object.keys(result.settings).sort()).toEqual([
       'appearance',
-      'darkTheme',
       'highContrast',
       'imageEffects',
       'keyboardShortcuts',
-      'lightTheme',
-      'theme',
     ])
     expect(JSON.stringify(result.settings)).not.toContain('secret')
+  })
+})
+
+describe('appearance mode', () => {
+  it.each(['light', 'dark', 'system'] as const)('accepts %s', (appearance) => {
+    const result = parseSettingsFile(validFile({ appearance }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.appearance).toBe(appearance)
+  })
+
+  it('rejects an unknown or missing appearance', () => {
+    for (const appearance of ['void', '', 3, null, undefined]) {
+      const result = parseSettingsFile(validFile({ appearance }))
+      expect(result).toEqual({ ok: false, error: 'settings file has an invalid appearance' })
+      expect(normalizePortableSettings(validFile({ appearance }))).toBeNull()
+    }
+  })
+
+  it('ignores a retired palette field', () => {
+    const result = parseSettingsFile(validFile({ theme: 'void', lightTheme: 'bone' }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings).toEqual(SAMPLE)
   })
 })
 
@@ -167,14 +173,6 @@ describe('high contrast', () => {
     const result = parseSettingsFile(validFile({ highContrast: 'yes' }))
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.settings.highContrast).toBe(false)
-  })
-
-  it('keeps legacy duotone files valid', () => {
-    const result = parseSettingsFile(validFile({ theme: 'duotone' }))
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.settings.theme).toBe('cyberpunk')
     expect(result.settings.highContrast).toBe(false)
   })
 })
@@ -224,39 +222,10 @@ describe('keyboard shortcuts', () => {
   })
 })
 
-describe('theme normalization', () => {
-  it('maps the legacy duotone name to cyberpunk', () => {
-    expect(normalizeTheme('duotone')).toBe('cyberpunk')
-  })
-
-  it('keeps seasonal themes as stored without consulting a month', () => {
-    expect(normalizeTheme('dead-leaves')).toBe('dead-leaves')
-    expect(normalizeTheme('pumpkin-ember')).toBe('pumpkin-ember')
-    const result = parseSettingsFile(validFile({ theme: 'dead-leaves' }))
-    expect(result).toEqual({
-      ok: true,
-      settings: portable('dead-leaves'),
-    })
-  })
-
-  it('rejects unknown, non-string and empty themes', () => {
-    expect(normalizeTheme('neon')).toBeNull()
-    expect(normalizeTheme(3)).toBeNull()
-    expect(normalizeTheme(null)).toBeNull()
-    for (const theme of ['neon', 3, null, undefined]) {
-      const result = parseSettingsFile(validFile({ theme }))
-      expect(result.ok).toBe(false)
-    }
-  })
-})
-
 describe('settings file validation', () => {
   it('accepts a minimally valid document', () => {
     const result = parseSettingsFile(validFile())
-    expect(result).toEqual({
-      ok: true,
-      settings: portable('bone'),
-    })
+    expect(result).toEqual({ ok: true, settings: SAMPLE })
   })
 
   it('rejects non-object documents', () => {
@@ -288,65 +257,64 @@ describe('settings file validation', () => {
       error: 'settings file is not a json object',
     })
   })
-
-  it('ignores unknown top-level fields', () => {
-    const result = parseSettingsFile(validFile({ extra: true, nested: { theme: 'oxide' } }))
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(Object.keys(result.settings).sort()).toEqual([
-      'appearance',
-      'darkTheme',
-      'highContrast',
-      'imageEffects',
-      'keyboardShortcuts',
-      'lightTheme',
-      'theme',
-    ])
-  })
 })
 
 describe('store settings import', () => {
   beforeEach(() => {
     localStorage.clear()
-    useSettings.setState({ theme: 'void' })
-  })
-
-  it('applies the theme and its appearance together', () => {
-    const applied = useSettings.getState().importSettings({ theme: 'bone' })
-    expect(applied).toBe(true)
-    expect(useSettings.getState()).toMatchObject({
-      theme: 'bone',
-      appearance: 'light',
-      lightTheme: 'bone',
-      darkTheme: 'void',
+    useSettings.setState({
+      appearance: 'dark',
+      theme: 'catppuccin-mocha',
       imageEffects: true,
+      highContrast: false,
+      keyboardShortcuts: true,
     })
   })
 
-  it('normalizes values while importing', () => {
-    const applied = useSettings.getState().importSettings({ theme: 'duotone' })
+  it('applies the appearance mode and its derived theme together', () => {
+    const applied = useSettings.getState().importSettings({ appearance: 'light' })
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
-      theme: 'cyberpunk',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'cyberpunk',
+      appearance: 'light',
+      theme: 'catppuccin-latte',
       imageEffects: true,
+      highContrast: false,
+    })
+  })
+
+  it('applies every portable preference in one update', () => {
+    const applied = useSettings.getState().importSettings({
+      appearance: 'dark',
+      imageEffects: false,
+      highContrast: true,
+      keyboardShortcuts: false,
+    })
+    expect(applied).toBe(true)
+    expect(useSettings.getState()).toMatchObject({
+      appearance: 'dark',
+      theme: 'catppuccin-mocha',
+      imageEffects: false,
+      highContrast: true,
+      keyboardShortcuts: false,
     })
   })
 
   it('leaves state untouched for malformed input', () => {
     const before = useSettings.getState()
-    for (const value of [null, {}, { theme: 'neon' }, { theme: 3 }]) {
+    for (const value of [null, {}, { appearance: 'void' }, { appearance: 3 }]) {
       expect(useSettings.getState().importSettings(value)).toBe(false)
       const after = useSettings.getState()
+      expect(after.appearance).toBe(before.appearance)
       expect(after.theme).toBe(before.theme)
+      expect(after.imageEffects).toBe(before.imageEffects)
+      expect(after.highContrast).toBe(before.highContrast)
+      expect(after.keyboardShortcuts).toBe(before.keyboardShortcuts)
     }
   })
 
   it('ignores credential fields passed alongside a valid snapshot', () => {
     const applied = useSettings.getState().importSettings({
-      theme: 'bone',
+      appearance: 'dark',
       accessJwt: 'secret',
       refreshToken: 'secret',
       session: { token: 'secret' },
@@ -355,19 +323,5 @@ describe('store settings import', () => {
     const state = useSettings.getState()
     expect('accessJwt' in state).toBe(false)
     expect('session' in state).toBe(false)
-  })
-
-  it('accepts the normalized result of a parsed file', () => {
-    const parsed = parseSettingsFile(validFile({ theme: 'oxide' }))
-    expect(parsed.ok).toBe(true)
-    if (!parsed.ok) return
-    expect(useSettings.getState().importSettings(parsed.settings)).toBe(true)
-    expect(useSettings.getState().theme).toBe('oxide')
-  })
-
-  it('normalizes bare snapshots through normalizePortableSettings', () => {
-    expect(normalizePortableSettings(SAMPLE)).toEqual(SAMPLE)
-    // retired fields are ignored rather than carried into the snapshot
-    expect(normalizePortableSettings({ ...SAMPLE, labelers: 'nope' })).toEqual(SAMPLE)
   })
 })

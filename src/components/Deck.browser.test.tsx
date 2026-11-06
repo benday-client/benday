@@ -461,7 +461,7 @@ describe('Deck geometry', () => {
     expect(activated).toEqual([THIRD.uri])
   })
 
-  it('paints the real focus indicator, including the cyberpunk replacement', async () => {
+  it('paints the real focus indicator', async () => {
     const { container } = renderPostDeck([SHORT, SECOND])
     await settle()
 
@@ -474,13 +474,6 @@ describe('Deck geometry', () => {
     // the double rule: one hairline on the edge and one tucked three pixels in
     expect(normal.outlineOffset).toBe('-3px')
     expect(normal.boxShadow).toContain('inset')
-
-    document.documentElement.dataset['theme'] = 'cyberpunk'
-    const cyber = getComputedStyle(frame)
-    // the shared rule survives the clipped theme; cyberpunk adds its glow
-    expect(cyber.outlineStyle).toBe('solid')
-    expect(cyber.boxShadow).toContain('inset')
-    expect(cyber.filter).toContain('drop-shadow')
   })
 })
 

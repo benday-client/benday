@@ -1,88 +1,104 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SETTINGS_STORAGE_KEY, useSettings } from './store'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { SETTINGS_STORAGE_KEY, themeForAppearance, useSettings } from './store'
 
-describe('settings storage sync', () => {
-  beforeEach(() => {
-    localStorage.clear()
-    useSettings.setState({
-      theme: 'void',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'void',
-      imageEffects: true,
-      highContrast: false,
+function stubSystemPreference(light: boolean): void {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-color-scheme: light') ? light : false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }))
+}
+
+beforeEach(() => {
+  localStorage.clear()
+  stubSystemPreference(false)
+  useSettings.setState({
+    appearance: 'system',
+    theme: 'catppuccin-mocha',
+    imageEffects: true,
+    highContrast: false,
+    keyboardShortcuts: true,
+  })
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('themeForAppearance', () => {
+  it('maps light and dark to the cat pair', () => {
+    expect(themeForAppearance('light', false)).toBe('catppuccin-latte')
+    expect(themeForAppearance('dark', true)).toBe('catppuccin-mocha')
+  })
+
+  it('follows the system preference only in system mode', () => {
+    expect(themeForAppearance('system', true)).toBe('catppuccin-latte')
+    expect(themeForAppearance('system', false)).toBe('catppuccin-mocha')
+  })
+})
+
+describe('appearance mode', () => {
+  it('derives the theme when the mode changes', () => {
+    useSettings.getState().setAppearance('light')
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+
+    useSettings.getState().setAppearance('dark')
+    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+  })
+
+  it('follows a system preference change only in system mode', () => {
+    stubSystemPreference(true)
+    useSettings.setState({ appearance: 'system', theme: 'catppuccin-mocha' })
+    useSettings.getState().syncSystemTheme()
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+
+    stubSystemPreference(false)
+    useSettings.getState().syncSystemTheme()
+    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+
+    // an explicit mode is fixed, not browser-dependent
+    useSettings.getState().setAppearance('light')
+    stubSystemPreference(false)
+    useSettings.getState().syncSystemTheme()
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+  })
+})
+
+describe('settings persistence', () => {
+  it('persists only the mode, effects and shortcuts, never the derived theme', () => {
+    useSettings.getState().setAppearance('light')
+    useSettings.getState().setImageEffects(false)
+    useSettings.getState().setHighContrast(true)
+
+    const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (persisted === null) throw new Error('settings were not persisted')
+    const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
+    expect(stored.state).toEqual({
+      appearance: 'light',
+      imageEffects: false,
+      highContrast: true,
       keyboardShortcuts: true,
     })
   })
 
-  it('applies an imported appearance pair and high contrast in one update', async () => {
-    const applied = useSettings.getState().importSettings({
-      theme: 'void',
-      appearance: 'light',
-      lightTheme: 'bone',
-      darkTheme: 'void',
-      imageEffects: true,
-      highContrast: true,
-    })
-
-    expect(applied).toBe(true)
-    // the rendered theme follows the appearance pair the file also carries
-    expect(useSettings.getState().theme).toBe('bone')
-    expect(useSettings.getState().highContrast).toBe(true)
-
-    const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
-    if (persisted === null) throw new Error('settings were not persisted')
-    const stored = JSON.parse(persisted) as { state?: { highContrast?: boolean } }
-    expect(stored.state?.highContrast).toBe(true)
-
-    // a later write must not erase what a reload reads back
-    useSettings.setState({ highContrast: false, theme: 'void' })
-    localStorage.setItem(SETTINGS_STORAGE_KEY, persisted)
-    await useSettings.persist.rehydrate()
-    expect(useSettings.getState().highContrast).toBe(true)
-  })
-
-  it('rehydrates a high contrast change from another tab', async () => {
-    const stored = {
+  it('rehydrates a change written by another tab', async () => {
+    const raw = JSON.stringify({
       version: 1,
-      state: {
-        theme: 'void',
-        appearance: 'dark',
-        lightTheme: 'bone',
-        darkTheme: 'void',
-        imageEffects: true,
-        highContrast: true,
-      },
-    }
-    const raw = JSON.stringify(stored)
+      state: { appearance: 'light', imageEffects: false },
+    })
     localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
 
     window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_STORAGE_KEY, newValue: raw }))
 
     await vi.waitFor(() => {
-      expect(useSettings.getState().highContrast).toBe(true)
+      expect(useSettings.getState().appearance).toBe('light')
     })
-  })
-
-  it('rehydrates settings written by another tab', async () => {
-    const stored = {
-      version: 1,
-      state: {
-        theme: 'oxide',
-        appearance: 'dark',
-        lightTheme: 'bone',
-        darkTheme: 'oxide',
-        imageEffects: false,
-      },
-    }
-    const raw = JSON.stringify(stored)
-    localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
-
-    window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_STORAGE_KEY, newValue: raw }))
-
-    await vi.waitFor(() => {
-      expect(useSettings.getState().theme).toBe('oxide')
-    })
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
     expect(useSettings.getState().imageEffects).toBe(false)
   })
 
@@ -90,91 +106,69 @@ describe('settings storage sync', () => {
     expect(useSettings.getInitialState().keyboardShortcuts).toBe(true)
 
     useSettings.getState().setKeyboardShortcuts(false)
-    expect(useSettings.getState().keyboardShortcuts).toBe(false)
-    // the toggle is one setting only
-    expect(useSettings.getState().theme).toBe('void')
-    expect(useSettings.getState().highContrast).toBe(false)
-
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
     const stored = JSON.parse(persisted) as { state?: { keyboardShortcuts?: boolean } }
     expect(stored.state?.keyboardShortcuts).toBe(false)
 
-    // a reload reads the stored choice back rather than the default
     await useSettings.persist.rehydrate()
     expect(useSettings.getState().keyboardShortcuts).toBe(false)
   })
+})
 
-  it('rehydrates a keyboard shortcuts change from another tab', async () => {
-    const raw = JSON.stringify({
-      version: 1,
-      state: {
-        theme: 'void',
-        appearance: 'dark',
-        lightTheme: 'bone',
-        darkTheme: 'void',
-        imageEffects: true,
-        keyboardShortcuts: false,
-      },
-    })
-    localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
+describe('stored state migration', () => {
+  function rehydrate(stored: Record<string, unknown>) {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ version: 1, state: stored }))
+    return useSettings.persist.rehydrate()
+  }
 
-    window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_STORAGE_KEY, newValue: raw }))
-
-    await vi.waitFor(() => {
-      expect(useSettings.getState().keyboardShortcuts).toBe(false)
-    })
-  })
-
-  it('ignores a non-boolean stored keyboard shortcut field', async () => {
-    useSettings.setState({ keyboardShortcuts: true })
-    const raw = JSON.stringify({
-      version: 1,
-      state: {
-        theme: 'void',
-        appearance: 'dark',
-        lightTheme: 'bone',
-        darkTheme: 'void',
-        imageEffects: true,
-        keyboardShortcuts: 'off',
-      },
-    })
-    localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
-
-    await useSettings.persist.rehydrate()
-
-    expect(useSettings.getState().keyboardShortcuts).toBe(true)
-  })
-
-  it('imports the portable keyboard shortcut setting and defaults a missing field to on', () => {
-    const snapshot = {
-      theme: 'void',
-      appearance: 'dark',
+  it('keeps a stored mode and ignores the retired palette pair', async () => {
+    await rehydrate({
+      appearance: 'light',
+      theme: 'dead-leaves',
       lightTheme: 'bone',
-      darkTheme: 'void',
-      imageEffects: true,
-      highContrast: false,
-    } as const
+      darkTheme: 'dead-leaves',
+      labelers: ['did:plc:junk'],
+    })
 
+    expect(useSettings.getState().appearance).toBe('light')
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+  })
+
+  it('derives the mode from an old light palette', async () => {
+    await rehydrate({ theme: 'bone' })
+    expect(useSettings.getState().appearance).toBe('light')
+    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+  })
+
+  it('derives the mode from an old dark palette, including duotone', async () => {
+    await rehydrate({ theme: 'cyberpunk' })
+    expect(useSettings.getState().appearance).toBe('dark')
+    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+
+    await rehydrate({ theme: 'duotone' })
+    expect(useSettings.getState().appearance).toBe('dark')
+  })
+
+  it('falls back to system for an unknown palette and no mode', async () => {
+    await rehydrate({ theme: 'neon' })
+    expect(useSettings.getState().appearance).toBe('system')
+    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+  })
+
+  it('drops the removed fields from the stored state', async () => {
+    await rehydrate({
+      appearance: 'dark',
+      labelers: ['did:plc:junk'],
+      imageEffects: false,
+    })
+
+    // the next write stores the partialized shape, not the ignored fields
     useSettings.getState().setKeyboardShortcuts(false)
-    // a file written before the option existed keeps shortcuts available
-    expect(useSettings.getState().importSettings({ ...snapshot })).toBe(true)
-    expect(useSettings.getState().keyboardShortcuts).toBe(true)
-
-    expect(useSettings.getState().importSettings({ ...snapshot, keyboardShortcuts: false })).toBe(
-      true,
-    )
-    expect(useSettings.getState().keyboardShortcuts).toBe(false)
-
-    // a malformed field is ignored rather than adopted or rejected
-    expect(useSettings.getState().importSettings({ ...snapshot, keyboardShortcuts: 'off' })).toBe(
-      true,
-    )
-    expect(useSettings.getState().keyboardShortcuts).toBe(true)
-
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
-    const stored = JSON.parse(persisted) as { state?: { keyboardShortcuts?: boolean } }
-    expect(stored.state?.keyboardShortcuts).toBe(true)
+    const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
+    expect(stored.state).not.toHaveProperty('labelers')
+    expect(stored.state?.['imageEffects']).toBe(false)
   })
 })

@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { isRecord } from './records'
-import { normalizePortableSettings, normalizeTheme } from './settingsTransfer'
-import { resolveTheme, THEME_SCHEMES } from './themes'
+import { normalizePortableSettings } from './settingsTransfer'
+import { legacyAppearanceForTheme } from './themes'
 import type { Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
@@ -16,10 +16,14 @@ function systemPrefersLight(): boolean {
   )
 }
 
-function selectedTheme(appearance: AppearanceMode, lightTheme: Theme, darkTheme: Theme): Theme {
-  if (appearance === 'light') return lightTheme
-  if (appearance === 'dark') return darkTheme
-  return systemPrefersLight() ? lightTheme : darkTheme
+/**
+ * Catppuccin is the fixed pair: light paints Latte, dark paints Mocha, and the
+ * system mode follows the browser preference.
+ */
+export function themeForAppearance(appearance: AppearanceMode, systemLight: boolean): Theme {
+  if (appearance === 'light') return 'catppuccin-latte'
+  if (appearance === 'dark') return 'catppuccin-mocha'
+  return systemLight ? 'catppuccin-latte' : 'catppuccin-mocha'
 }
 
 function isAppearanceMode(value: unknown): value is AppearanceMode {
@@ -29,20 +33,14 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
 interface SettingsState {
   theme: Theme
   appearance: AppearanceMode
-  lightTheme: Theme
-  darkTheme: Theme
   imageEffects: boolean
   highContrast: boolean
   keyboardShortcuts: boolean
-  setTheme: (theme: Theme) => void
   setAppearance: (appearance: AppearanceMode) => void
-  setLightTheme: (theme: Theme) => void
-  setDarkTheme: (theme: Theme) => void
   setImageEffects: (enabled: boolean) => void
   setHighContrast: (enabled: boolean) => void
   setKeyboardShortcuts: (enabled: boolean) => void
   syncSystemTheme: () => void
-  setActiveTheme: (theme: Theme) => void
   /**
    * Validates a bare portable settings snapshot and applies every portable
    * preference in one update. Invalid input leaves the existing state untouched.
@@ -53,65 +51,30 @@ interface SettingsState {
 export const useSettings = create<SettingsState>()(
   persist(
     (set, get) => ({
-      theme: 'void',
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'void',
+      theme: themeForAppearance('system', systemPrefersLight()),
+      appearance: 'system',
       imageEffects: true,
       highContrast: false,
       keyboardShortcuts: true,
-      setTheme: (theme) =>
-        set({
-          theme,
-          appearance: THEME_SCHEMES[theme],
-          ...(THEME_SCHEMES[theme] === 'light' ? { lightTheme: theme } : { darkTheme: theme }),
-        }),
       setAppearance: (appearance) =>
-        set((state) => ({
-          appearance,
-          theme: selectedTheme(appearance, state.lightTheme, state.darkTheme),
-        })),
-      setLightTheme: (lightTheme) =>
-        set((state) => ({
-          lightTheme,
-          theme:
-            state.appearance === 'light' || (state.appearance === 'system' && systemPrefersLight())
-              ? lightTheme
-              : state.theme,
-        })),
-      setDarkTheme: (darkTheme) =>
-        set((state) => ({
-          darkTheme,
-          theme:
-            state.appearance === 'dark' || (state.appearance === 'system' && !systemPrefersLight())
-              ? darkTheme
-              : state.theme,
-        })),
+        set({ appearance, theme: themeForAppearance(appearance, systemPrefersLight()) }),
       setImageEffects: (imageEffects) => set({ imageEffects }),
       setHighContrast: (highContrast) => set({ highContrast }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
       syncSystemTheme: () => {
-        // Resolve the saved pair, not the last rendered theme: October's
-        // seasonal theme is unavailable in November and becomes available again
-        // in October, so the pair has to survive the fallback either way.
+        // only the system mode follows the browser; an explicit mode is fixed
         const state = get()
-        const next = resolveTheme(
-          selectedTheme(state.appearance, state.lightTheme, state.darkTheme),
-          new Date(),
-        )
+        if (state.appearance !== 'system') return
+        const next = themeForAppearance('system', systemPrefersLight())
         if (next !== state.theme) set({ theme: next })
       },
-      setActiveTheme: (theme) => set({ theme }),
       importSettings: (value) => {
         const settings = normalizePortableSettings(value)
         if (settings === null) return false
         set({
-          // the rendered theme follows the appearance pair, not a contradictory
-          // file field
-          theme: selectedTheme(settings.appearance, settings.lightTheme, settings.darkTheme),
+          // the rendered theme follows the mode, not a contradictory file field
+          theme: themeForAppearance(settings.appearance, systemPrefersLight()),
           appearance: settings.appearance,
-          lightTheme: settings.lightTheme,
-          darkTheme: settings.darkTheme,
           imageEffects: settings.imageEffects,
           highContrast: settings.highContrast,
           keyboardShortcuts: settings.keyboardShortcuts,
@@ -123,10 +86,7 @@ export const useSettings = create<SettingsState>()(
       name: SETTINGS_STORAGE_KEY,
       version: 1,
       partialize: (state) => ({
-        theme: state.theme,
         appearance: state.appearance,
-        lightTheme: state.lightTheme,
-        darkTheme: state.darkTheme,
         imageEffects: state.imageEffects,
         highContrast: state.highContrast,
         keyboardShortcuts: state.keyboardShortcuts,
@@ -135,22 +95,10 @@ export const useSettings = create<SettingsState>()(
         if (!isRecord(persisted)) return current
         const stored = persisted
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
-        const legacyTheme = normalizeTheme(stored['theme'])
-        const lightTheme =
-          normalizeTheme(stored['lightTheme']) ??
-          (legacyTheme !== null && THEME_SCHEMES[legacyTheme] === 'light'
-            ? legacyTheme
-            : current.lightTheme)
-        const darkTheme =
-          normalizeTheme(stored['darkTheme']) ??
-          (legacyTheme !== null && THEME_SCHEMES[legacyTheme] === 'dark'
-            ? legacyTheme
-            : current.darkTheme)
+        // a stored mode wins; an older stored palette names the scheme it painted
         const appearance = isAppearanceMode(stored['appearance'])
           ? stored['appearance']
-          : legacyTheme !== null
-            ? THEME_SCHEMES[legacyTheme]
-            : current.appearance
+          : (legacyAppearanceForTheme(stored['theme']) ?? 'system')
         const imageEffects =
           typeof stored['imageEffects'] === 'boolean'
             ? stored['imageEffects']
@@ -165,10 +113,8 @@ export const useSettings = create<SettingsState>()(
             : current.keyboardShortcuts
         return {
           ...current,
-          theme: selectedTheme(appearance, lightTheme, darkTheme),
+          theme: themeForAppearance(appearance, systemPrefersLight()),
           appearance,
-          lightTheme,
-          darkTheme,
           imageEffects,
           highContrast,
           keyboardShortcuts,

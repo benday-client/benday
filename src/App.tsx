@@ -28,7 +28,7 @@ import {
   type PrimaryModifier,
 } from './lib/keymap'
 import { useSettings } from './lib/store'
-import { resolveTheme, themeColor } from './lib/themes'
+import { themeColor } from './lib/themes'
 import { uiOwnsKeyboard, useUiStore } from './lib/ui'
 import FeedView from './views/FeedView'
 import NotificationsView from './views/NotificationsView'
@@ -178,7 +178,6 @@ function AppShell() {
   const theme = useSettings((state) => state.theme)
   const highContrast = useSettings((state) => state.highContrast)
   const appearance = useSettings((state) => state.appearance)
-  const setActiveTheme = useSettings((state) => state.setActiveTheme)
   const syncSystemTheme = useSettings((state) => state.syncSystemTheme)
 
   useEffect(() => {
@@ -253,49 +252,25 @@ function AppShell() {
   }, [pathname])
 
   useEffect(() => {
-    // Contrast first: the palette a theme resolves to depends on the scheme,
-    // and the cursors decode real colors, so both attributes must be on the
-    // root before anything reads them.
+    // Contrast first: the cursors decode real colors, so both attributes must
+    // be on the root before anything reads them.
     document.documentElement.dataset['contrast'] = highContrast ? 'high' : 'normal'
-    const effectiveTheme = resolveTheme(theme, new Date())
-    document.documentElement.dataset['theme'] = effectiveTheme
+    document.documentElement.dataset['theme'] = theme
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta instanceof HTMLMetaElement) meta.content = themeColor(effectiveTheme, highContrast)
+    if (meta instanceof HTMLMetaElement) meta.content = themeColor(theme, highContrast)
     installCursors()
-    if (effectiveTheme !== theme) setActiveTheme(effectiveTheme)
-  }, [theme, highContrast, setActiveTheme])
+  }, [theme, highContrast])
 
-  // A seasonal theme expires at local midnight, and a tab left open past it
-  // would otherwise keep an unavailable theme until reload. This runs for every
-  // appearance mode: an explicit light or dark choice also resolves from the
-  // saved pair, so it expires exactly like a system one. One timer that
-  // reschedules itself is cheaper than polling, and a tab that was hidden when
-  // it fired catches up once it is visible again.
+  // a hidden tab catches up on the browser preference once it is visible;
+  // there is no timer and no polling
   useEffect(() => {
-    let timer: number | undefined
-    const schedule = () => {
-      window.clearTimeout(timer)
-      const now = new Date()
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0)
-      timer = window.setTimeout(
-        () => {
-          syncSystemTheme()
-          schedule()
-        },
-        midnight.getTime() - now.getTime() + 1000,
-      )
-    }
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return
       syncSystemTheme()
-      schedule()
     }
-    schedule()
     document.addEventListener('visibilitychange', handleVisibility)
-
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility)
-      window.clearTimeout(timer)
     }
   }, [syncSystemTheme])
 

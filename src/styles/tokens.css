@@ -1,3 +1,7 @@
+/* tokens: catppuccin mocha and latte, the one shipped pair. palette values are
+   upstream catppuccin 1.8.0; aliases, alpha and gradients stay in their own
+   notation. */
+
 :root {
   color-scheme: dark;
 
@@ -23,28 +27,26 @@
   --space-7: 48px;
   --space-8: 64px;
 
-  /* benday originals express literal colours in oklch with the precision the
-     original sRGB value needs to paint the same 8-bit pixels; aliases, alpha,
-     gradients and the sourced palettes stay in their own notation. exactly
-     neutral source colours keep C=0 with hue none. */
-  --void: oklch(0.138644 0.007745 255.5217);
-  --ink: oklch(0.91845 0.013671 93.1042);
-  --ink-dim: oklch(0.730366 0.009902 100.2283);
-  --ink-faint: oklch(0.542458 0.005148 135.4898);
-  --paper: oklch(0.172161 0.011538 260.6352);
-  --panel: oklch(0.19433 0.013706 258.3753);
-  --panel-raised: oklch(0.220742 0.017483 259.7488);
-  --line: oklch(0.306285 0.019015 254.8178);
-  --line-strong: oklch(0.427046 0.02378 253.1047);
-  --blue: oklch(0.714003 0.148368 270.0059);
-  --blue-hot: oklch(0.596885 0.218747 269.7035);
-  --blue-deep: oklch(0.343251 0.106106 268.4206);
-  --rust: oklch(0.587724 0.13924 37.9482);
-  --acid: oklch(0.826716 0.118573 122.8326);
-  --shadow: oklch(0 0 none);
-  --noise-opacity: 0.055;
-  --scan-opacity: 0.2;
-  --selection-ink: oklch(0.138644 0.007745 255.5217);
+  /* the document fallback is catppuccin mocha, so a page without a theme
+     attribute still paints the palette the app ships */
+  --void: #1e1e2e;
+  --ink: #cdd6f4;
+  --ink-dim: #a6adc8;
+  --ink-faint: #7f849c;
+  --paper: #1e1e2e;
+  --panel: #181825;
+  --panel-raised: #313244;
+  --line: #45475a;
+  --line-strong: #585b70;
+  --blue: #89b4fa;
+  --blue-hot: #b4befe;
+  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
+  --rust: #f38ba8;
+  --acid: #a6e3a1;
+  --shadow: #11111b;
+  --noise-opacity: 0.05;
+  --scan-opacity: 0.18;
+  --selection-ink: #1e1e2e;
 
   --topbar-height: 42px;
   --card-width: 100%;
@@ -59,12 +61,12 @@
 }
 
 /* shared effect and signature defaults: one rule for the document and every
-   nested theme scope, placed before the individual theme blocks so a family's
-   own values (and the preview half's theme) still win. root-only typography,
-   spacing and layout stay in :root above. */
+   nested theme scope, placed before the individual theme blocks so a palette's
+   own values still win. root-only typography, spacing and layout stay in
+   :root above. */
 :root,
 [data-theme] {
-  /* a family that names no second accent pair keeps these, and a nested scope
+  /* a palette that names no second accent pair keeps these, and a nested scope
      resets to them before its own block */
   --accent-2: var(--blue);
   --accent-3: var(--acid);
@@ -84,11 +86,10 @@
   --theme-radius: 0px;
   --theme-clip: none;
 
-  /* theme signature plumbing: one head hatch, one head rule, one edge style
-     per family. a theme family restates only the tokens whose mark it changes,
-     so a card reads as itself without a second component. everything here mixes
-     palette tokens, never raw colours, so high contrast can strip the
-     decoration without losing the palette. */
+  /* theme signature plumbing: one head hatch, one head rule, one edge style.
+     a palette restates only the tokens whose mark it changes, so a card reads
+     as itself without a second component. everything here mixes palette
+     tokens, never raw colours. */
   --head-image: repeating-linear-gradient(
     90deg,
     transparent 0 5px,
@@ -102,137 +103,19 @@
   --frame-rule: 1px solid var(--line);
 }
 
-/* void owns the root defaults, but a nested void scope (the system preview)
-   still needs its own block so it never borrows the parent theme's palette */
-[data-theme="void"] {
-  color-scheme: dark;
-
-  --void: oklch(0.138644 0.007745 255.5217);
-  --ink: oklch(0.91845 0.013671 93.1042);
-  --ink-dim: oklch(0.730366 0.009902 100.2283);
-  --ink-faint: oklch(0.542458 0.005148 135.4898);
-  --paper: oklch(0.172161 0.011538 260.6352);
-  --panel: oklch(0.19433 0.013706 258.3753);
-  --panel-raised: oklch(0.220742 0.017483 259.7488);
-  --line: oklch(0.306285 0.019015 254.8178);
-  --line-strong: oklch(0.427046 0.02378 253.1047);
-  --blue: oklch(0.714003 0.148368 270.0059);
-  --blue-hot: oklch(0.596885 0.218747 269.7035);
-  --blue-deep: oklch(0.343251 0.106106 268.4206);
-  --rust: oklch(0.587724 0.13924 37.9482);
-  --acid: oklch(0.826716 0.118573 122.8326);
-  --shadow: oklch(0 0 none);
-  --noise-opacity: 0.055;
-  --scan-opacity: 0.2;
-  --selection-ink: oklch(0.138644 0.007745 255.5217);
-
-  /* void: a tighter, stronger head hatch so the base theme reads as instrument
-     glass instead of paper */
-  --head-image: repeating-linear-gradient(
+/* the document fallback keeps mocha's decorations after the shared defaults */
+:root {
+  --accent-2: #cba6f7;
+  --accent-3: #f5c2e7;
+  --accent-4: #f9e2af;
+  --accent-5: #94e2d5;
+  --theme-radius: 4px;
+  --head-image: linear-gradient(
     90deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--line-strong) 60%, transparent) 3px 4px
+    color-mix(in srgb, var(--accent-2) 20%, transparent),
+    color-mix(in srgb, var(--accent-3) 12%, transparent)
   );
-  --head-rule: 1px solid var(--line-strong);
-
-  /* void: a crisp instrument hairline inside the top edge, no lift */
-  --card-shadow: inset 0 2px 0 0 var(--line-strong);
-}
-
-[data-theme="bone"] {
-  color-scheme: light;
-
-  --void: oklch(0.877309 0.022811 87.1999);
-  --ink: oklch(0.187948 0.01029 276.4096);
-  --ink-dim: oklch(0.384319 0.011529 107.0426);
-  --ink-faint: oklch(0.561127 0.01519 97.6906);
-  --paper: oklch(0.910933 0.022604 87.1983);
-  --panel: oklch(0.93217 0.022477 87.1973);
-  --panel-raised: oklch(0.953287 0.022355 87.1964);
-  --line: oklch(0.759385 0.024032 84.6178);
-  --line-strong: oklch(0.567622 0.019369 84.615);
-  --blue: oklch(0.438818 0.221089 268.1159);
-  --blue-hot: oklch(0.398976 0.214721 267.3552);
-  --blue-deep: oklch(0.841635 0.05474 279.3725);
-  --rust: oklch(0.492854 0.135684 36.5908);
-  --acid: oklch(0.467328 0.096632 124.7458);
-  --shadow: oklch(0.332006 0.018886 80.518);
-
-  --noise-opacity: 0.04;
-  --scan-opacity: 0.08;
-  --selection-ink: oklch(0.953287 0.022355 87.1964);
-
-  /* bone: cards sit on a warm paper shadow, a printed sheet lifting off the desk */
-  --card-shadow: 2px 3px 0 0 color-mix(in srgb, var(--shadow) 25%, transparent);
-}
-
-[data-theme="oxide"] {
-  color-scheme: dark;
-
-  --void: oklch(0.133465 0.009761 53.7457);
-  --ink: oklch(0.920871 0.030058 78.7811);
-  --ink-dim: oklch(0.734443 0.043404 76.5906);
-  --ink-faint: oklch(0.550396 0.039385 76.7291);
-  --paper: oklch(0.160833 0.013377 56.097);
-  --panel: oklch(0.180061 0.016584 62.0429);
-  --panel-raised: oklch(0.206004 0.022143 59.778);
-  --line: oklch(0.285332 0.030568 63.9793);
-  --line-strong: oklch(0.40678 0.045663 68.5076);
-  --blue: oklch(0.818651 0.129239 62.4785);
-  --blue-hot: oklch(0.752063 0.170653 54.3459);
-  --blue-deep: oklch(0.3663 0.074569 56.0087);
-  --rust: oklch(0.543329 0.120722 43.8797);
-  --acid: oklch(0.810753 0.092738 92.6221);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.16;
-  --selection-ink: oklch(0.133465 0.009761 53.7457);
-
-  /* oxide: the head trades the hatch for a rust double rule, a painted iron band */
-  --head-image: none;
-  --head-rule: 3px double var(--rust);
-
-  /* oxide: the rust double rule is repeated at the frame's top edge, so the
-     card reads as a banded iron plate even without a frame head */
-  --card-shadow:
-    inset 0 2px 0 0 var(--rust), inset 0 4px 0 0 color-mix(in srgb, var(--rust) 35%, transparent);
-}
-
-[data-theme="phosphor"] {
-  color-scheme: dark;
-
-  --void: oklch(0.131205 0.013287 160.2165);
-  --ink: oklch(0.922221 0.047407 151.9846);
-  --ink-dim: oklch(0.723893 0.048386 151.9301);
-  --ink-faint: oklch(0.552203 0.043943 152.8441);
-  --paper: oklch(0.160976 0.020443 151.3541);
-  --panel: oklch(0.18205 0.022968 152.2634);
-  --panel-raised: oklch(0.209889 0.02786 152.5431);
-  --line: oklch(0.296291 0.042503 151.4671);
-  --line-strong: oklch(0.405956 0.056452 150.2609);
-  --blue: oklch(0.848011 0.19475 151.7745);
-  --blue-hot: oklch(0.775309 0.20737 150.4992);
-  --blue-deep: oklch(0.364009 0.079698 154.0111);
-  --rust: oklch(0.744425 0.131892 78.5796);
-  --acid: oklch(0.893296 0.151589 115.9792);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.045;
-  --scan-opacity: 0.15;
-  --selection-ink: oklch(0.131205 0.013287 160.2165);
-
-  /* phosphor: the head hatch turns horizontal and the label carries a faint
-     phosphor glow, like a crt holding its last line */
-  --head-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 2px,
-    color-mix(in srgb, var(--blue) 32%, transparent) 2px 3px
-  );
-  --head-glow: 0 0 6px color-mix(in srgb, var(--blue) 55%, transparent);
-
-  /* phosphor: the crt bloom leaks past the card edge as a faint halo */
-  --card-shadow: 0 0 14px -8px color-mix(in srgb, var(--blue) 70%, transparent);
+  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
 }
 
 [data-theme="catppuccin-mocha"] {
@@ -316,556 +199,12 @@
   --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--line));
 }
 
-[data-theme="dracula"] {
-  color-scheme: dark;
-
-  /* dracula classic, the canonical swatches from the dracula contribute page
-     (selection #44475A, not the page's inconsistent current-line label): background is both the
-     page and the editor pane, BGDark is the sidebar/status chrome, BGLight the
-     floating interaction surface and BGDarker the shadow. purple is the primary
-     accent, pink the secondary; comment is the muted text/line-number tone.
-     dracula publishes one foreground, so ink-dim is that foreground mixed 82%
-     toward the background (verified against the two canonical endpoints). */
-  --void: #282a36;
-  --ink: #f8f8f2;
-  --ink-dim: #d3d3d0;
-  --ink-faint: #6272a4;
-  --paper: #282a36;
-  --panel: #21222c;
-  --panel-raised: #343746;
-  --line: #44475a;
-  --line-strong: #6272a4;
-  --blue: #bd93f9;
-  --blue-hot: #ff79c6;
-  --blue-deep: color-mix(in srgb, var(--blue) 22%, var(--void));
-  --rust: #ff5555;
-  --acid: #50fa7b;
-  --accent-2: #ff79c6;
-  --accent-3: #8be9fd;
-  --accent-4: #ffb86c;
-  --accent-5: #f1fa8c;
-  --shadow: #191a21;
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.16;
-  --selection-ink: #282a36;
-}
-
-[data-theme="atom"] {
-  color-scheme: dark;
-
-  /* atom one dark: background, foreground and the core syntax accents come
-     from the one-dark-syntax color file. --ink is the existing benday UI
-     adaptation #d7dae0, one step brighter than upstream's #abb2bf for reading
-     contrast; upstream's foreground is kept as --ink-dim. the surface steps
-     and decoration tokens are benday derivations, not upstream swatches. */
-  --void: #282c34;
-  --ink: #d7dae0;
-  --ink-dim: #abb2bf;
-  --ink-faint: #5c6370;
-  --paper: #21252b;
-  --panel: #21252b;
-  --panel-raised: #2c313a;
-  --line: #3b4048;
-  --line-strong: #5c6370;
-  --blue: #61afef;
-  --blue-hot: #56b6c2;
-  --blue-deep: #2d4a66;
-  --rust: #e06c75;
-  --acid: #98c379;
-  --accent-2: #c678dd;
-  --accent-3: #e5c07b;
-  --accent-4: #d19a66;
-  --accent-5: #56b6c2;
-  --shadow: #1b1d23;
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.16;
-  --selection-ink: #282c34;
-
-  /* atom: the card body is inset inside a cool grey hairline, like a muted pane */
-  --body-inset: inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 45%, transparent);
-}
-
-[data-theme="github-dark"] {
-  color-scheme: dark;
-
-  /* github: roles below follow the functional theme of @primer/primitives
-     11.10.0 (commit 3f51f80), the pinned release this palette was checked
-     against. blue-deep is a benday derivative of --blue, not an upstream
-     swatch; the decoration tokens further down are adaptations too. */
-  --void: #0d1117;
-  --ink: #f0f6fc;
-  --ink-dim: #9198a1;
-  --ink-faint: #656c76;
-  --paper: #010409;
-  --panel: #151b23;
-  --panel-raised: #212830;
-  --line: #3d444d;
-  --line-strong: #656c76;
-  --blue: #58a6ff;
-  --blue-hot: #79c0ff;
-  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
-  --rust: #f85149;
-  --acid: #3fb950;
-  --accent-2: #be8fff;
-  --accent-3: #d29922;
-  --accent-4: #39c5cf;
-  --accent-5: #db61a2;
-  --shadow: #000000;
-
-  --noise-opacity: 0.045;
-  --scan-opacity: 0.15;
-  --selection-ink: #0d1117;
-
-  /* github: a flat head with no hatch or rule. the list-group geometry carries
-     the family instead: a solid top edge and softly rounded corners */
-  --head-image: none;
-  --head-rule: none;
-  --frame-rule: 2px solid var(--line);
-  --theme-radius: 6px;
-}
-
-[data-theme="github-light"] {
-  color-scheme: light;
-
-  /* github: the same pinned @primer/primitives 11.10.0 release, read from its
-     light functional theme. */
-  --void: #ffffff;
-  --ink: #1f2328;
-  --ink-dim: #59636e;
-  --ink-faint: #818b98;
-  --paper: #f6f8fa;
-  --panel: #f6f8fa;
-  --panel-raised: #eff2f5;
-  --line: #d1d9e0;
-  --line-strong: #818b98;
-  --blue: #0969da;
-  --blue-hot: #0550ae;
-  --blue-deep: #ddf4ff;
-  --rust: #cf222e;
-  --acid: #1a7f37;
-  --accent-2: #8250df;
-  --accent-3: #bc4c00;
-  --accent-4: #1b7c83;
-  --accent-5: #bf3989;
-  --shadow: #afb8c1;
-
-  --noise-opacity: 0.035;
-  --scan-opacity: 0.06;
-  --selection-ink: #ffffff;
-
-  /* github: a flat head with no hatch or rule. the list-group geometry carries
-     the family instead: a solid top edge and softly rounded corners */
-  --head-image: none;
-  --head-rule: none;
-  --frame-rule: 2px solid var(--line);
-  --theme-radius: 6px;
-}
-
-[data-theme="cyberpunk"] {
-  color-scheme: dark;
-
-  --void: oklch(0 0 none);
-  --ink: oklch(0.961151 0 none);
-  --ink-dim: oklch(0.769931 0 none);
-  --ink-faint: oklch(0.633429 0 none);
-  --paper: oklch(0 0 none);
-  --panel: oklch(0.114918 0 none);
-  --panel-raised: oklch(0.15434 0 none);
-  --line: oklch(0.502664 0.181446 12.293);
-  --line-strong: oklch(0.682164 0.214543 8.9346);
-  /* night city runs magenta for action, cyan for system, red for danger */
-  --blue: oklch(0.652783 0.241476 10.2257);
-  --blue-hot: oklch(0.870045 0.148198 202.9163);
-  --blue-deep: oklch(0.502664 0.181446 12.293);
-  --rust: oklch(0.631655 0.254304 21.743);
-  --acid: oklch(0.870045 0.148198 202.9163);
-  --accent-2: oklch(0.652783 0.241476 10.2257);
-  --accent-3: oklch(0.870045 0.148198 202.9163);
-  --accent-4: oklch(0.652783 0.241476 10.2257);
-  --accent-5: oklch(0.631655 0.254304 21.743);
-  --shadow: oklch(0 0 none);
-  --neon: oklch(0.652783 0.241476 10.2257);
-  --neon-alt: oklch(0.870045 0.148198 202.9163);
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.22;
-  --selection-ink: oklch(0 0 none);
-
-  /* cyberpunk keeps its crt scan head; the tokens let a preview half and the
-     root share the declaration */
-  --head-image: repeating-linear-gradient(
-    0deg,
-    transparent 0 2px,
-    color-mix(in srgb, var(--ink) 7%, transparent) 2px 3px
-  );
-  --head-rule: 1px solid color-mix(in srgb, var(--blue) 45%, var(--line));
-
-  --surface-texture:
-    repeating-linear-gradient(
-      0deg,
-      transparent 0 2px,
-      color-mix(in srgb, var(--ink) 6%, transparent) 2px 3px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0 23px,
-      color-mix(in srgb, var(--blue) 6%, transparent) 23px 24px
-    );
-  --theme-radius: 0px;
-  /* the one cut: it removes the top-left and bottom-right corners, and every
-     boxed surface consumes it through this token rather than a local polygon
-     (frames, card backs, dialogs, the empty state, both preview surfaces, the
-     deck's pending and load-error boxes and the inline composer dock). the
-     hud's diagonals sit on the two corners this cuts and its brackets fold the
-     two it keeps, so the marks and the shape can never drift apart. */
-  --theme-clip: polygon(
-    18px 0,
-    100% 0,
-    100% calc(100% - 18px),
-    calc(100% - 18px) 100%,
-    0 100%,
-    0 18px
-  );
-}
-
-/* cottagecore: a pressed-flower herbarium plate. linen page, pressed sheet
-   card, kraft recess; olive ink, herb-green links, rose/honey/walnut accents.
-   the ink ramp is measured against paper and panel: body 10.86/9.81, dim
-   6.98/6.31, faint 5.01/4.53, links 5.91/5.34, focused-card border 3.70/3.34. */
-[data-theme="cottagecore"] {
-  color-scheme: light;
-
-  --void: oklch(0.940471 0.026153 90.1529);
-  --ink: oklch(0.290064 0.018302 88.8327);
-  --ink-dim: oklch(0.403542 0.028592 88.2966);
-  --ink-faint: oklch(0.480922 0.033964 87.5556);
-  --paper: oklch(0.911846 0.031131 86.4932);
-  --panel: oklch(0.879519 0.038697 85.3632);
-  --panel-raised: oklch(0.94182 0.028078 86.6808);
-  --line: oklch(0.800766 0.044482 83.1874);
-  --line-strong: oklch(0.579097 0.05553 81.2061);
-  --blue: oklch(0.436627 0.060596 140.6664);
-  --blue-hot: oklch(0.362241 0.055507 140.9844);
-  --blue-deep: oklch(0.545409 0.078679 132.0584);
-  --rust: oklch(0.479275 0.118242 34.6755);
-  --acid: oklch(0.47895 0.095658 120.5365);
-  --accent-2: oklch(0.482354 0.125359 6.2071);
-  --accent-3: oklch(0.47544 0.068021 129.4638);
-  --accent-4: oklch(0.475034 0.091848 73.3072);
-  --accent-5: oklch(0.467444 0.057232 72.5272);
-  --shadow: oklch(0.501716 0.040832 83.5429);
-
-  --noise-opacity: 0.06;
-  --scan-opacity: 0.02;
-  --selection-ink: oklch(0.94182 0.028078 86.6808);
-
-  /* laid paper: chain lines on one axis only, wider pitch and more alpha than
-     the shared CRT scanline so it reads as pulp, not as a screen */
-  --surface-texture: repeating-linear-gradient(
-    0deg,
-    transparent 0 6px,
-    color-mix(in srgb, var(--line) 26%, transparent) 6px 7px
-  );
-  --theme-radius: 4px;
-  --theme-clip: none;
-
-  /* a pressed plate with one stitched label: solid plate edge, a single stitch
-     under the head (where a sampler marks its alphabet) and an engraved hairline
-     inside the body. no hatch: a pasted label is not instrument glass. */
-  --card-edge-style: solid;
-  --frame-rule: 1px solid var(--line);
-  --head-image: none;
-  --head-rule: 1px dashed var(--line-strong);
-  --body-inset: inset 0 0 0 1px color-mix(in srgb, var(--line) 55%, transparent);
-  --card-shadow: 2px 3px 0 0 color-mix(in srgb, var(--shadow) 25%, transparent);
-}
-
-[data-theme="truth-to-materials"] {
-  color-scheme: light;
-
-  --void: oklch(0.616707 0 none);
-  --ink: oklch(0.139791 0 none);
-  --ink-dim: oklch(0.260325 0 none);
-  --ink-faint: oklch(0.367681 0 none);
-  --paper: oklch(0.659958 0 none);
-  --panel: oklch(0.692749 0 none);
-  --panel-raised: oklch(0.738019 0 none);
-  --line: oklch(0.510278 0 none);
-  --line-strong: oklch(0.34846 0 none);
-  --blue: oklch(0.204627 0 none);
-  --blue-hot: oklch(0 0 none);
-  --blue-deep: oklch(0.814064 0 none);
-  --rust: oklch(0.371991 0.104284 29.2613);
-  --acid: oklch(0.340697 0 none);
-  --accent-2: oklch(0.243535 0 none);
-  --accent-3: oklch(0.385287 0.006597 106.8979);
-  --accent-4: oklch(0.173042 0 none);
-  --accent-5: oklch(0.449533 0 none);
-  --shadow: oklch(0.485497 0 none);
-
-  --noise-opacity: 0;
-  --scan-opacity: 0;
-  --selection-ink: oklch(0.884451 0.003963 107.1986);
-
-  --surface-texture:
-    repeating-linear-gradient(
-      0deg,
-      transparent 0 1px,
-      color-mix(in srgb, var(--ink) 16%, transparent) 1px 2px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 1px,
-      color-mix(in srgb, var(--ink) 11%, transparent) 1px 2px
-    );
-  --theme-radius: 0px;
-  --theme-clip: none;
-
-  /* truth to materials: the paper is grainier than any other theme and the
-     head is a heavy solid rule, not a hatch */
-  --head-image: none;
-  --head-rule: 2px solid var(--line-strong);
-}
-
-[data-theme="bluesky"] {
-  color-scheme: light;
-
-  /* bluesky: roles are @bsky.app/alf 0.2.1's light palette (palette.ts), mapped
-     contrast_25/0/50/100/1000 for the surfaces and type, contrast_800/600/300
-     for the muted steps, primary_500/600/100/300 for the action roles and
-     negative_600/positive_700 for state. the selection foreground stays white
-     and the geometry stays flat. */
-  --void: #f9fafb;
-  --ink: #000000;
-  --ink-dim: #313f54;
-  --ink-faint: #526580;
-  --paper: #ffffff;
-  --panel: #eff2f6;
-  --panel-raised: #dce2ea;
-  --line: #dce2ea;
-  --line-strong: #a5b2c5;
-  --blue: #006aff;
-  --blue-hot: #0059d6;
-  --blue-deep: #cce1ff;
-  --rust: #ca123d;
-  --acid: #036d38;
-  --accent-2: #006aff;
-  --accent-3: #0059d6;
-  --accent-4: #75afff;
-  --accent-5: #405168;
-  --shadow: #c0cad8;
-
-  --noise-opacity: 0;
-  --scan-opacity: 0;
-  --selection-ink: #ffffff;
-
-  --surface-texture: none;
-  --theme-radius: 3px;
-  --theme-clip: none;
-
-  /* bluesky: no hatch at all, only a lighter hairline under the head */
-  --head-image: none;
-  --head-rule: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-}
-
-[data-theme="pumpkin-ember"] {
-  color-scheme: dark;
-
-  --void: oklch(0.163654 0.022375 47.6648);
-  --ink: oklch(0.937391 0.048959 73.0998);
-  --ink-dim: oklch(0.766983 0.083162 66.0447);
-  --ink-faint: oklch(0.580842 0.07858 62.5578);
-  --paper: oklch(0.18614 0.027554 47.4939);
-  --panel: oklch(0.207707 0.03357 50.579);
-  --panel-raised: oklch(0.242699 0.040313 51.5885);
-  --line: oklch(0.296971 0.055972 50.6466);
-  --line-strong: oklch(0.409351 0.086966 49.3576);
-  --blue: oklch(0.777766 0.15807 59.6021);
-  --blue-hot: oklch(0.700923 0.20113 44.7612);
-  --blue-deep: oklch(0.317193 0.077466 45.8746);
-  --rust: oklch(0.609999 0.195865 32.0773);
-  --acid: oklch(0.819284 0.113246 96.5353);
-  --accent-2: oklch(0.830512 0.145233 74.1836);
-  --accent-3: oklch(0.609999 0.195865 32.0773);
-  --accent-4: oklch(0.904278 0.084122 77.4718);
-  --accent-5: oklch(0.463719 0.123949 45.0855);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.055;
-  --scan-opacity: 0.18;
-  --selection-ink: oklch(0.163654 0.022375 47.6648);
-
-  --surface-texture: repeating-linear-gradient(
-    115deg,
-    transparent 0 7px,
-    color-mix(in srgb, var(--rust) 11%, transparent) 7px 8px
-  );
-  --theme-radius: 2px;
-  --theme-clip: none;
-
-  /* pumpkin ember: the head carries the same rust diagonal as the paper */
-  --head-image: repeating-linear-gradient(
-    115deg,
-    transparent 0 7px,
-    color-mix(in srgb, var(--rust) 16%, transparent) 7px 8px
-  );
-}
-
-[data-theme="toxic-midnight"] {
-  color-scheme: dark;
-
-  --void: oklch(0.159681 0.02056 165.2942);
-  --ink: oklch(0.95289 0.074836 154.2151);
-  --ink-dim: oklch(0.773808 0.091573 154.2225);
-  --ink-faint: oklch(0.553191 0.07047 155.9062);
-  --paper: oklch(0.183796 0.02577 162.6765);
-  --panel: oklch(0.210876 0.032239 158.9607);
-  --panel-raised: oklch(0.243502 0.04259 155.1707);
-  --line: oklch(0.293987 0.05405 152.9294);
-  --line-strong: oklch(0.426488 0.0863 151.5805);
-  --blue: oklch(0.894335 0.197498 148.6343);
-  --blue-hot: oklch(0.918798 0.223172 128.7349);
-  --blue-deep: oklch(0.321432 0.066757 155.5636);
-  --rust: oklch(0.696373 0.196358 15.8417);
-  --acid: oklch(0.918798 0.223172 128.7349);
-  --accent-2: oklch(0.906345 0.158434 155.4511);
-  --accent-3: oklch(0.918798 0.223172 128.7349);
-  --accent-4: oklch(0.939042 0.181876 124.3163);
-  --accent-5: oklch(0.622483 0.133444 155.5493);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.06;
-  --scan-opacity: 0.2;
-  --selection-ink: oklch(0.159681 0.02056 165.2942);
-
-  --surface-texture:
-    repeating-linear-gradient(
-      45deg,
-      transparent 0 5px,
-      color-mix(in srgb, var(--acid) 7%, transparent) 5px 6px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      transparent 0 11px,
-      color-mix(in srgb, var(--blue) 8%, transparent) 11px 12px
-    );
-  --theme-radius: 0px;
-  --theme-clip: none;
-
-  /* toxic midnight: a woven head to match the crossed paper weave */
-  --head-image:
-    repeating-linear-gradient(
-      45deg,
-      transparent 0 5px,
-      color-mix(in srgb, var(--acid) 10%, transparent) 5px 6px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      transparent 0 11px,
-      color-mix(in srgb, var(--blue) 12%, transparent) 11px 12px
-    );
-}
-
-[data-theme="candy-crypt"] {
-  color-scheme: dark;
-
-  --void: oklch(0.179853 0.045532 319.3226);
-  --ink: oklch(0.945643 0.036834 339.5213);
-  --ink-dim: oklch(0.779405 0.086043 332.8979);
-  --ink-faint: oklch(0.567057 0.090638 332.2733);
-  --paper: oklch(0.208477 0.061462 317.3655);
-  --panel: oklch(0.235177 0.07127 316.596);
-  --panel-raised: oklch(0.275331 0.087863 314.2343);
-  --line: oklch(0.331298 0.110566 314.5565);
-  --line-strong: oklch(0.448993 0.150562 315.7828);
-  --blue: oklch(0.763082 0.19373 339.5609);
-  --blue-hot: oklch(0.708888 0.241479 342.9016);
-  --blue-deep: oklch(0.323435 0.111389 322.6516);
-  --rust: oklch(0.692242 0.197514 23.819);
-  --acid: oklch(0.913018 0.178659 140.4745);
-  --accent-2: oklch(0.8535 0.10887 339.4034);
-  --accent-3: oklch(0.913018 0.178659 140.4745);
-  --accent-4: oklch(0.880302 0.13469 86.0735);
-  --accent-5: oklch(0.671726 0.214061 303.205);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.16;
-  --selection-ink: oklch(0.179853 0.045532 319.3226);
-
-  --surface-texture: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    color-mix(in srgb, var(--accent-2) 9%, transparent) 6px 7px
-  );
-  --theme-radius: 5px;
-  --theme-clip: none;
-
-  /* candy crypt: a pastel diagonal head that matches the sugar paper */
-  --head-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    color-mix(in srgb, var(--accent-2) 14%, transparent) 6px 7px
-  );
-}
-
-[data-theme="dead-leaves"] {
-  color-scheme: dark;
-
-  --void: oklch(0.169621 0.01475 87.8208);
-  --ink: oklch(0.926854 0.03626 87.8271);
-  --ink-dim: oklch(0.736078 0.052555 86.8575);
-  --ink-faint: oklch(0.547025 0.045721 85.1114);
-  --paper: oklch(0.196759 0.022761 91.7205);
-  --panel: oklch(0.223709 0.025813 90.5297);
-  --panel-raised: oklch(0.258977 0.031934 88.8915);
-  --line: oklch(0.316459 0.040146 89.5031);
-  --line-strong: oklch(0.439064 0.062466 91.2833);
-  --blue: oklch(0.750663 0.129434 79.8572);
-  --blue-hot: oklch(0.807489 0.147112 81.2255);
-  --blue-deep: oklch(0.318848 0.050684 83.1659);
-  --rust: oklch(0.540449 0.150175 34.8753);
-  --acid: oklch(0.70285 0.104016 117.5522);
-  --accent-2: oklch(0.682413 0.120532 68.8461);
-  --accent-3: oklch(0.70285 0.104016 117.5522);
-  --accent-4: oklch(0.823989 0.097094 87.6629);
-  --accent-5: oklch(0.510715 0.088743 62.8192);
-  --shadow: oklch(0 0 none);
-
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.17;
-  --selection-ink: oklch(0.169621 0.01475 87.8208);
-
-  --surface-texture:
-    repeating-linear-gradient(
-      160deg,
-      transparent 0 11px,
-      color-mix(in srgb, var(--acid) 8%, transparent) 11px 12px
-    ),
-    repeating-linear-gradient(
-      20deg,
-      transparent 0 17px,
-      color-mix(in srgb, var(--rust) 6%, transparent) 17px 18px
-    );
-  --theme-radius: 2px;
-  --theme-clip: none;
-
-  /* dead leaves: a rust wash draining across the head */
-  --head-image: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--rust) 12%, transparent),
-    transparent 60%
-  );
-}
-
-/* readable roles: one layer above the raw palettes so every theme keeps its own
-   swatches while information-bearing text and solid controls stay legible.
-   rebinding on each theme scope matters: a root alias would otherwise resolve
-   against the wrong palette inside a split preview half. */
+/* readable roles: one layer above the raw palettes so information-bearing text
+   and solid controls stay legible. rebinding on each theme scope matters: a
+   root alias would otherwise resolve against the wrong palette inside a nested
+   scope. */
 :root,
-:where([data-theme], .b-theme-preview__half) {
+[data-theme] {
   --text-muted: var(--ink-dim);
   --text-link: var(--blue);
   --fill-solid: var(--blue);
@@ -873,23 +212,9 @@
   --on-accent: var(--void);
 }
 
-[data-theme="catppuccin-latte"],
-[data-theme="truth-to-materials"] {
-  --text-muted: color-mix(in srgb, var(--ink) 60%, var(--ink-dim) 40%);
-}
-
-[data-theme="catppuccin-latte"],
-[data-theme="bluesky"],
-[data-theme="github-light"] {
-  --text-link: var(--ink);
-}
-
 [data-theme="catppuccin-latte"] {
+  --text-muted: color-mix(in srgb, var(--ink) 60%, var(--ink-dim) 40%);
+  --text-link: var(--ink);
   --fill-solid: color-mix(in srgb, var(--ink) 10%, var(--blue) 90%);
   --fill-solid-hover: color-mix(in srgb, var(--ink) 10%, var(--blue-hot) 90%);
-}
-
-[data-theme="bluesky"] {
-  --fill-solid: color-mix(in srgb, var(--ink) 20%, var(--blue) 80%);
-  --fill-solid-hover: color-mix(in srgb, var(--ink) 20%, var(--blue-hot) 80%);
 }

@@ -11,28 +11,16 @@
   width: 100%;
   height: 100%;
   background: var(--panel);
-  filter: var(--dither-filter, url(#benday-dither-void));
+  filter: var(--dither-filter, url(#benday-dither-catppuccin-mocha));
   image-rendering: var(--dither-rendering, pixelated);
   object-fit: cover;
 }
 
-/* every theme scope declares both properties again, so a nested void or bone
-   scope never inherits its parent's filter or bluesky's rendering */
+/* every theme scope declares both properties again, so a nested scope never
+   inherits its parent's filter or rendering */
 [data-theme] {
-  --dither-filter: url(#benday-dither-void);
+  --dither-filter: url(#benday-dither-catppuccin-mocha);
   --dither-rendering: pixelated;
-}
-
-[data-theme="bone"] {
-  --dither-filter: url(#benday-dither-bone);
-}
-
-[data-theme="oxide"] {
-  --dither-filter: url(#benday-dither-oxide);
-}
-
-[data-theme="phosphor"] {
-  --dither-filter: url(#benday-dither-phosphor);
 }
 
 [data-theme="catppuccin-mocha"] {
@@ -41,59 +29,6 @@
 
 [data-theme="catppuccin-latte"] {
   --dither-filter: url(#benday-dither-catppuccin-latte);
-}
-
-[data-theme="dracula"] {
-  --dither-filter: url(#benday-dither-dracula);
-}
-
-[data-theme="atom"] {
-  --dither-filter: url(#benday-dither-atom);
-}
-
-[data-theme="github-dark"] {
-  --dither-filter: url(#benday-dither-github-dark);
-}
-
-[data-theme="github-light"] {
-  --dither-filter: url(#benday-dither-github-light);
-}
-
-[data-theme="cyberpunk"] {
-  --dither-filter: url(#benday-dither-cyberpunk);
-}
-
-[data-theme="cottagecore"] {
-  --dither-filter: url(#benday-dither-cottagecore);
-  /* a print has no source pixels, only dots: do not pre-upscale the source
-     into blocks before the clustered screen resamples it */
-  --dither-rendering: auto;
-}
-
-[data-theme="pumpkin-ember"] {
-  --dither-filter: url(#benday-dither-pumpkin-ember);
-}
-
-[data-theme="toxic-midnight"] {
-  --dither-filter: url(#benday-dither-toxic-midnight);
-}
-
-[data-theme="candy-crypt"] {
-  --dither-filter: url(#benday-dither-candy-crypt);
-}
-
-[data-theme="dead-leaves"] {
-  --dither-filter: url(#benday-dither-dead-leaves);
-}
-
-/* honest images: no ordered dither, no grunge, no pixel grid */
-[data-theme="truth-to-materials"] {
-  --dither-filter: url(#benday-dither-truth-to-materials);
-}
-
-[data-theme="bluesky"] {
-  --dither-filter: none;
-  --dither-rendering: auto;
 }
 
 .dither-image[data-effect="none"] {

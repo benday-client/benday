@@ -1,12 +1,10 @@
-/* theme abilities: accent depth, shared texture and corner language.
-   load after the base sheets: these are token-driven overrides, not a new
-   component convention. */
+/* theme abilities: the catppuccin pair's motion, head wash and rounded
+   surfaces. load after the base sheets: these are token-driven overrides,
+   not a new component convention. */
 
 /* motion language ----------------------------------------------------
-   one transition, per-family values. the paper themes rise, the quiet dark
-   themes sit still and fade, the seasonal four settle with a tilt, truth to
-   materials declares no duration at all, and cyberpunk keeps its own boot
-   block further down. reduced motion turns the whole thing off. */
+   one transition, per-palette values. latte rises a little further and a
+   little slower than mocha. reduced motion turns the whole thing off. */
 :root {
   --motion-lift: 4px;
   --motion-tilt: 0deg;
@@ -15,37 +13,10 @@
   --deal-dur: 620ms;
 }
 
-[data-theme="bone"],
-[data-theme="catppuccin-latte"],
-[data-theme="github-light"],
-[data-theme="bluesky"] {
+[data-theme="catppuccin-latte"] {
   --motion-lift: 8px;
   --motion-dur: 160ms;
   --motion-ease: cubic-bezier(0.16, 0.84, 0.24, 1);
-}
-
-/* cottagecore settles instead of rising: lower lift, slower settle, no tilt,
-   and the deck lays a card down rather than dealing it */
-[data-theme="cottagecore"] {
-  --motion-lift: 5px;
-  --motion-dur: 220ms;
-  --motion-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --deal-dur: 720ms;
-}
-
-[data-theme="pumpkin-ember"],
-[data-theme="toxic-midnight"],
-[data-theme="candy-crypt"],
-[data-theme="dead-leaves"] {
-  --motion-lift: 10px;
-  --motion-tilt: 0.4deg;
-  --motion-dur: 190ms;
-  --deal-dur: 760ms;
-}
-
-[data-theme="truth-to-materials"] {
-  --motion-dur: 0ms;
-  --deal-dur: 420ms;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -69,15 +40,10 @@
 }
 
 /* accent depth -------------------------------------------------------
-   accent-4/5 are the quieter second pair: comments, quotes, tags and
-   actions use them so richer themes read with more range without every
-   state going neon. themes without their own values inherit the root
-   fallbacks. only borders, fills and marks keep the raw accent: text uses
-   the readable roles, so a quiet accent never becomes quiet copy. */
-
-.b-post-card__comment-author:hover {
-  color: var(--text-link);
-}
+   accent-4/5 are the quieter second pair: quotes, quotes and actions use
+   them so richer themes read with more range without every state going
+   neon. only borders, fills and marks keep the raw accent: text uses the
+   readable roles, so a quiet accent never becomes quiet copy. */
 
 .b-embed--quote {
   border-color: color-mix(in srgb, var(--accent-4) 55%, var(--line-strong));
@@ -99,15 +65,6 @@
   border-color: color-mix(in srgb, var(--accent-4) 55%, var(--line));
 }
 
-.b-theme-preview__link {
-  color: var(--text-link);
-}
-
-.b-settings__theme[data-active="true"] {
-  border-color: var(--blue);
-  color: var(--ink);
-}
-
 .b-post-card__action[data-kind="like"]:hover {
   border-bottom-color: var(--accent-4);
   color: var(--ink);
@@ -118,83 +75,31 @@
   color: var(--ink);
 }
 
-/* surface texture ----------------------------------------------------
-   cards, feed cards, profile cards and card backs consume
-   --surface-texture. the preview shows the same texture so the picker
-   is honest about what a theme does to paper. */
-
-.b-theme-preview {
-  background-image: var(--surface-texture);
-}
-
 /* theme signature ----------------------------------------------------
-   every family gets one non-colour mark beyond its palette, applied through
-   the signature tokens beside that palette: a head hatch (or none), a head
-   rule weight and style, a frame top rule, an edge style, a label glow, a
-   body inset or a card shadow. a post card renders no frame head, so its
-   author row is the head band and takes the same hatch and rule. every rule
-   is token-driven, so a preview half carrying its own data-theme inherits
-   that half's mark and nothing from the embedding page. */
-
-/* a post card has no frame head: its author row is the de-facto head band, so
-   the same tokens paint it there. the frame top carries the family rule, which
-   keeps head-only families readable on a card with no head element. */
+   catppuccin's head wash and pastel rule paint the head band and the author
+   row of a post card, which renders no frame head. everything is
+   token-driven, so a nested scope inherits its own palette's mark. */
 .b-frame__head,
-.b-theme-preview__head,
 .b-post-card__author {
   border-bottom: var(--head-rule);
   background-image: var(--head-image);
 }
 
 .b-frame__label,
-.b-theme-preview__label,
 .b-post-card__name,
 .b-post-card__index {
   text-shadow: var(--head-glow);
 }
 
-.b-frame,
-.b-theme-preview:not(.b-theme-preview--split),
-.b-theme-preview__half {
-  border-style: var(--card-edge-style);
-}
-
-/* after the edge style, so a family's own top rule keeps its style */
 .b-frame {
+  border-style: var(--card-edge-style);
+  /* after the edge style, so the frame's own top rule keeps its style */
   border-top: var(--frame-rule);
-}
-
-:where(.b-frame__body, .b-theme-preview__body) {
-  box-shadow: var(--body-inset);
-}
-
-:where(.b-frame, .b-theme-preview__half) {
   box-shadow: var(--card-shadow);
 }
 
-/* dracula: a violet corner bracket drawn on the card face, not a new element.
-   the root arm skips half descendants, and the half arm keys on its own
-   data-theme, so a bone half inside a dracula page stays bare. */
-[data-theme="dracula"]
-  :is(.b-frame, .b-theme-preview:not(.b-theme-preview--split)):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="dracula"] {
-  background-image:
-    linear-gradient(var(--blue), var(--blue)), linear-gradient(var(--blue), var(--blue)),
-    linear-gradient(var(--blue), var(--blue)), linear-gradient(var(--blue), var(--blue)),
-    var(--surface-texture);
-  background-size:
-    12px 1px,
-    1px 12px,
-    12px 1px,
-    1px 12px,
-    auto;
-  background-position:
-    100% 0,
-    100% 0,
-    0 100%,
-    0 100%,
-    0 0;
-  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+.b-frame__body {
+  box-shadow: var(--body-inset);
 }
 
 /* corner language ----------------------------------------------------
@@ -202,223 +107,44 @@
    surfaces. no clip-path on focusable controls, so focus outlines stay
    whole. the alert box is a status surface like the empty box, so it takes
    the same radius and cut rather than the cut alone. */
-
 .b-frame,
 .b-card-back,
 .b-dialog,
-.b-theme-preview,
-.b-theme-preview__half,
 .b-empty,
 .b-error {
   border-radius: var(--theme-radius);
   clip-path: var(--theme-clip);
 }
 
-/* the remaining boxed surfaces take the same cut: a pending deck card, a
-   load-error box and the inline composer dock are boxes on the same face, so
-   they must not stay square while the cards beside them are shaped. only
-   clip-path is added: none of them owns a radius in any theme, and a rounded
-   theme must not start rounding them just because they joined the cut. */
+/* a pending deck card, a load-error box and the inline composer dock are
+   boxes on the same face. only clip-path is added: none of them owns a
+   radius in any theme. */
 .b-deck__skeleton,
 .b-deck__load-error,
 .b-compose-dock {
   clip-path: var(--theme-clip);
 }
 
-/* the split is a layout box, not a surface: each half carries its own theme's
-   corners, texture and hud, so the container must add none of them */
-.b-theme-preview--split {
-  border-radius: 0;
-  clip-path: none;
-  background-image: none;
-}
-
-/* the square corner ticks would be cut off by an octagonal clip, and they
-   fight a rounded trim; hide them for every shaped or rounded theme */
-:is(
-    [data-theme="cyberpunk"],
-    [data-theme="cottagecore"],
-    [data-theme="bluesky"],
-    [data-theme="pumpkin-ember"],
-    [data-theme="candy-crypt"],
-    [data-theme="dead-leaves"],
-    [data-theme="catppuccin-mocha"],
-    [data-theme="catppuccin-latte"],
-    [data-theme="github-dark"],
-    [data-theme="github-light"],
-    [data-theme="dracula"]
-  )
-  .b-frame::before,
-:is(
-    [data-theme="cyberpunk"],
-    [data-theme="cottagecore"],
-    [data-theme="bluesky"],
-    [data-theme="pumpkin-ember"],
-    [data-theme="candy-crypt"],
-    [data-theme="dead-leaves"],
-    [data-theme="catppuccin-mocha"],
-    [data-theme="catppuccin-latte"],
-    [data-theme="github-dark"],
-    [data-theme="github-light"],
-    [data-theme="dracula"]
-  )
-  .b-frame::after {
+/* catppuccin rounds its surfaces, so the square corner ticks are hidden and
+   the frame keeps its children inside the trim */
+[data-theme="catppuccin-mocha"] .b-frame::before,
+[data-theme="catppuccin-mocha"] .b-frame::after,
+[data-theme="catppuccin-latte"] .b-frame::before,
+[data-theme="catppuccin-latte"] .b-frame::after {
   display: none;
 }
 
-/* keep child backgrounds inside the trimmed corner */
-:is(
-    [data-theme="cyberpunk"],
-    [data-theme="cottagecore"],
-    [data-theme="bluesky"],
-    [data-theme="pumpkin-ember"],
-    [data-theme="candy-crypt"],
-    [data-theme="dead-leaves"],
-    [data-theme="catppuccin-mocha"],
-    [data-theme="catppuccin-latte"],
-    [data-theme="github-dark"],
-    [data-theme="github-light"]
-  )
-  .b-frame {
+[data-theme="catppuccin-mocha"] .b-frame,
+[data-theme="catppuccin-latte"] .b-frame {
   overflow: hidden;
-}
-
-/* the cut's other boxes are kept inside the same edge: a scroll container and
-   a transient loading card still must not paint a square child corner through
-   a cut one. the frame's own hud marks sit on the border-box edge and its
-   focus rule is inset, so neither is trimmed by the clip. the dock is already
-   a scroller and clips its own paint. */
-[data-theme="cyberpunk"] :is(.b-deck__skeleton, .b-deck__load-error) {
-  overflow: hidden;
-}
-
-[data-theme="cyberpunk"] .b-post-card:hover,
-[data-theme="cyberpunk"] .b-feed-card:hover {
-  border-color: var(--accent-4);
-}
-
-/* outline follows the clipped octagon only through a drop shadow */
-/* the shared inset rule still reads; cyberpunk adds its glow around it */
-[data-theme="cyberpunk"] .b-deck__item[data-focused="true"] > .b-frame,
-[data-theme="cyberpunk"] .b-deck__item:focus-within > .b-frame {
-  filter: drop-shadow(0 0 1px var(--blue)) drop-shadow(0 0 4px var(--blue-deep));
-}
-
-/* halloween flourishes: distinct tags and quiet surface accents --------- */
-
-[data-theme="pumpkin-ember"] .b-tag:not(.b-tag--warn):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="pumpkin-ember"] .b-tag:not(.b-tag--warn) {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--accent-4) 40%, var(--line));
-}
-
-[data-theme="pumpkin-ember"] .b-tag--default:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="pumpkin-ember"] .b-tag--default {
-  color: var(--ink);
-}
-
-[data-theme="toxic-midnight"] .b-tag:not(.b-tag--warn):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="toxic-midnight"] .b-tag:not(.b-tag--warn) {
-  border-style: dotted;
-  border-color: color-mix(in srgb, var(--acid) 45%, var(--line));
-}
-
-[data-theme="toxic-midnight"] .b-tag--default:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="toxic-midnight"] .b-tag--default {
-  color: var(--ink);
-}
-
-[data-theme="candy-crypt"] .b-tag:not(.b-tag--warn):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="candy-crypt"] .b-tag:not(.b-tag--warn) {
-  border-style: dotted;
-  border-color: color-mix(in srgb, var(--accent-2) 50%, var(--line));
-}
-
-[data-theme="candy-crypt"] .b-tag--default:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="candy-crypt"] .b-tag--default {
-  color: var(--ink);
-}
-
-[data-theme="dead-leaves"] .b-tag:not(.b-tag--warn):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="dead-leaves"] .b-tag:not(.b-tag--warn) {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--accent-4) 40%, var(--line));
-}
-
-[data-theme="dead-leaves"] .b-tag--default:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="dead-leaves"] .b-tag--default {
-  color: var(--ink);
-}
-
-/* cottagecore: a tag is a printed label pasted on the card, so it lifts onto
-   raised paper with one stronger hairline instead of sitting in the kraft
-   recess. a split half owns its own theme, so the root arm skips half
-   descendants and the half arm keys on its own data-theme. */
-[data-theme="cottagecore"] .b-tag:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="cottagecore"] .b-tag {
-  background: var(--panel-raised);
-}
-
-[data-theme="cottagecore"] .b-tag--default:not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="cottagecore"] .b-tag--default {
-  border-color: var(--line-strong);
-}
-
-/* an inked outline, not the browser default hairline: 2px of the herb green is
-   5.91:1 on paper and reads as a drawn border at card size */
-[data-theme="cottagecore"] :focus-visible {
-  outline-width: 2px;
-}
-
-/* seasonal corner mark -----------------------------------------------
-   one small static glyph at the frame's bottom right. it sits inside the
-   frame's own overflow, so shaped and square themes both clip it. */
-
-:is(
-    [data-theme="pumpkin-ember"],
-    [data-theme="toxic-midnight"],
-    [data-theme="candy-crypt"],
-    [data-theme="dead-leaves"]
-  )
-  .b-frame__body::after {
-  position: absolute;
-  right: var(--space-2);
-  bottom: var(--space-2);
-  color: var(--ink-faint);
-  font-size: var(--step--1);
-  line-height: 1;
-  pointer-events: none;
-}
-
-[data-theme="pumpkin-ember"] .b-frame__body::after {
-  content: "✳";
-}
-
-[data-theme="toxic-midnight"] .b-frame__body::after {
-  content: "✦";
-}
-
-[data-theme="candy-crypt"] .b-frame__body::after {
-  content: "☾";
-}
-
-[data-theme="dead-leaves"] .b-frame__body::after {
-  content: "❦";
-}
-
-/* a split preview stacks once two halves stop being readable side by side */
-@media (max-width: 620px) {
-  .b-theme-preview--split {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* high contrast opt-in -------------------------------------------------
    a separate surface, not a theme: normal palettes stay exactly as they
-   are. values are light-dark(), so the root and each preview half resolve
-   their own color-scheme. geometry and image effects are untouched. */
-:root[data-contrast="high"],
-:root[data-contrast="high"] .b-theme-preview__half {
+   are. values are light-dark(), so the root resolves its own color-scheme.
+   geometry and image effects are untouched. this pass leaves with the next
+   cut. */
+:root[data-contrast="high"] {
   --void: light-dark(#ffffff, #000000);
   --paper: light-dark(#ffffff, #000000);
   --panel: light-dark(#ffffff, #000000);
@@ -456,263 +182,4 @@
   --card-shadow: 0 0 0 0 transparent;
   --card-edge-style: solid;
   --frame-rule: 1px solid var(--line);
-}
-
-/* cyberpunk hud ------------------------------------------------------
-   night city frames a panel with two cut corners and two bracketed ones,
-   both a 45 degree diagonal and no radius anywhere. the marks follow the cut:
-   the diagonals sit on the two corners --theme-clip removes (top-left and
-   bottom-right) and the brackets fold the two square corners it keeps
-   (top-right and bottom-left). the diagonal's -1px inset cancels the 1px
-   border, so the mark lands on the clip edge in border-box terms. the cut is
-   shared by the boxed surfaces in the corner-language block; the ones that are
-   not scrollers and own no pseudo-element (the alert and the deck load error)
-   carry the marks too, so a cut corner never reads as an unfinished one. the
-   inline dock scrolls and the pending card's ::after is its own texture, so
-   those two keep the shape alone. */
-[data-theme="cyberpunk"]
-  :is(
-    .b-frame,
-    .b-card-back,
-    .b-error,
-    .b-deck__load-error,
-    .b-empty,
-    .b-theme-preview:not(.b-theme-preview--split)
-  ),
-.b-theme-preview__half[data-theme="cyberpunk"] {
-  position: relative;
-}
-
-[data-theme="cyberpunk"]
-  :is(
-    .b-frame,
-    .b-card-back,
-    .b-dialog,
-    .b-error,
-    .b-deck__load-error,
-    .b-empty,
-    .b-theme-preview:not(.b-theme-preview--split)
-  )::before,
-.b-theme-preview__half[data-theme="cyberpunk"]::before {
-  content: "";
-  display: block;
-  position: absolute;
-  inset: -1px;
-  width: auto;
-  height: auto;
-  border: 0;
-  pointer-events: none;
-  z-index: 3;
-  background-image:
-    linear-gradient(
-      to bottom right,
-      transparent calc(50% - 1px),
-      var(--line) calc(50% - 1px),
-      var(--line) calc(50% + 1px),
-      transparent calc(50% + 1px)
-    ),
-    linear-gradient(
-      to bottom right,
-      transparent calc(50% - 1px),
-      var(--line) calc(50% - 1px),
-      var(--line) calc(50% + 1px),
-      transparent calc(50% + 1px)
-    );
-  background-size: 18px 18px;
-  background-position:
-    0 0,
-    100% 100%;
-  background-repeat: no-repeat;
-}
-
-/* the square corners fold the edge into a bright bracket, flush with the
-   dim border so the mark reads as part of the frame */
-[data-theme="cyberpunk"]
-  :is(
-    .b-frame,
-    .b-card-back,
-    .b-dialog,
-    .b-error,
-    .b-deck__load-error,
-    .b-empty,
-    .b-theme-preview:not(.b-theme-preview--split)
-  )::after,
-.b-theme-preview__half[data-theme="cyberpunk"]::after {
-  content: "";
-  display: block;
-  position: absolute;
-  inset: 0;
-  width: auto;
-  height: auto;
-  border: 0;
-  pointer-events: none;
-  z-index: 3;
-  background-image:
-    linear-gradient(var(--blue), var(--blue)), linear-gradient(var(--blue), var(--blue)),
-    linear-gradient(var(--blue), var(--blue)), linear-gradient(var(--blue), var(--blue));
-  background-size:
-    14px 1px,
-    1px 14px,
-    14px 1px,
-    1px 14px;
-  background-position:
-    100% 0,
-    100% 0,
-    0 100%,
-    0 100%;
-  background-repeat: no-repeat;
-}
-
-/* hud type: tracked caps on the frame chrome. a preview half owns its own
-   theme, so a root's tracking must not reach into another half's copy */
-[data-theme="cyberpunk"]
-  :is(.b-frame__label, .b-frame__meta, .mono-label):not(.b-theme-preview__half *),
-.b-theme-preview__half[data-theme="cyberpunk"] :is(.b-frame__label, .b-frame__meta, .mono-label) {
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-/* the head's horizontal scanlines and its blue rule now come from the
-   cyberpunk signature tokens, so a preview half gets them too */
-
-/* cyberpunk boot: a window prints in as a scan reveal and boots out as a
-   flicker. the dialog stays open while data-closing is set so the exit has
-   something to animate, then the component closes it */
-@media (prefers-reduced-motion: no-preference) {
-  [data-theme="cyberpunk"] .b-dialog__head {
-    position: relative;
-  }
-
-  /* the header sweeps a scan bar across while the print runs. the bar exists
-     in both states so the close can sweep it back out */
-  [data-theme="cyberpunk"] .b-dialog__head::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: linear-gradient(
-      90deg,
-      transparent 0,
-      color-mix(in srgb, var(--blue) 32%, transparent) 45%,
-      transparent 55%
-    );
-    background-size: 60% 100%;
-    background-position: 0% 0;
-    opacity: 0;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog {
-    opacity: 1;
-    transform: none;
-    transition:
-      opacity 110ms linear 70ms,
-      transform 120ms cubic-bezier(0.2, 0.8, 0.3, 1);
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[data-closing="true"] {
-    /* frozen at the size it had while open, so a body that empties on close
-       does not shrink the shell mid-fade */
-    width: var(--b-close-width, auto);
-    height: var(--b-close-height, auto);
-    opacity: 0;
-    transform: scale(0.99);
-  }
-
-  @starting-style {
-    [data-theme="cyberpunk"] .b-dialog[open] {
-      opacity: 0;
-      transform: scale(0.985) translateY(6px);
-    }
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[data-closing="true"] .b-dialog__body {
-    animation: b-cyber-collapse 130ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[data-closing="true"] .b-dialog__head::after {
-    animation: b-cyber-sweep-out 180ms ease-out forwards;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[open]:not([data-closing="true"]) .b-dialog__body {
-    animation: b-cyber-print 180ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[open]:not([data-closing="true"]) .b-dialog__head::after {
-    animation: b-cyber-sweep 240ms cubic-bezier(0.2, 0.7, 0.2, 1) 1;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog::backdrop {
-    opacity: 1;
-    transition: opacity 140ms linear;
-  }
-
-  [data-theme="cyberpunk"] .b-dialog[data-closing="true"]::backdrop {
-    opacity: 0;
-  }
-
-  @starting-style {
-    [data-theme="cyberpunk"] .b-dialog[open]::backdrop {
-      opacity: 0;
-    }
-  }
-}
-
-@keyframes b-cyber-print {
-  from {
-    clip-path: inset(0 0 88% 0);
-    opacity: 0.5;
-    transform: translateY(-4px);
-  }
-  to {
-    clip-path: inset(0);
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes b-cyber-collapse {
-  from {
-    clip-path: inset(0);
-    opacity: 1;
-    transform: none;
-  }
-  to {
-    clip-path: inset(0 0 96% 0);
-    opacity: 0.2;
-    transform: translateY(4px);
-  }
-}
-
-@keyframes b-cyber-sweep-out {
-  from {
-    background-position: 100% 0;
-    opacity: 0.9;
-  }
-  to {
-    background-position: -60% 0;
-    opacity: 0;
-  }
-}
-
-@keyframes b-cyber-sweep {
-  from {
-    background-position: -60% 0;
-    opacity: 0.9;
-  }
-  to {
-    background-position: 100% 0;
-    opacity: 0;
-  }
-}
-
-/* current theme ------------------------------------------------------
-   the effective theme and the saved slot are different facts: the saved slot
-   is a border, the current theme is a structural bar plus the family glow.
-   this sheet loads last, so the bar wins over the picker's own border rule
-   and the two stay distinguishable even when saved and current coincide. */
-.b-settings__theme[data-current="true"] {
-  border-color: var(--blue);
-  box-shadow:
-    inset 3px 0 0 var(--blue),
-    0 0 10px -6px var(--neon);
 }

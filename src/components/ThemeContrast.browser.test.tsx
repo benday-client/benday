@@ -7,8 +7,6 @@ import { memoryLocation } from 'wouter/memory-location'
 import { notificationsQueryKey } from '../hooks/useNotifications'
 import { useAuthStore } from '../lib/auth'
 import type { NotificationModel } from '../lib/notifications'
-import { useSettings } from '../lib/store'
-import { THEMES } from '../lib/themes'
 import type { PostModel, Theme } from '../lib/types'
 import { resolveSrgbColor } from '../test/colors'
 import { longPostFixture, postFixture } from '../test/fixtures'
@@ -17,13 +15,13 @@ import { renderStage } from '../test/stage'
 import { installTransport, jsonResponse } from '../test/transport'
 import NotificationsView from '../views/NotificationsView'
 import { Deck } from './Deck'
-import { DitherDefs } from './DitherDefs'
 import { HelpDialog } from './HelpDialog'
 import { PostCard } from './PostCard'
 import { RelativeTime } from './RelativeTime'
 import { SettingsDialog } from './SettingsDialog'
-import { ThemePreview } from './ThemePreview'
 import { Button, EmptyState, ErrorNotice, Frame, Progress, Tag, TextInput } from './ui'
+
+const THEMES: readonly Theme[] = ['catppuccin-mocha', 'catppuccin-latte']
 
 /* colour maths -------------------------------------------------------- */
 
@@ -242,84 +240,6 @@ function scopedRoleColor(scope: Element, property: string): string {
   return color
 }
 
-describe('split preview role scoping', () => {
-  it('lets each half resolve its own roles under a different root', () => {
-    document.documentElement.dataset['theme'] = 'void'
-    document.documentElement.dataset['contrast'] = 'normal'
-    // both halves differ from the void root, so any leaked parent alias shows
-    // up as the root palette appearing inside a half
-    useSettings.setState({
-      appearance: 'system',
-      lightTheme: 'catppuccin-latte',
-      darkTheme: 'cyberpunk',
-      imageEffects: true,
-    })
-    const { container, unmount } = render(
-      <>
-        <DitherDefs />
-        <ThemePreview />
-      </>,
-    )
-    const halves = [...container.querySelectorAll<HTMLElement>('.b-theme-preview__half')]
-    expect(halves).toHaveLength(2)
-    expect(container.querySelector('.b-theme-preview--split')).not.toBeNull()
-    const [lightHalf, darkHalf] = halves
-    if (lightHalf === undefined || darkHalf === undefined) throw new Error('halves missing')
-
-    const rootMuted = scopedRoleColor(document.documentElement, '--text-muted')
-    const rootLink = scopedRoleColor(document.documentElement, '--text-link')
-
-    for (const half of halves) {
-      const theme = half.dataset['theme'] ?? ''
-      const muted = scopedRoleColor(half, '--text-muted')
-      const link = scopedRoleColor(half, '--text-link')
-
-      expect(muted, `${theme} muted resolves inside its half`).not.toBe('')
-      expect(link, `${theme} link resolves inside its half`).not.toBe('')
-
-      // real consumers read the half's own role, not the root's
-      expect(getComputedStyle(must(half.querySelector('.b-theme-preview__meta'))).color).toBe(muted)
-      expect(getComputedStyle(must(half.querySelector('.b-theme-preview__label'))).color).toBe(
-        muted,
-      )
-      expect(getComputedStyle(must(half.querySelector('.b-theme-preview__link'))).color).toBe(link)
-
-      // every specimen face stays readable on the half's own surface
-      expect(
-        textContrast(must(half.querySelector('.b-theme-preview__text'))),
-      ).toBeGreaterThanOrEqual(4.5)
-      expect(
-        textContrast(must(half.querySelector('.b-theme-preview__meta'))),
-      ).toBeGreaterThanOrEqual(4.5)
-      expect(
-        textContrast(must(half.querySelector('.b-theme-preview__link'))),
-      ).toBeGreaterThanOrEqual(4.5)
-      expect(
-        textContrast(must(half.querySelector('.b-theme-preview__input'))),
-      ).toBeGreaterThanOrEqual(4.5)
-      expect(
-        fillContrast(must(half.querySelector('.b-theme-preview__controls .b-button--solid'))),
-      ).toBeGreaterThanOrEqual(4.5)
-
-      // a mounted DitherDefs makes each half's image filter resolvable
-      const image = must(half.querySelector<HTMLElement>('.b-theme-preview__image'))
-      const effect = image.dataset['effect'] ?? 'none'
-      if (effect !== 'none') {
-        expect(getComputedStyle(image).filter).toContain(`#benday-dither-${theme}`)
-        expect(document.querySelector(`#benday-dither-${theme}`)).not.toBeNull()
-      }
-    }
-
-    expect(rootMuted).not.toBe('')
-    expect(rootLink).not.toBe('')
-    // the ink-link light half and the accent-link dark half must not collapse
-    // to one inherited alias
-    const lightLink = scopedRoleColor(lightHalf, '--text-link')
-    const darkLink = scopedRoleColor(darkHalf, '--text-link')
-    expect(lightLink).not.toBe(darkLink)
-    unmount()
-  })
-})
 /* layout invariants -------------------------------------------------- */
 
 async function settle(): Promise<void> {
@@ -599,8 +519,8 @@ function notificationRow(id: string): NotificationModel {
 describe('high contrast boundaries', () => {
   it('draws the frame and the outline control at 3:1 on their surfaces', () => {
     for (const [theme, scheme] of [
-      ['bone', 'light'],
-      ['void', 'dark'],
+      ['catppuccin-latte', 'light'],
+      ['catppuccin-mocha', 'dark'],
     ] as const) {
       document.documentElement.dataset['theme'] = theme
       document.documentElement.dataset['contrast'] = 'high'

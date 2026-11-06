@@ -94,81 +94,39 @@ afterEach(() => {
 })
 
 describe('live appearance on a fresh session', () => {
-  it('rolls an October theme back at local midnight and restores it in October', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 9, 31, 23, 59, 40))
+  it('paints latte for light and mocha for dark', () => {
     stubMatchMedia(false)
-    useSettings.setState({
-      appearance: 'system',
-      lightTheme: 'bone',
-      darkTheme: 'dead-leaves',
-      theme: 'dead-leaves',
-    })
+    useSettings.setState({ appearance: 'light', theme: 'catppuccin-latte' })
     window.history.pushState({}, '', '/search')
 
     const view = render(<App />)
     try {
-      expect(rootTheme()).toBe('dead-leaves')
+      expect(rootTheme()).toBe('catppuccin-latte')
 
-      // 20s to midnight plus the 1000ms settling offset
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000)
+      act(() => {
+        useSettings.getState().setAppearance('dark')
       })
-      expect(useSettings.getState().theme).toBe('void')
-      expect(useSettings.getState().darkTheme).toBe('dead-leaves')
-      expect(rootTheme()).toBe('void')
-
-      // the same tab, brought back into view on 1 october
-      vi.setSystemTime(new Date(2027, 9, 1, 0, 0, 30))
-      await act(async () => {
-        document.dispatchEvent(new Event('visibilitychange'))
-      })
-      expect(useSettings.getState().theme).toBe('dead-leaves')
-      expect(rootTheme()).toBe('dead-leaves')
+      expect(rootTheme()).toBe('catppuccin-mocha')
     } finally {
       view.unmount()
     }
-
-    // an unmounted app no longer tracks midnight or visibility
-    const settled = useSettings.getState().theme
-    vi.setSystemTime(new Date(2027, 10, 1, 0, 0, 30))
-    await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'))
-      await vi.advanceTimersByTimeAsync(120_000)
-    })
-    expect(useSettings.getState().theme).toBe(settled)
   })
 
-  it('expires an explicitly chosen October dark theme on a live tab', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 9, 31, 23, 59, 40))
-    stubMatchMedia(false)
-    useSettings.setState({
-      appearance: 'dark',
-      lightTheme: 'bone',
-      darkTheme: 'dead-leaves',
-      theme: 'dead-leaves',
-    })
+  it('follows the system preference when the tab becomes visible again', async () => {
+    stubMatchMedia(true)
+    useSettings.setState({ appearance: 'system', theme: 'catppuccin-latte' })
     window.history.pushState({}, '', '/search')
 
     const view = render(<App />)
     try {
-      expect(rootTheme()).toBe('dead-leaves')
+      expect(rootTheme()).toBe('catppuccin-latte')
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000)
-      })
-      expect(useSettings.getState().theme).toBe('void')
-      expect(useSettings.getState().darkTheme).toBe('dead-leaves')
-      expect(rootTheme()).toBe('void')
-
-      // and the saved pair comes back when October returns
-      vi.setSystemTime(new Date(2027, 9, 1, 0, 0, 30))
+      stubMatchMedia(false)
       await act(async () => {
         document.dispatchEvent(new Event('visibilitychange'))
       })
-      expect(useSettings.getState().darkTheme).toBe('dead-leaves')
-      expect(rootTheme()).toBe('dead-leaves')
+      expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+      expect(rootTheme()).toBe('catppuccin-mocha')
     } finally {
       view.unmount()
     }

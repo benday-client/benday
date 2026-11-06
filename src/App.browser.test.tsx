@@ -76,9 +76,7 @@ describe('live appearance', () => {
   it('repaints cursors with real high-contrast colors on a dark scheme', async () => {
     useSettings.setState({
       appearance: 'dark',
-      theme: 'void',
-      lightTheme: 'bone',
-      darkTheme: 'void',
+      theme: 'catppuccin-mocha',
       highContrast: false,
     })
     const unmount = await mountApp()
@@ -96,7 +94,7 @@ describe('live appearance', () => {
       // dark scheme ink is white, not the unresolved light-dark() pair
       expect(colors.some((color) => isChannel(color, 255))).toBe(true)
       // the theme itself did not change; only the palette did
-      expect(document.documentElement.dataset['theme']).toBe('void')
+      expect(document.documentElement.dataset['theme']).toBe('catppuccin-mocha')
       expect(document.documentElement.dataset['contrast']).toBe('high')
 
       await act(async () => {
@@ -111,9 +109,7 @@ describe('live appearance', () => {
   it('resolves the light half of the high-contrast pair on a light scheme', async () => {
     useSettings.setState({
       appearance: 'light',
-      theme: 'bone',
-      lightTheme: 'bone',
-      darkTheme: 'void',
+      theme: 'catppuccin-latte',
       highContrast: true,
     })
     const unmount = await mountApp()
@@ -156,14 +152,12 @@ describe('live appearance', () => {
   it('paints a stored high-contrast preference in the same commit as the theme', async () => {
     useSettings.setState({
       appearance: 'dark',
-      theme: 'oxide',
-      lightTheme: 'bone',
-      darkTheme: 'oxide',
+      theme: 'catppuccin-mocha',
       highContrast: true,
     })
     const unmount = await mountApp()
     try {
-      expect(document.documentElement.dataset['theme']).toBe('oxide')
+      expect(document.documentElement.dataset['theme']).toBe('catppuccin-mocha')
       expect(document.documentElement.dataset['contrast']).toBe('high')
       expect(
         expectConcrete(cursorSvg('--cursor-default')).some((color) => isChannel(color, 255)),
@@ -183,15 +177,13 @@ describe('live appearance', () => {
     }
     useSettings.setState({
       appearance: 'dark',
-      theme: 'void',
-      lightTheme: 'bone',
-      darkTheme: 'void',
+      theme: 'catppuccin-mocha',
       highContrast: false,
     })
     const unmount = await mountApp()
     try {
       await vi.waitFor(() =>
-        expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#07090c')),
+        expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#1e1e2e')),
       )
 
       await act(async () => {
@@ -203,7 +195,7 @@ describe('live appearance', () => {
       )
 
       await act(async () => {
-        useSettings.setState({ appearance: 'light', lightTheme: 'bone', theme: 'bone' })
+        useSettings.getState().setAppearance('light')
       })
       await vi.waitFor(() =>
         expect(resolveSrgbColor(meta?.content ?? '')).toEqual(resolveSrgbColor('#ffffff')),
@@ -332,7 +324,13 @@ describe('reduced motion', () => {
     const stageStyle = getComputedStyle(stage)
     expect(stageStyle.animationName).toBe('none')
     expect(transitionMs(stageStyle.transitionDuration)).toBeLessThanOrEqual(0.01)
-    expect(stage.getAnimations()).toHaveLength(0)
+    // a zero-duration transition may exist for the opening frame; nothing may
+    // still be running once the dialog has settled
+    await vi.waitFor(() => {
+      expect(
+        stage.getAnimations().filter((animation) => animation.playState === 'running'),
+      ).toHaveLength(0)
+    })
     expect(Number.parseFloat(stageStyle.opacity)).toBe(1)
   })
 })

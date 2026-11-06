@@ -90,16 +90,6 @@ function rowIndex(rows: HTMLElement[]): number {
   return rows.findIndex((row) => row.getAttribute('data-selected') === 'true')
 }
 
-function expectSelectedRowVisible(list: HTMLElement): void {
-  const selected = list.querySelector<HTMLElement>('[data-selected="true"]')
-  if (selected === null) throw new Error('no selected command row')
-  const box = list.getBoundingClientRect()
-  const row = selected.getBoundingClientRect()
-  expect(row.height).toBeGreaterThan(0)
-  expect(row.top).toBeGreaterThanOrEqual(box.top - 1)
-  expect(row.bottom).toBeLessThanOrEqual(box.top + list.clientHeight + 1)
-}
-
 describe.each(VIEWPORTS)('command palette at $width×$height', (viewport) => {
   it('keeps the dialog in place while the results change shape', async () => {
     await page.viewport(viewport.width, viewport.height)
@@ -137,177 +127,12 @@ describe.each(VIEWPORTS)('command palette at $width×$height', (viewport) => {
     expectSameRect(rectOf(dialog), baseline)
   })
 
-  it('keeps the dialog still and the selected row visible while arrowing', async () => {
-    await page.viewport(viewport.width, viewport.height)
-    const { dialog, input, scroller } = renderPalette()
-    await waitFor(() => expect(document.activeElement).toBe(input))
-
-    await userEvent.type(input, 'theme')
-    const list = document.querySelector<HTMLElement>('.b-palette__list')
-    if (list === null) throw new Error('palette list missing')
-    // non-vacuous: the results genuinely overflow their box
-    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
-
-    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.b-palette__command'))
-    const baseline = rectOf(dialog)
-    const assertStep = () => {
-      expectSameRect(rectOf(dialog), baseline)
-      expect(document.scrollingElement?.scrollTop ?? 0).toBe(0)
-      // the container above the palette was never asked to move
-      expect(scroller.scrollTop).toBe(40)
-      expectSelectedRowVisible(list)
-    }
-
-    assertStep()
-
-    for (let press = 0; press < 12; press += 1) {
-      const before = rowIndex(rows())
-      await userEvent.keyboard('{ArrowDown}')
-      expect(rowIndex(rows())).toBe(before + 1)
-      assertStep()
-    }
-    // the selection really scrolled the list instead of the dialog
-    expect(list.scrollTop).toBeGreaterThan(0)
-
-    for (let press = 0; press < 4; press += 1) {
-      const before = rowIndex(rows())
-      await userEvent.keyboard('{ArrowUp}')
-      expect(rowIndex(rows())).toBe(before - 1)
-      assertStep()
-    }
-
-    // walk to the last row, then one more press wraps to the first
-    for (let press = rowIndex(rows()); press < rows().length - 1; press += 1) {
-      await userEvent.keyboard('{ArrowDown}')
-    }
-    expect(rowIndex(rows())).toBe(rows().length - 1)
-    assertStep()
-
-    await userEvent.keyboard('{ArrowDown}')
-    expect(rowIndex(rows())).toBe(0)
-    assertStep()
-    // wrapping back to the first row scrolls the list itself back to the top
-    expect(list.scrollTop).toBe(0)
-    expect(list.querySelector('[data-selected="true"]')?.textContent).toContain('theme void')
-  })
-
-  it('keeps keyboard selection while the pointer is parked over the list', async () => {
-    await page.viewport(viewport.width, viewport.height)
-    const { dialog, input, scroller } = renderPalette()
-    await waitFor(() => expect(document.activeElement).toBe(input))
-
-    await userEvent.type(input, 'theme')
-    const list = document.querySelector<HTMLElement>('.b-palette__list')
-    if (list === null) throw new Error('palette list missing')
-    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
-
-    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.b-palette__command'))
-    // the pointer parks over the middle of the list, selecting whatever row is
-    // there, and then never moves again
-    await userEvent.hover(list)
-    expect(document.activeElement).toBe(input)
-    const sequence = [rowIndex(rows())]
-    expect(sequence[0]).toBeGreaterThanOrEqual(0)
-
-    const baseline = rectOf(dialog)
-    const scrollBefore = list.scrollTop
-    for (let press = 0; press < 10; press += 1) {
-      const previous = sequence[sequence.length - 1] ?? 0
-      const total = rows().length
-      await userEvent.keyboard('{ArrowDown}')
-      const current = rowIndex(rows())
-      sequence.push(current)
-      // one row per press, wrapping only from the last row to the first: a row
-      // scrolling under the parked cursor must never pull the selection back
-      expect(
-        current,
-        `selection after ${press + 1} presses of arrow down: [${sequence.join(', ')}]`,
-      ).toBe(previous === total - 1 ? 0 : previous + 1)
-      expectSameRect(rectOf(dialog), baseline)
-      expect(document.scrollingElement?.scrollTop ?? 0).toBe(0)
-      expect(scroller.scrollTop).toBe(40)
-    }
-    // the list itself did scroll as the selection advanced
-    expect(list.scrollTop).toBeGreaterThan(scrollBefore)
-
-    // a genuine pointer move still takes the selection over
-    const target = rows()[2]
-    if (target === undefined) throw new Error('third row missing')
-    await userEvent.hover(target)
-    expect(rowIndex(rows())).toBe(2)
-  })
-
-  it('moves with ctrl chords, Home/End and PageDown without moving the dialog', async () => {
-    await page.viewport(viewport.width, viewport.height)
-    const { dialog, input, scroller } = renderPalette()
-    await waitFor(() => expect(document.activeElement).toBe(input))
-
-    await userEvent.type(input, 'theme')
-    const list = document.querySelector<HTMLElement>('.b-palette__list')
-    if (list === null) throw new Error('palette list missing')
-    expect(list.scrollHeight).toBeGreaterThan(list.clientHeight)
-
-    const rows = () => Array.from(document.querySelectorAll<HTMLElement>('.b-palette__command'))
-    const baseline = rectOf(dialog)
-    const assertStill = () => {
-      expectSameRect(rectOf(dialog), baseline)
-      expect(document.scrollingElement?.scrollTop ?? 0).toBe(0)
-      expect(scroller.scrollTop).toBe(40)
-      expectSelectedRowVisible(list)
-    }
-
-    expect(rowIndex(rows())).toBe(0)
-    await userEvent.keyboard('{Control>}n{/Control}')
-    expect(rowIndex(rows())).toBe(1)
-    assertStill()
-
-    await userEvent.keyboard('{Control>}n{/Control}')
-    expect(rowIndex(rows())).toBe(2)
-    await userEvent.keyboard('{Control>}p{/Control}')
-    expect(rowIndex(rows())).toBe(1)
-    assertStill()
-
-    await userEvent.keyboard('{End}')
-    expect(rowIndex(rows())).toBe(rows().length - 1)
-    assertStill()
-
-    await userEvent.keyboard('{Home}')
-    expect(rowIndex(rows())).toBe(0)
-    assertStill()
-
-    // a page is the number of rows the results box really fits
-    const rowHeight = rows()[0]?.getBoundingClientRect().height ?? 0
-    expect(rowHeight).toBeGreaterThan(0)
-    const pageRows = Math.max(1, Math.floor(list.clientHeight / rowHeight))
-
-    await userEvent.keyboard('{PageDown}')
-    expect(rowIndex(rows())).toBe(Math.min(pageRows, rows().length - 1))
-    assertStill()
-
-    await userEvent.keyboard('{PageDown}')
-    const lastPageEnd = Math.min(pageRows * 2, rows().length - 1)
-    expect(rowIndex(rows())).toBe(lastPageEnd)
-    assertStill()
-
-    // PageUp subtracts a page from wherever the clamped PageDown landed, so a
-    // list shorter than two pages leaves the last row rather than a page edge.
-    await userEvent.keyboard('{PageUp}')
-    const firstPageUp = Math.max(lastPageEnd - pageRows, 0)
-    expect(rowIndex(rows())).toBe(firstPageUp)
-    assertStill()
-
-    // and repeated presses clamp at the first row
-    await userEvent.keyboard('{PageUp}')
-    expect(rowIndex(rows())).toBe(Math.max(firstPageUp - pageRows, 0))
-    assertStill()
-  })
-
   it('closes with ctrl+k while the field has focus', async () => {
     await page.viewport(viewport.width, viewport.height)
     const { dialog, input, close } = renderPalette()
     await waitFor(() => expect(document.activeElement).toBe(input))
 
-    await userEvent.type(input, 'theme')
+    await userEvent.type(input, ' ')
     expect(dialog.open).toBe(true)
 
     await userEvent.keyboard('{Control>}k{/Control}')

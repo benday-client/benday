@@ -19,8 +19,6 @@ import { useAuthStore } from '../lib/auth'
 import { parseCommand } from '../lib/command'
 import { bindingFor, matchesBinding } from '../lib/keymap'
 import { isRecord } from '../lib/records'
-import { useSettings } from '../lib/store'
-import { availableThemeGroups, THEME_LABELS } from '../lib/themes'
 import { useUiStore } from '../lib/ui'
 import { Dialog } from './ui'
 
@@ -117,7 +115,6 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
   const pinned = usePinnedFeeds()
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
-  const setTheme = useSettings((state) => state.setTheme)
 
   const [input, setInput] = useState('')
   const [cursor, setCursor] = useState(0)
@@ -276,19 +273,6 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
     },
   ]
 
-  const themeCommands: PaletteCommand[] = availableThemeGroups(new Date())
-    .flatMap((group) => group.themes)
-    .map((theme) => ({
-      id: `theme:${theme}`,
-      label: `theme ${THEME_LABELS[theme]}`,
-      meta: 'theme',
-      keywords: `${theme} ${THEME_LABELS[theme]} appearance color`,
-      run: () => {
-        setTheme(theme)
-        onClose()
-      },
-    }))
-
   const recentCommands: PaletteCommand[] =
     input.trim().length === 0
       ? history.map((entry) => ({
@@ -329,7 +313,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
   const autocompleteActive =
     token !== null && (suggestionsPending || autocompleteCommands.length > 0)
   const needle = input.trim().toLowerCase()
-  const commandsForTyping = [...themeCommands, ...commands]
+  const commandsForTyping = commands
   const filtered = autocompleteActive
     ? autocompleteCommands
     : needle.length === 0
@@ -530,7 +514,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
           aria-expanded={open ? listboxOpen : undefined}
           aria-controls={listboxOpen ? listboxId : undefined}
           aria-activedescendant={activeOptionId}
-          placeholder="command · theme <name> · @handle · #tag · at://"
+          placeholder="command · @handle · at://"
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => {
