@@ -56,6 +56,27 @@ afterEach(() => {
 })
 
 describe('useHotkeys character shortcut opt-out', () => {
+  it('lets a modifier chord fire from an editable field but not a bare key', () => {
+    const spies = handlers()
+    render(
+      createElement(
+        'div',
+        null,
+        createElement(Harness, { handlers: spies }),
+        createElement('input', { type: 'text', 'aria-label': 'field' }),
+      ),
+    )
+    const field = document.querySelector('input')
+    if (field === null) throw new Error('field missing')
+    field.focus()
+
+    fireEvent.keyDown(field, { key: 'k', ctrlKey: true })
+    expect(spies.onPalette).toHaveBeenCalledTimes(1)
+
+    fireEvent.keyDown(field, { key: 'j' })
+    expect(spies.onMove).not.toHaveBeenCalled()
+  })
+
   it('runs every binding while the setting is on', () => {
     const spies = handlers()
     render(createElement(Harness, { handlers: spies }))

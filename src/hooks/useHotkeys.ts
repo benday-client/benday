@@ -54,7 +54,11 @@ export function useHotkeys(hotkeys: readonly Hotkey[], enabled = true): void {
       if (event.defaultPrevented || event.repeat) return
       // an IME owns the key that commits its composition
       if (isImeComposing(event)) return
-      if (isEditableTarget(event.target)) return
+      // unmodified keys belong to a focused field; a modifier chord is a
+      // command and may still fire from it
+      if (isEditableTarget(event.target) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        return
+      }
       // a native modal owns the keyboard, including the locally controlled
       // media viewer that never enters the UI store
       if (document.querySelector('dialog[open]') !== null) return

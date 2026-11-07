@@ -265,7 +265,7 @@ describe('global keyboard routing', () => {
     }
   })
 
-  it('does not cycle tabs from an editable field', async () => {
+  it('cycles tabs from an editable field with the primary chord', async () => {
     await signInShell()
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
@@ -275,11 +275,7 @@ describe('global keyboard routing', () => {
       input?.focus()
 
       fireEvent.keyDown(input as HTMLInputElement, { key: 'ArrowRight', ctrlKey: true })
-      await act(async () => {
-        await Promise.resolve()
-      })
-
-      expect(window.location.pathname).toBe('/search')
+      await waitFor(() => expect(window.location.pathname).toBe('/notifications'))
     } finally {
       view.unmount()
     }

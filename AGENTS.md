@@ -557,20 +557,21 @@ there are five key layers, and they must not fight:
    `PostCard` handlers and the three `ThreadView` handlers, so a new bare
    letter binding must go through it too.
 1. `useHotkeys` (`src/hooks/useHotkeys.ts`) is installed by `AppShell` only when
-   no dialog, compose dialog or inline composer is open. it ignores editable
-   targets, repeats, handled events, IME composition and modifier combinations
-   unless the binding asks for `ctrl`/`cmd`. keys come from the one registry in
+   no dialog, compose dialog or inline composer is open. unmodified keys belong
+   to a focused field; a chord carrying ctrl, meta or alt may fire from it. it
+   also ignores repeats, handled events, IME composition and modifier
+   combinations unless the binding asks for `ctrl`/`cmd`. keys come from the one
+   registry in
    `src/lib/keymap.ts`: `ctrl`/`cmd` + `k` palette (a toggle), `/` search with `s`
    as an alias, `c` compose and `,` settings. `?` is not a hotkey: the
    hold-to-reveal overlay in `src/components/KeyHints.tsx` owns it (tap opens
    help). settings and help each own a `/`-focused search field. escape is not
    one of these; it has its own listener in `AppShell` (see 6).
 2. tab switching is a separate capture listener in `App.tsx` for the platform
-   primary modifier + left/right (meta on macOS, ctrl elsewhere), and it refuses
-   editable targets so caret word-jumps keep working. tabs are `/feed`,
-   `/search` and `/notifications`, in that cycle order; a `/profile/…` route is
-   appended as a temporary tab while it is open. search is a tab and a route,
-   also reached by `/` or `s`.
+   primary modifier + left/right (meta on macOS, ctrl elsewhere); the chord may
+   fire while a field has focus. tabs are `/feed`, `/search` and `/notifications`,
+   in that cycle order; a `/profile/…` route is appended as a temporary tab while
+   it is open. search is a tab and a route, also reached by `/` or `s`.
 3. a shortcut that belongs to a card or a thread yields to any interactive
    control **outside** that surface: `isInteractiveTarget` from
    `src/hooks/useHotkeys.ts` plus a containment check, so a focused top-bar

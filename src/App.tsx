@@ -315,8 +315,7 @@ function AppShell() {
     const handleTabKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
       if (event.isComposing || event.keyCode === 229) return
-      // a caret word-jump inside a field belongs to the field
-      if (isEditableTarget(event.target)) return
+      // the chord carries the platform modifier, so it may fire from a field
       if (document.querySelector('dialog[open]') !== null) return
 
       const chord = tabBinding.chords.find((candidate) =>
