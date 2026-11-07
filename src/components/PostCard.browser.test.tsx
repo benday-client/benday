@@ -1,9 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { waitFor } from '@testing-library/react'
-import { expect, it } from 'vitest'
+import { act, waitFor } from '@testing-library/react'
+import { afterEach, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
+import { useSettings } from '../lib/store'
 import type { PostModel, QuotedPostModel } from '../lib/types'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
@@ -69,6 +70,13 @@ const labelledImage = postFixture({
       },
     ],
   },
+})
+
+afterEach(() => {
+  // the dither is the default; a case that turns it off must not leak
+  act(() => {
+    useSettings.getState().setImageEffects(true)
+  })
 })
 
 it('keeps concealed media inert and the caption blurred until reveal', async () => {
@@ -173,6 +181,41 @@ it('dithers a rendered post image with the active palette', () => {
   document.documentElement.dataset['theme'] = 'catppuccin-latte'
   expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
   expect(filterOf(image)).not.toContain('catppuccin-mocha')
+})
+
+it('paints the post image plainly once the image effects setting is off', async () => {
+  const { container } = renderCard(
+    postFixture({
+      embed: {
+        type: 'images',
+        images: [
+          {
+            thumb: FRAME,
+            fullsize: 'https://cdn.test/full.gif',
+            alt: 'a rendered caption',
+            width: 4,
+            height: 3,
+          },
+        ],
+      },
+    }),
+  )
+
+  const image = requireElement<HTMLElement>(container, '.b-embed__image-frame .dither-image')
+  // the default setting really filters the already rendered element
+  expect(image.getAttribute('data-effect')).toBeNull()
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  act(() => {
+    useSettings.getState().setImageEffects(false)
+  })
+
+  await waitFor(() => {
+    expect(image.getAttribute('data-effect')).toBe('none')
+    expect(filterOf(image)).toBe('none')
+  })
+  // no palette reference of any kind survives on the same element
+  expect(filterOf(image)).not.toContain('url(')
 })
 
 it('keeps the dither on a failed post image instead of flattening it', async () => {

@@ -255,12 +255,12 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   generator metadata use the canonical `bsky_appview` proxy
   (`did:web:api.bsky.app`). feed feedback goes through the pds to the serving
   generator's did (`atproto-proxy: <did>#bsky_fg`).
-- `benday-settings.json` is version 2 and contains only `version`, `exportedAt`,
-  `appearance` and `keyboardShortcuts`. version-1 files are still accepted and
-  mapped through the old theme's scheme. it must never contain tokens,
-  passwords, indexedDB state, drafts, jump history, profile relationships or any
-  other auth material. unknown keys and every retired field are ignored; keep it
-  that way.
+- `benday-settings.json` is version 3 and contains only `version`, `exportedAt`,
+  `appearance`, `keyboardShortcuts` and `imageEffects`. version-1 and version-2
+  files are still accepted and mapped through their old fields. it must never
+  contain tokens, passwords, indexedDB state, drafts, jump history, profile
+  relationships or any other auth material. unknown keys and every retired field
+  are ignored; keep it that way.
 
 ## data flow
 
@@ -476,15 +476,19 @@ owns the two theme ids, their meta colours and the legacy palette-to-mode
 fallback (`legacyAppearanceForTheme`); the settings store derives the active
 scheme from the appearance mode. it is not the source of truth for labels,
 groups or seasons, and there is no seasonal availability, no per-scheme
-selection, no theme preview, no image-effect family and no high-contrast mode.
+selection, no theme preview, no effect-family choice — only the one dither,
+on or off — and no high-contrast mode.
 
 - appearance is `light`, `dark` or `system`; system follows
   `prefers-color-scheme`. the store derives the active `theme`, a fresh state
   starts at `system`, and `App.tsx` writes only `data-theme` and the
   `theme-color` meta tag in one effect.
 - every static image uses the one grunge/Bayer filter defined in
-  `DitherDefs.tsx` and `dither.css`; there is no effect choice and no
-  `imageEffects` toggle. playing video frames are never filtered.
+  `DitherDefs.tsx` and `dither.css`. the `imageEffects` preference (on by
+  default) gates it: on, static images and video posters carry the per-palette
+  dither; off, `DitherImage` emits `data-effect="none"` and `dither.css` drops
+  the filter and the pixelated rendering so they paint plainly. playing video
+  frames are never filtered either way.
 - surfaces keep catppuccin's pastel head wash (`--head-image`, `--head-rule`,
   `--head-glow`), its one-pixel accent rule and four-pixel corner rounding
   (`--theme-radius`), plus the card edge/shadow tokens. the scanline, grain and
@@ -502,9 +506,11 @@ selection, no theme preview, no image-effect family and no high-contrast mode.
   empty state keeps its solid dithered glyph; letterforms dissolve at that size.
 - settings and keyboard help both have a `/`-focused search field; settings
   search hides nonmatching sections instead of rendering result buttons.
+  appearance's keywords include `dither`, `grunge`, `image effects` and
+  `dither effects` alongside the theme and shortcut terms.
 - the settings dialog no longer carries a theme picker, split preview, appview
-  host, labeler editor, image-effects toggle or contrast toggle. keep it to
-  appearance mode, keyboard shortcuts, account and transfer.
+  host, labeler editor or contrast toggle. keep it to appearance mode, keyboard
+  shortcuts, the dither effects toggle, account and transfer.
 - adding a palette is out of scope for the cut product. if that changes, update
   `Theme` in `src/lib/types.ts`, `themes.ts`, the `index.html` colour table, a
   `[data-theme]` block in `tokens.css`, the `--dither-filter` lines in
@@ -512,27 +518,29 @@ selection, no theme preview, no image-effect family and no high-contrast mode.
 
 ## settings transfer
 
-`src/lib/settingsTransfer.ts` defines the version 2 file:
-`{ version, exportedAt, appearance, keyboardShortcuts }`. export is built from
-exactly those portable preferences, so extra properties cannot leak.
-`importSettings` applies the mode and the shortcut flag in one `set` and
-recomputes the derived theme, so malformed input leaves settings untouched.
+`src/lib/settingsTransfer.ts` defines the version 3 file:
+`{ version, exportedAt, appearance, keyboardShortcuts, imageEffects }`. export
+is built from exactly those portable preferences, so extra properties cannot
+leak. `importSettings` applies the mode, the shortcut flag and the dither flag
+in one `set` and recomputes the derived theme, so malformed input leaves
+settings untouched.
 
 normalization rules to preserve:
 
-- version 2 is current. versions 1 and 2 are accepted; anything above 2, a
+- version 3 is current. versions 1, 2 and 3 are accepted; anything above 3, a
   missing or non-integer version, a non-object or malformed json is rejected with
   a truthful message.
 - a valid `appearance` wins; otherwise a version-1 `theme` names the scheme it
   painted (`legacyAppearanceForTheme`); otherwise `system`.
-- `keyboardShortcuts` is the boolean when present, otherwise `true`.
+- `keyboardShortcuts` is the boolean when present, otherwise `true`; an explicit
+  boolean `imageEffects` is honored, otherwise it defaults to `true`.
 - every retired field is ignored, including `theme`, `lightTheme`, `darkTheme`,
-  `imageEffects`, `highContrast`, `appView`, `labelers` and credential-shaped
-  keys.
-- store persistence is version 2. `migrate` maps a version-1 document through
-  the same rules, then drops every removed field. `partialize` writes only
-  `appearance` and `keyboardShortcuts`; the active theme is derived, `merge`
-  validates the two fields and defaults to system/true.
+  `highContrast`, `appView`, `labelers` and credential-shaped keys.
+- store persistence is version 3. `migrate` maps version-1 and version-2
+  documents through the same rules, then drops every removed field.
+  `partialize` writes `appearance`, `keyboardShortcuts` and `imageEffects`; the
+  active theme is derived, `merge` validates the three fields and defaults to
+  system/true/true.
 - the settings dialog enforces a 256 KiB bound before reading a picked file and
   applies the parsed result atomically. errors stay inline and the file input is
   cleared after a pick so the same file can be retried.
@@ -664,8 +672,8 @@ what the suite covers, and what it does not:
   and per-side action freshness, focused-card shortcuts including quoted-post
   opening, inline reply composition and its draft revisions, the feed cache
   guard, per-account read privacy, notification mapping, the viewer-state proxy,
-  feed feedback, the account labeler handoff and settings version-2 import and
-  v1 migration.
+  feed feedback, the account labeler handoff and settings version-3 import,
+  v1/v2 migration and the dither-effects preference.
 - not covered by unit tests: the profile action buttons' full optimistic cycle,
   real pds writes, the portal redirect and browser layout. those are checked
   manually against live hosts. do not claim a live check you did not perform.
@@ -716,8 +724,8 @@ in the nearest existing file rather than creating a parallel suite.
 - profile mode decks only describe fetched author pages; the modes filter one
   author feed query and never fetch a separate mode feed.
 - images are dithered by an inline SVG filter (`DitherImage`, `dither.ts`,
-  `styles/dither.css`), never canvas, because the bluesky CDN does not expose
-  pixel data cross-origin.
+  `styles/dither.css`) while the dither-effects preference is on, never canvas,
+  because the bluesky CDN does not expose pixel data cross-origin.
 - video starts as a dithered poster button; activating it mounts the custom
   themed player. `hls.js` is imported dynamically only after that activation, so
   it stays in its own chunk; native HLS is used when the browser has it, and a

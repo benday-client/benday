@@ -21,6 +21,7 @@ beforeEach(() => {
     appearance: 'system',
     theme: 'catppuccin-mocha',
     keyboardShortcuts: true,
+    imageEffects: true,
   })
 })
 
@@ -68,7 +69,7 @@ describe('appearance mode', () => {
 })
 
 describe('settings persistence', () => {
-  it('persists only the mode and shortcuts, never the derived theme', () => {
+  it('persists the portable preferences, never the derived theme', () => {
     useSettings.getState().setAppearance('light')
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -77,10 +78,11 @@ describe('settings persistence', () => {
       version?: number
       state?: Record<string, unknown>
     }
-    expect(stored.version).toBe(2)
+    expect(stored.version).toBe(3)
     expect(stored.state).toEqual({
       appearance: 'light',
       keyboardShortcuts: true,
+      imageEffects: true,
     })
   })
 
@@ -88,13 +90,14 @@ describe('settings persistence', () => {
     expect(useSettings.getInitialState()).toMatchObject({
       appearance: 'system',
       keyboardShortcuts: true,
+      imageEffects: true,
     })
   })
 
-  it('rehydrates a change written by another tab', async () => {
+  it('rehydrates the appearance and effect changes written by another tab', async () => {
     const raw = JSON.stringify({
       version: 1,
-      state: { appearance: 'light' },
+      state: { appearance: 'light', imageEffects: false },
     })
     localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
 
@@ -104,6 +107,7 @@ describe('settings persistence', () => {
       expect(useSettings.getState().appearance).toBe('light')
     })
     expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().imageEffects).toBe(false)
   })
 
   it('defaults keyboard shortcuts on and persists a toggle', async () => {
@@ -118,11 +122,28 @@ describe('settings persistence', () => {
     await useSettings.persist.rehydrate()
     expect(useSettings.getState().keyboardShortcuts).toBe(false)
   })
+
+  it('defaults image effects on and persists a toggle', async () => {
+    expect(useSettings.getInitialState().imageEffects).toBe(true)
+
+    useSettings.getState().setImageEffects(false)
+    const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (persisted === null) throw new Error('settings were not persisted')
+    const stored = JSON.parse(persisted) as {
+      version?: number
+      state?: { imageEffects?: boolean }
+    }
+    expect(stored.version).toBe(3)
+    expect(stored.state?.imageEffects).toBe(false)
+
+    await useSettings.persist.rehydrate()
+    expect(useSettings.getState().imageEffects).toBe(false)
+  })
 })
 
 describe('stored state migration', () => {
-  function rehydrate(stored: Record<string, unknown>) {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ version: 1, state: stored }))
+  function rehydrate(stored: Record<string, unknown>, version = 1) {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ version, state: stored }))
     return useSettings.persist.rehydrate()
   }
 
@@ -160,7 +181,22 @@ describe('stored state migration', () => {
     expect(useSettings.getState().theme).toBe('catppuccin-mocha')
   })
 
-  it('drops the removed fields from the stored state', async () => {
+  it('keeps a disabled effect preference through the migration', async () => {
+    for (const version of [1, 2]) {
+      await rehydrate({ appearance: 'dark', imageEffects: false }, version)
+      expect(useSettings.getState().imageEffects, String(version)).toBe(false)
+    }
+  })
+
+  it('defaults a missing or wrong-typed effect preference to on', async () => {
+    for (const imageEffects of [undefined, 'off', 0, null, {}, []]) {
+      useSettings.setState({ imageEffects: false })
+      await rehydrate({ appearance: 'dark', imageEffects })
+      expect(useSettings.getState().imageEffects, String(imageEffects)).toBe(true)
+    }
+  })
+
+  it('drops the retired fields from the stored state', async () => {
     await rehydrate({
       appearance: 'dark',
       labelers: ['did:plc:junk'],
@@ -176,11 +212,16 @@ describe('stored state migration', () => {
       version?: number
       state?: Record<string, unknown>
     }
-    expect(stored.version).toBe(2)
-    expect(Object.keys(stored.state ?? {}).sort()).toEqual(['appearance', 'keyboardShortcuts'])
+    expect(stored.version).toBe(3)
+    expect(Object.keys(stored.state ?? {}).sort()).toEqual([
+      'appearance',
+      'imageEffects',
+      'keyboardShortcuts',
+    ])
     expect(stored.state).not.toHaveProperty('labelers')
-    expect(stored.state).not.toHaveProperty('imageEffects')
     expect(stored.state).not.toHaveProperty('highContrast')
+    expect(stored.state).not.toHaveProperty('theme')
     expect(stored.state?.['keyboardShortcuts']).toBe(false)
+    expect(stored.state?.['imageEffects']).toBe(false)
   })
 })

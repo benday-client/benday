@@ -16,6 +16,12 @@
   object-fit: cover;
 }
 
+/* the user can turn the ordered dither off; the image then paints plainly */
+.dither-image[data-effect="none"] {
+  filter: none;
+  image-rendering: auto;
+}
+
 /* every theme scope declares the filter again, so a nested scope never
    inherits its parent's palette */
 [data-theme] {

@@ -16,6 +16,7 @@ const FIXED_TIME = new Date('2026-10-30T12:00:00.000Z')
 const SAMPLE: PortableSettings = {
   appearance: 'dark',
   keyboardShortcuts: true,
+  imageEffects: true,
 }
 
 function validFile(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -30,13 +31,13 @@ function validFile(overrides: Record<string, unknown> = {}): Record<string, unkn
 describe('settings file format', () => {
   it('keeps a stable filename and version', () => {
     expect(SETTINGS_FILE_NAME).toBe('benday-settings.json')
-    expect(SETTINGS_FILE_VERSION).toBe(2)
+    expect(SETTINGS_FILE_VERSION).toBe(3)
   })
 
   it('writes exactly version exportedAt and the portable preferences', () => {
     const file = buildSettingsFile(SAMPLE, FIXED_TIME)
     expect(Object.keys(file).sort()).toEqual(
-      ['appearance', 'exportedAt', 'keyboardShortcuts', 'version'].sort(),
+      ['appearance', 'exportedAt', 'imageEffects', 'keyboardShortcuts', 'version'].sort(),
     )
     expect(file.version).toBe(SETTINGS_FILE_VERSION)
     expect(file.exportedAt).toBe(FIXED_TIME.toISOString())
@@ -58,7 +59,11 @@ describe('settings file format', () => {
       appearance: 'system',
       keyboardShortcuts: null,
     })
-    expect(normalized).toEqual({ appearance: 'system', keyboardShortcuts: true })
+    expect(normalized).toEqual({
+      appearance: 'system',
+      keyboardShortcuts: true,
+      imageEffects: true,
+    })
   })
 })
 
@@ -83,7 +88,7 @@ describe('credential and session exclusion', () => {
     const parsed = JSON.parse(json) as Record<string, unknown>
 
     expect(Object.keys(parsed).sort()).toEqual(
-      ['appearance', 'exportedAt', 'keyboardShortcuts', 'version'].sort(),
+      ['appearance', 'exportedAt', 'imageEffects', 'keyboardShortcuts', 'version'].sort(),
     )
     for (const secret of Object.values(secrets)) {
       expect(json).not.toContain(JSON.stringify(secret).slice(1, -1))
@@ -94,7 +99,11 @@ describe('credential and session exclusion', () => {
     const result = parseSettingsFile({ ...validFile(), ...secrets })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(Object.keys(result.settings).sort()).toEqual(['appearance', 'keyboardShortcuts'])
+    expect(Object.keys(result.settings).sort()).toEqual([
+      'appearance',
+      'imageEffects',
+      'keyboardShortcuts',
+    ])
     expect(JSON.stringify(result.settings)).not.toContain('secret')
   })
 })
@@ -138,7 +147,7 @@ describe('appearance mode', () => {
     expect(result.settings).toEqual(SAMPLE)
   })
 
-  it('imports a version 1 file and ignores every retired field', () => {
+  it('imports the portable preferences from a version 1 file and ignores the retired fields', () => {
     const result = parseSettingsFile({
       version: 1,
       appearance: 'light',
@@ -151,7 +160,7 @@ describe('appearance mode', () => {
     })
     expect(result).toEqual({
       ok: true,
-      settings: { appearance: 'light', keyboardShortcuts: false },
+      settings: { appearance: 'light', keyboardShortcuts: false, imageEffects: false },
     })
   })
 })
@@ -201,6 +210,55 @@ describe('keyboard shortcuts', () => {
   })
 })
 
+describe('dither effects', () => {
+  it('round-trips a disabled setting through the file', () => {
+    const json = serializeSettings({ ...SAMPLE, imageEffects: false }, FIXED_TIME)
+    expect(JSON.parse(json).imageEffects).toBe(false)
+
+    const result = parseSettingsFileJson(json)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.imageEffects).toBe(false)
+  })
+
+  it('reads a version 2 file without the field as enabled', () => {
+    const result = parseSettingsFile({
+      version: 2,
+      exportedAt: FIXED_TIME.toISOString(),
+      appearance: 'dark',
+      keyboardShortcuts: true,
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.imageEffects).toBe(true)
+  })
+
+  it('falls back to enabled for a wrong-typed field', () => {
+    for (const imageEffects of ['off', 0, 1, null, undefined, {}, []]) {
+      const result = parseSettingsFile(validFile({ imageEffects }))
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.settings.imageEffects, `parsed ${String(imageEffects)}`).toBe(true)
+
+      const snapshot = normalizePortableSettings(validFile({ imageEffects }))
+      expect(snapshot?.imageEffects, `snapshot ${String(imageEffects)}`).toBe(true)
+    }
+  })
+
+  it('normalizes an explicit disabled setting from an imported snapshot', () => {
+    const snapshot = normalizePortableSettings({
+      appearance: 'dark',
+      keyboardShortcuts: true,
+      imageEffects: false,
+    })
+    expect(snapshot).toEqual({
+      appearance: 'dark',
+      keyboardShortcuts: true,
+      imageEffects: false,
+    })
+  })
+})
+
 describe('settings file validation', () => {
   it('accepts a minimally valid document', () => {
     const result = parseSettingsFile(validFile())
@@ -215,15 +273,15 @@ describe('settings file validation', () => {
     }
   })
 
-  it('accepts versions 1 and 2 and rejects the rest', () => {
-    for (const version of [1, 2]) {
+  it('accepts versions 1 through 3 and rejects the rest', () => {
+    for (const version of [1, 2, 3]) {
       expect(parseSettingsFile(validFile({ version })).ok, String(version)).toBe(true)
     }
-    for (const version of [undefined, 0, -1, 1.5, '1', 3, 99]) {
+    for (const version of [undefined, 0, -1, 1.5, '1', 4, 99]) {
       expect(parseSettingsFile(validFile({ version })).ok, String(version)).toBe(false)
     }
-    const newer = parseSettingsFile(validFile({ version: 3 }))
-    expect(newer).toEqual({ ok: false, error: 'unsupported settings file version 3' })
+    const newer = parseSettingsFile(validFile({ version: 4 }))
+    expect(newer).toEqual({ ok: false, error: 'unsupported settings file version 4' })
     const missing = parseSettingsFile(validFile({ version: undefined }))
     expect(missing).toEqual({ ok: false, error: 'settings file has no valid version' })
   })
@@ -247,6 +305,7 @@ describe('store settings import', () => {
       appearance: 'dark',
       theme: 'catppuccin-mocha',
       keyboardShortcuts: true,
+      imageEffects: true,
     })
   })
 
@@ -263,12 +322,14 @@ describe('store settings import', () => {
     const applied = useSettings.getState().importSettings({
       appearance: 'dark',
       keyboardShortcuts: false,
+      imageEffects: false,
     })
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       appearance: 'dark',
       theme: 'catppuccin-mocha',
       keyboardShortcuts: false,
+      imageEffects: false,
     })
   })
 
@@ -280,6 +341,7 @@ describe('store settings import', () => {
       expect(after.appearance).toBe(before.appearance)
       expect(after.theme).toBe(before.theme)
       expect(after.keyboardShortcuts).toBe(before.keyboardShortcuts)
+      expect(after.imageEffects).toBe(before.imageEffects)
     }
   })
 

@@ -222,10 +222,10 @@ describe('SettingsDialog appearance inventory', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
     localStorage.clear()
-    useSettings.setState({ appearance: 'dark', keyboardShortcuts: true })
+    useSettings.setState({ appearance: 'dark', keyboardShortcuts: true, imageEffects: true })
   })
 
-  it('offers exactly the three appearance modes and the shortcut toggle', () => {
+  it('offers exactly the three appearance modes and the two toggles', () => {
     const { container } = renderSettings()
     const section = document.getElementById('settings-appearance')
     if (section === null) throw new Error('appearance section missing')
@@ -236,14 +236,15 @@ describe('SettingsDialog appearance inventory', () => {
       expect(mode).toHaveAttribute('aria-pressed', mode.textContent === 'dark' ? 'true' : 'false')
     }
 
-    // the mode buttons and the one checkbox are the section's whole inventory
+    // the mode buttons and the two toggles are the section's whole inventory
     expect(section.querySelectorAll('button')).toHaveLength(3)
-    const inputs = section.querySelectorAll('input')
-    expect(inputs).toHaveLength(1)
-    expect(inputs[0]?.getAttribute('type')).toBe('checkbox')
+    const inputs = Array.from(section.querySelectorAll('input'))
+    expect(inputs).toHaveLength(2)
+    for (const input of inputs) expect(input.getAttribute('type')).toBe('checkbox')
     expect(within(section).getByRole('checkbox', { name: /keyboard shortcuts/ })).toBeChecked()
+    expect(within(section).getByRole('checkbox', { name: /dither effects/ })).toBeChecked()
 
-    // no effect, contrast, preview or labeler control survives anywhere
+    // no contrast, preview or labeler control survives anywhere
     const dialog = dialogElement(container)
     expect(dialog.querySelectorAll('input[type="range"], select, textarea')).toHaveLength(0)
     expect(dialog.querySelector('[role="slider"]')).toBeNull()
@@ -252,10 +253,112 @@ describe('SettingsDialog appearance inventory', () => {
         '[class*="effect"], [class*="preview"], [class*="picker"], [class*="labeler"], [class*="contrast"]',
       ),
     ).toHaveLength(0)
-    for (const name of [/high contrast/i, /image effect/i, /theme picker/i, /labeler/i]) {
+    for (const name of [/high contrast/i, /theme picker/i, /labeler/i]) {
       expect(within(dialog).queryByRole('button', { name })).toBeNull()
       expect(within(dialog).queryByRole('checkbox', { name })).toBeNull()
     }
+  })
+})
+
+describe('SettingsDialog dither effects setting', () => {
+  beforeEach(() => {
+    delete document.documentElement.dataset['theme']
+    localStorage.clear()
+    useSettings.setState({ imageEffects: true })
+  })
+
+  it('reflects the stored setting', () => {
+    renderSettings()
+    expect(screen.getByRole('checkbox', { name: /dither effects/ })).toBeChecked()
+  })
+
+  it('shows a stored disabled setting as unchecked', () => {
+    useSettings.setState({ imageEffects: false })
+    renderSettings()
+    expect(screen.getByRole('checkbox', { name: /dither effects/ })).not.toBeChecked()
+  })
+
+  it('writes the toggle through the store and persists it', () => {
+    const setImageEffects = vi.spyOn(useSettings.getState(), 'setImageEffects')
+    renderSettings()
+    const toggle = screen.getByRole('checkbox', { name: /dither effects/ })
+    const before = useSettings.getState()
+
+    fireEvent.click(toggle)
+
+    expect(setImageEffects).toHaveBeenCalledTimes(1)
+    expect(setImageEffects).toHaveBeenCalledWith(false)
+    expect(toggle).not.toBeChecked()
+    expect(useSettings.getState().imageEffects).toBe(false)
+    // the neighbouring preferences keep their values
+    expect(useSettings.getState().appearance).toBe(before.appearance)
+    expect(useSettings.getState().keyboardShortcuts).toBe(before.keyboardShortcuts)
+
+    const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (persisted === null) throw new Error('settings were not persisted')
+    const stored = JSON.parse(persisted) as {
+      version?: number
+      state?: { imageEffects?: boolean }
+    }
+    expect(stored.version).toBe(3)
+    expect(stored.state?.imageEffects).toBe(false)
+
+    fireEvent.click(toggle)
+    expect(useSettings.getState().imageEffects).toBe(true)
+  })
+
+  it('is found by its dither keywords', () => {
+    renderSettings()
+    const search = screen.getByRole('searchbox', { name: 'search settings' })
+
+    for (const query of ['dither effects', 'image effects']) {
+      fireEvent.change(search, { target: { value: query } })
+      expect(document.getElementById('settings-appearance')?.getAttribute('data-hidden')).not.toBe(
+        'true',
+      )
+      expect(document.getElementById('settings-account')?.getAttribute('data-hidden')).toBe('true')
+      expect(screen.getByRole('checkbox', { name: /dither effects/ })).toBeInTheDocument()
+    }
+  })
+
+  it('exports the dither preference in the settings file', async () => {
+    useSettings.setState({ appearance: 'dark', keyboardShortcuts: true, imageEffects: false })
+    const blobs: Blob[] = []
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockImplementation((source) => {
+      if (!(source instanceof Blob)) throw new Error('settings export was not a blob')
+      blobs.push(source)
+      return 'blob:benday-settings'
+    })
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    // jsdom would try to navigate to the blob and never download it
+    const download = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'export settings' }))
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(download).toHaveBeenCalledTimes(1)
+    const anchor = download.mock.contexts[0]
+    if (!(anchor instanceof HTMLAnchorElement)) throw new Error('export anchor missing')
+    expect(anchor.download).toBe('benday-settings.json')
+    expect(anchor.getAttribute('href')).toBe('blob:benday-settings')
+    // the temporary anchor is gone once the download was handed off
+    expect(document.querySelector('a[download]')).toBeNull()
+
+    const blob = blobs[0]
+    if (blob === undefined) throw new Error('settings export blob missing')
+    const file = JSON.parse(await blob.text()) as Record<string, unknown>
+    expect(file).toMatchObject({
+      version: 3,
+      appearance: 'dark',
+      keyboardShortcuts: true,
+      imageEffects: false,
+    })
+    expect(await screen.findByText('settings exported')).toBeInTheDocument()
+
+    // the object url is released once the download has been claimed
+    await settle()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:benday-settings')
   })
 })
 
@@ -399,6 +502,7 @@ describe('SettingsDialog import limits', () => {
   const SAMPLE: PortableSettings = {
     appearance: 'dark',
     keyboardShortcuts: true,
+    imageEffects: true,
   }
 
   function pickFile(container: HTMLElement, file: File): void {

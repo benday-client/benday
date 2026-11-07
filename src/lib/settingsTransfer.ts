@@ -5,7 +5,7 @@ import { legacyAppearanceForTheme } from './themes'
 export const SETTINGS_FILE_NAME = 'benday-settings.json'
 
 /** Bump only together with an explicit parser branch for older versions. */
-export const SETTINGS_FILE_VERSION = 2
+export const SETTINGS_FILE_VERSION = 3
 
 /**
  * The only portable preferences. Everything else the app persists — sessions,
@@ -18,6 +18,8 @@ export interface PortableSettings {
   appearance: PortableAppearanceMode
   /** Bare single-character shortcuts; modifier chords stay available (WCAG 2.1.4). */
   keyboardShortcuts: boolean
+  /** The grunge ordered dither on static imagery. */
+  imageEffects: boolean
 }
 
 export interface SettingsFile extends PortableSettings {
@@ -46,6 +48,7 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
   return {
     appearance,
     keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
+    imageEffects: normalizeBoolean(value['imageEffects'], true),
   }
 }
 
@@ -61,6 +64,7 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
     exportedAt: now.toISOString(),
     appearance,
     keyboardShortcuts: normalizeBoolean(settings.keyboardShortcuts, true),
+    imageEffects: normalizeBoolean(settings.imageEffects, true),
   }
 }
 
@@ -99,6 +103,7 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
     settings: {
       appearance,
       keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
+      imageEffects: normalizeBoolean(value['imageEffects'], true),
     },
   }
 }

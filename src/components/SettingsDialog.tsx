@@ -31,7 +31,7 @@ const SETTING_SEARCH: readonly SettingSearchEntry[] = [
     id: 'settings-appearance',
     label: 'appearance',
     keywords:
-      'theme themes colors dither grunge mode accessibility readable keyboard shortcuts wcag single key light dark system',
+      'theme themes colors dither grunge image effects dither effects mode accessibility readable keyboard shortcuts wcag single key light dark system',
   },
   { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
   { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
@@ -47,6 +47,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const setAppearance = useSettings((state) => state.setAppearance)
   const keyboardShortcuts = useSettings((state) => state.keyboardShortcuts)
   const setKeyboardShortcuts = useSettings((state) => state.setKeyboardShortcuts)
+  const imageEffects = useSettings((state) => state.imageEffects)
+  const setImageEffects = useSettings((state) => state.setImageEffects)
   const importSettings = useSettings((state) => state.importSettings)
   const account = useAuthStore((state) => state.account)
   const pending = useAuthStore((state) => state.pending)
@@ -119,6 +121,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     const json = serializeSettings({
       appearance,
       keyboardShortcuts,
+      imageEffects,
     })
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -268,6 +271,19 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             single keys like f and j; modifier chords always work
           </span>
         </label>
+        <label className="b-settings__toggle">
+          <input
+            type="checkbox"
+            checked={imageEffects}
+            onChange={(event) => {
+              setImageEffects(event.currentTarget.checked)
+            }}
+          />
+          <span>dither effects</span>
+          <span className="b-settings__toggle-note">
+            the grunge ordered dither on images and video posters
+          </span>
+        </label>
       </section>
 
       <section
@@ -277,8 +293,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       >
         <h3 className="b-settings__heading">transfer</h3>
         <p className="b-settings__note">
-          move the appearance mode and keyboard shortcuts between browsers with one json file.
-          sessions, credentials, drafts and account data are never included.
+          move the appearance mode, dither effects and keyboard shortcuts between browsers with one
+          json file. sessions, credentials, drafts and account data are never included.
         </p>
         <div className="b-settings__row">
           <Button variant="outline" onClick={exportSettings}>

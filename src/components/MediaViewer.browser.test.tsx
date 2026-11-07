@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { useSettings } from '../lib/store'
 import { type MediaItem, MediaViewer } from './MediaViewer'
@@ -67,6 +67,13 @@ function requireElement<T extends Element>(root: ParentNode, selector: string): 
 
 beforeEach(() => {
   hls.handlers.clear()
+})
+
+afterEach(() => {
+  // the dither is the default; a case that turns it off must not leak
+  act(() => {
+    useSettings.getState().setImageEffects(true)
+  })
 })
 
 it('keeps a failed full-size image inside the viewer cap at its declared ratio', async () => {
@@ -207,6 +214,33 @@ it('dithers the viewer image with the active palette', () => {
   document.documentElement.dataset['theme'] = 'catppuccin-latte'
   expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
   expect(filterOf(image)).not.toContain('catppuccin-mocha')
+})
+
+it('paints the viewer image plainly once the image effects setting is off', async () => {
+  const alt = 'a full-size image'
+  const item: MediaItem = {
+    kind: 'image',
+    src: FRAME,
+    alt,
+    image: { thumb: FRAME, fullsize: FRAME, alt, width: 4, height: 3 },
+  }
+  const { container } = render(<MediaViewer open items={[item]} onClose={() => {}} />)
+
+  const image = requireElement<HTMLElement>(container, '.b-media-viewer__stage .dither-image')
+  // the default setting really filters the already rendered element
+  expect(image.getAttribute('data-effect')).toBeNull()
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  act(() => {
+    useSettings.getState().setImageEffects(false)
+  })
+
+  await waitFor(() => {
+    expect(image.getAttribute('data-effect')).toBe('none')
+    expect(filterOf(image)).toBe('none')
+  })
+  // no palette reference of any kind survives on the same element
+  expect(filterOf(image)).not.toContain('url(')
 })
 
 it('keeps the dither on a failed viewer image instead of flattening it', async () => {

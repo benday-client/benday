@@ -44,8 +44,10 @@ interface SettingsState {
   theme: Theme
   appearance: AppearanceMode
   keyboardShortcuts: boolean
+  imageEffects: boolean
   setAppearance: (appearance: AppearanceMode) => void
   setKeyboardShortcuts: (enabled: boolean) => void
+  setImageEffects: (enabled: boolean) => void
   syncSystemTheme: () => void
   /**
    * Validates a bare portable settings snapshot and applies every portable
@@ -60,9 +62,11 @@ export const useSettings = create<SettingsState>()(
       theme: themeForAppearance('system', systemPrefersLight()),
       appearance: 'system',
       keyboardShortcuts: true,
+      imageEffects: true,
       setAppearance: (appearance) =>
         set({ appearance, theme: themeForAppearance(appearance, systemPrefersLight()) }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
+      setImageEffects: (imageEffects) => set({ imageEffects }),
       syncSystemTheme: () => {
         // only the system mode follows the browser; an explicit mode is fixed
         const state = get()
@@ -78,25 +82,29 @@ export const useSettings = create<SettingsState>()(
           theme: themeForAppearance(settings.appearance, systemPrefersLight()),
           appearance: settings.appearance,
           keyboardShortcuts: settings.keyboardShortcuts,
+          imageEffects: settings.imageEffects,
         })
         return true
       },
     }),
     {
       name: SETTINGS_STORAGE_KEY,
-      version: 2,
-      // version 1 also stored the removed effects, contrast and palette fields;
-      // only the mode and the shortcut preference survive the migration
+      version: 3,
+      // older versions also stored retired palettes and chrome fields; the mode,
+      // the shortcut preference and the dither preference survive the migration
       migrate: (persisted) => {
         if (!isRecord(persisted)) return persisted
         return {
           appearance: storedAppearance(persisted),
           keyboardShortcuts: storedShortcuts(persisted, true),
+          imageEffects:
+            typeof persisted['imageEffects'] === 'boolean' ? persisted['imageEffects'] : true,
         }
       },
       partialize: (state) => ({
         appearance: state.appearance,
         keyboardShortcuts: state.keyboardShortcuts,
+        imageEffects: state.imageEffects,
       }),
       merge: (persisted, current) => {
         if (!isRecord(persisted)) return current
@@ -107,6 +115,8 @@ export const useSettings = create<SettingsState>()(
           theme: themeForAppearance(appearance, systemPrefersLight()),
           appearance,
           keyboardShortcuts: storedShortcuts(persisted, true),
+          imageEffects:
+            typeof persisted['imageEffects'] === 'boolean' ? persisted['imageEffects'] : true,
         }
       },
     },

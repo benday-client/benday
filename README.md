@@ -3,7 +3,7 @@
 a dithered tensorpunk client for the bluesky network
 
 benday is a web client built around cards instead of a timeline. each post is a
-square-edged index card with an ordered-dither portrait or image. on a wide
+square-edged index card with a portrait or image, dithered by default. on a wide
 screen the focused card sits in the centre with half-neighbour peeks on either
 side; narrow screens use a two-up vertical card list. the interface is a small
 TUI: monospace body and chrome, one-pixel borders, lowercase labels,
@@ -17,12 +17,13 @@ account's pinned feeds. content reads go to the official `api.bsky.app` origin;
 writes and viewer state go through the signed-in account's pds.
 
 no account data is stored on a server owned by this project. ui settings live in
-localStorage under `benday:settings`, which holds only the appearance mode and
-the keyboard-shortcuts flag. settings can be exported to and imported from
-`benday-settings.json`; that file holds only those portable preferences and
-never sessions or credentials. composer drafts live under `benday:drafts`
-scoped by account did. password session tokens live under `benday:session`;
-portal sessions live in the browser's indexedDB. the password is never stored.
+localStorage under `benday:settings`, which holds only the appearance mode, the
+keyboard-shortcuts flag and the dither-effects flag. settings can be exported to
+and imported from `benday-settings.json`; that file holds only those portable
+preferences and never sessions or credentials. composer drafts live under
+`benday:drafts` scoped by account did. password session tokens live under
+`benday:session`; portal sessions live in the browser's indexedDB. the password
+is never stored.
 search terms are sent to `api.bsky.app` when you search.
 
 ## access
@@ -146,13 +147,16 @@ accent rule on the author band, four-pixel corner rounding on frames, cards and
 dialogs, and a short reduced-motion-guarded lift on dialogs. mocha rises less
 than latte, which rises a little further and slower.
 
-every static image is dithered through one inline svg filter with a duotone
-table per palette, not canvas: avatars, banners, post and embed images,
-thumbnails, video posters, failed-image fallbacks and the enhanced viewer.
-playing video frames are never filtered. the ordered dither is an 8x8 Bayer
-matrix with 64 levels in a 16x16 tile, mixed with a fixed grunge noise and
-painted from the palette's duotone. there is no effect-family choice and no
-image-effects toggle; the filter does not send image pixels anywhere.
+every static image uses one inline svg filter with a duotone table per
+palette, not canvas: avatars, banners, post and embed images, thumbnails,
+video posters, failed-image fallbacks and the enhanced viewer.
+the `dither effects` switch under appearance decides whether it runs: on, those
+static images and video posters carry the grunge dither; off, they paint plainly
+with no filter and no pixelated scaling. playing video frames are never filtered
+in either state. the ordered dither is an 8x8 Bayer matrix with 64 levels in a
+16x16 tile, mixed with a fixed grunge noise and painted from the palette's
+duotone. there is no effect-family choice; the filter does not send image
+pixels anywhere.
 
 single images scale to fit the viewport while keeping their natural ratio.
 there are no scanline, grain or surface-texture layers, no painted cursors, no
@@ -255,45 +259,51 @@ explicit reload.
 
 settings is the central window for appearance, account and transfer. open it
 with `,` or the settings button. type `/` to focus settings search. appearance
-selects system, light or dark and toggles single-key shortcuts (`keyboard
-shortcuts`, on by default): bare printable keys stop firing while arrows,
-enter, escape, page keys and every modifier chord keep working. the palette
-chord stays reachable, and so does the settings dialog's own `/` search; the
-global `/` search follows the setting.
+selects system, light or dark, toggles single-key shortcuts (`keyboard
+shortcuts`, on by default) and toggles the image dither (`dither effects`, on by
+default). with dither effects on, static images and video posters carry the
+palette's grunge ordered dither; off, they paint plainly. playing video frames
+are never filtered. bare printable keys stop firing with the shortcut switch
+off, while arrows, enter, escape, page keys and every modifier chord keep
+working. the palette chord stays reachable, and so does the settings dialog's
+own `/` search; the global `/` search follows the setting.
 
-the search filters whole sections and shows its own empty state. the header
-cross closes the window. settings written in one tab rehydrate in every other
-open tab, so appearance and shortcut changes follow without a reload. a window
-opens with focus on its first field, or on the window itself when it has none,
-never on the close cross.
+the search filters whole sections and shows its own empty state. appearance's
+search keywords cover the switch terms (`dither`, `grunge`, `image effects`,
+`dither effects`). the header cross closes the window. settings written in one
+tab rehydrate in every other open tab, so appearance, shortcut and dither
+changes follow without a reload. a window opens with focus on its first field,
+or on the window itself when it has none, never on the close cross.
 
 ### settings transfer
 
 the transfer section exports `benday-settings.json` and imports one such file.
 export builds the file in memory and downloads it; import replaces the
-appearance mode and keyboard-shortcuts choice in a single update, so malformed
-input leaves the current settings untouched. errors are reported inline in the
-dialog. the dialog refuses files over 256 KiB.
+appearance mode, keyboard-shortcuts and dither-effects choices in a single
+update, so malformed input leaves the current settings untouched. errors are
+reported inline in the dialog. the dialog refuses files over 256 KiB.
 
 the file is versioned and intentionally narrow:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "exportedAt": "2026-10-30T12:00:00.000Z",
   "appearance": "system",
-  "keyboardShortcuts": true
+  "keyboardShortcuts": true,
+  "imageEffects": true
 }
 ```
 
-import accepts versions 1 and 2. a missing or invalid `appearance` is derived
+import accepts versions 1, 2 and 3. a missing or invalid `appearance` is derived
 from the old `theme` field's scheme when possible, then falls back to `system`;
-a missing `keyboardShortcuts` defaults to `true`. every retired field — themes,
-per-section palettes, image effects, high contrast, appview and labelers — is
-ignored, as are credential-shaped keys. versions above 2 are rejected with a
-truthful message, as are non-objects and malformed json. the same fields are
-ignored if they appear in an imported file, so a hand-edited or hostile file
-cannot inject them into the settings store.
+a missing `keyboardShortcuts` or `imageEffects` defaults to `true`, and an
+explicit boolean in the file is honored. every retired field — themes,
+per-section palettes, high contrast, appview and labelers — is ignored, as are
+credential-shaped keys. versions above 3 are rejected with a truthful message,
+as are non-objects and malformed json. such a field is ignored even when it
+appears in an imported file, so a hand-edited or hostile file cannot inject it
+into the settings store.
 
 the export never includes session tokens, passwords, oauth/portal data in
 indexedDB, jump history, composer drafts, profile/server relationship state or
