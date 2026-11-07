@@ -3,14 +3,15 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import { useAuthStore } from '../lib/auth'
+import { bindingFor, displayKeys } from '../lib/keymap'
 import { useUiStore } from '../lib/ui'
 import { TopBar } from './TopBar'
 
-function renderTopBar() {
-  const { hook } = memoryLocation({ path: '/feed', static: true })
-  render(
+function renderTopBar(path = '/feed') {
+  const { hook } = memoryLocation({ path, static: true })
+  return render(
     <Router hook={hook}>
-      <TopBar onSearch={() => undefined} />
+      <TopBar />
     </Router>,
   )
 }
@@ -39,7 +40,6 @@ describe('TopBar compose entry', () => {
     const words: ReadonlyArray<readonly [string, string]> = [
       ['compose', 'compose'],
       ['jump', 'jump'],
-      ['search', 'search'],
       ['keyboard help', 'help'],
       ['settings', 'settings'],
     ]
@@ -49,13 +49,49 @@ describe('TopBar compose entry', () => {
       // the chord is not printed on the bar; holding ? paints it over the button
       expect(button.querySelector('.b-kbd')).toBeNull()
     }
-    // the word is visible text, not only the accessible name on the title
-    expect(screen.getAllByText(/^(compose|jump|search|help|settings)$/)).toHaveLength(5)
+    // search moved into the tab row, so the right side has four action words
+    expect(screen.getAllByText(/^(compose|jump|help|settings)$/)).toHaveLength(4)
   })
 
   it('opens the compose dialog from the signed-in button', () => {
     renderTopBar()
     screen.getByRole('button', { name: 'compose' }).click()
     expect(useUiStore.getState().compose).toMatchObject({ mode: 'post', post: null })
+  })
+})
+
+describe('TopBar tab row', () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      status: 'authenticated',
+      account: { did: 'did:plc:me', handle: 'me.test' },
+      pending: false,
+      error: null,
+    })
+    useUiStore.setState({ dialog: null, compose: null })
+  })
+
+  it.each(['/feed', '/search'] as const)('orders and marks the primary tabs on %s', (path) => {
+    const { container } = renderTopBar(path)
+    const nav = container.querySelector('.b-topbar__nav')
+    if (nav === null) throw new Error('primary nav missing')
+    const tabs = Array.from(nav.querySelectorAll<HTMLAnchorElement>('a.b-topbar__link'))
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['feeds', 'search', 'notifications'])
+    expect(tabs.map((tab) => tab.getAttribute('href'))).toEqual([
+      '/feed',
+      '/search',
+      '/notifications',
+    ])
+
+    const active = tabs.filter((tab) => tab.getAttribute('data-active') === 'true')
+    expect(active).toHaveLength(1)
+    expect(active[0]?.getAttribute('aria-current')).toBe('page')
+    expect(active[0]?.textContent).toBe(path === '/search' ? 'search' : 'feeds')
+
+    const searchTab = screen.getByRole('link', { name: 'search' })
+    const searchKey = displayKeys(bindingFor('search'))[0] ?? ''
+    expect(searchTab.getAttribute('data-keyhint')).toBe('search')
+    expect(searchTab.getAttribute('title')).toBe(`search · ${searchKey}`)
+    expect(searchKey.length).toBeGreaterThan(0)
   })
 })

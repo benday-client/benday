@@ -34,7 +34,7 @@ import ProfileView from './views/ProfileView'
 import SearchView from './views/SearchView'
 import ThreadView from './views/ThreadView'
 
-const TAB_ROUTES = ['/feed', '/notifications'] as const
+const TAB_ROUTES = ['/feed', '/search', '/notifications'] as const
 
 // Read the platform once: meta on macOS, ctrl everywhere else. Allowing both
 // would shadow the macOS Spaces gesture for ctrl+arrows.
@@ -448,7 +448,7 @@ function AppShell() {
         skip to content
       </a>
 
-      <TopBar onSearch={focusSearch} />
+      <TopBar />
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
         {authenticated ? (

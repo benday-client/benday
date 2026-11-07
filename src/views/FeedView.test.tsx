@@ -345,6 +345,20 @@ describe('FeedView refresh confirmation', () => {
     expect(screen.getByText('second post')).toBeInTheDocument()
   })
 
+  it('shows the rest label on the narrow refresh button', async () => {
+    stubWide(false)
+    routeAlphaPosts()
+    renderFeed()
+    await screen.findByText('alpha post')
+
+    const button = screen.getByRole('button', { name: 'refresh feed' })
+    // at rest the narrow control spells out the shortcut and is not armed
+    await waitFor(() => expect(button).toHaveTextContent('press R to refresh'))
+
+    fireEvent.click(button)
+    expect(screen.getByRole('button', { name: 'refresh feed' })).toHaveTextContent('refresh again')
+  })
+
   it('relabels the narrow refresh button while armed', async () => {
     stubWide(false)
     routeAlphaPosts()

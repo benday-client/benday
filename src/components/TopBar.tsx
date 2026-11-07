@@ -12,18 +12,14 @@ const SEARCH_KEY = displayKeys(bindingFor('search'))[0] ?? ''
 const SETTINGS_KEY = displayKeys(bindingFor('settings'))[0] ?? ''
 const HELP_KEY = displayKeys(bindingFor('help'))[0] ?? ''
 
-export interface TopBarProps {
-  /** The `/` action itself: swap to search and focus its field. */
-  onSearch: () => void
-}
-
-export function TopBar({ onSearch }: TopBarProps) {
+export function TopBar() {
   const [pathname] = useLocation()
   const account = useAuthStore((state) => state.account)
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
   const feedsActive = pathname === '/' || pathname.startsWith('/feed')
+  const searchActive = pathname.startsWith('/search')
   const notificationsActive = pathname.startsWith('/notifications')
   const profileActive = pathname.startsWith('/profile/')
   let profileHandle = ''
@@ -50,6 +46,16 @@ export function TopBar({ onSearch }: TopBarProps) {
           aria-current={feedsActive ? 'page' : undefined}
         >
           feeds
+        </Link>
+        <Link
+          href="/search"
+          className="b-topbar__link"
+          data-active={searchActive ? 'true' : 'false'}
+          aria-current={searchActive ? 'page' : undefined}
+          title={`search · ${SEARCH_KEY}`}
+          data-keyhint="search"
+        >
+          search
         </Link>
         <Link
           href="/notifications"
@@ -107,17 +113,6 @@ export function TopBar({ onSearch }: TopBarProps) {
           data-keyhint="palette"
         >
           <span className="b-topbar__label">jump</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          onClick={onSearch}
-          aria-label="search"
-          title={`search · ${SEARCH_KEY}`}
-          data-keyhint="search"
-        >
-          <span className="b-topbar__label">search</span>
         </Button>
 
         <Button

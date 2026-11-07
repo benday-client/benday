@@ -7,8 +7,10 @@ import { memoryLocation } from 'wouter/memory-location'
 import App from './App'
 import { Deck } from './components/Deck'
 import { PostCard } from './components/PostCard'
+import { SettingsDialog } from './components/SettingsDialog'
 import { AUTH_STORAGE_KEY, useAuthStore } from './lib/auth'
 import { useUiStore } from './lib/ui'
+import { resolveSrgbColor } from './test/colors'
 import { postFixture } from './test/fixtures'
 import { createTestQueryClient } from './test/queryClient'
 import { renderStage } from './test/stage'
@@ -65,6 +67,57 @@ describe('app shell', () => {
       expect(window.location.pathname).toBe('/search')
     } finally {
       unmount()
+    }
+  })
+
+  it('paints the settings rules from the stylesheet', async () => {
+    // open through the store action the top bar and command palette call
+    await act(async () => {
+      useUiStore.getState().openDialog('settings')
+    })
+    const view = renderStage(
+      <SettingsDialog
+        open={useUiStore.getState().dialog === 'settings'}
+        onClose={() => {
+          useUiStore.getState().closeDialog()
+        }}
+      />,
+    )
+    try {
+      await vi.waitFor(() => {
+        expect(document.querySelector('dialog[open].b-settings')).not.toBeNull()
+      })
+
+      const section = document.querySelector<HTMLElement>('.b-settings__section')
+      const search = document.querySelector<HTMLElement>('.b-settings__search')
+      const mode = document.querySelector<HTMLElement>('.b-settings__mode')
+      const note = document.querySelector<HTMLElement>('.b-settings__note')
+      if (section === null || search === null || mode === null || note === null) {
+        throw new Error('settings markup missing')
+      }
+
+      // an unclosed comment above the settings rules used to swallow the whole
+      // block, leaving these elements at their browser defaults
+      const sectionStyle = getComputedStyle(section)
+      expect(sectionStyle.display).toBe('flex')
+      expect(sectionStyle.flexDirection).toBe('column')
+      expect(getComputedStyle(search).display).toBe('flex')
+
+      const modeStyle = getComputedStyle(mode)
+      expect(modeStyle.borderTopStyle).toBe('solid')
+      expect(modeStyle.borderTopWidth).toBe('1px')
+      // the mode chip paints the void surface, not the default button face
+      const voidColor = getComputedStyle(document.documentElement).getPropertyValue('--void').trim()
+      expect(resolveSrgbColor(modeStyle.backgroundColor)).toEqual(resolveSrgbColor(voidColor))
+      // its muted label colour is the same token the section notes paint
+      expect(resolveSrgbColor(modeStyle.color)).toEqual(
+        resolveSrgbColor(getComputedStyle(note).color),
+      )
+    } finally {
+      await act(async () => {
+        useUiStore.getState().closeDialog()
+      })
+      view.unmount()
     }
   })
 })

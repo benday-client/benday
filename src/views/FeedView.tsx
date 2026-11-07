@@ -339,7 +339,7 @@ export default function FeedView() {
             disabled={feed.isFetching || pinnedUnresolved}
             aria-label="refresh feed"
           >
-            {armed ? 'refresh again' : feed.isFetching ? 'refreshing' : 'refresh'}
+            {armed ? 'refresh again' : feed.isFetching ? 'refreshing' : 'press R to refresh'}
           </button>
         </div>
       ) : null}

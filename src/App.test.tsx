@@ -242,6 +242,29 @@ describe('global keyboard routing', () => {
     }
   })
 
+  it('cycles feeds, search and notifications with the primary arrows', async () => {
+    await signInShell()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      await screen.findByLabelText('posts')
+
+      fireEvent.keyDown(document.body, { key: 'ArrowRight', ctrlKey: true })
+      await waitFor(() => expect(window.location.pathname).toBe('/search'))
+      expect(await screen.findByLabelText('query')).toBeInTheDocument()
+
+      fireEvent.keyDown(document.body, { key: 'ArrowRight', ctrlKey: true })
+      await waitFor(() => expect(window.location.pathname).toBe('/notifications'))
+      expect(await screen.findByText('nothing yet')).toBeInTheDocument()
+
+      fireEvent.keyDown(document.body, { key: 'ArrowLeft', ctrlKey: true })
+      await waitFor(() => expect(window.location.pathname).toBe('/search'))
+      expect(await screen.findByLabelText('query')).toBeInTheDocument()
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('does not cycle tabs from an editable field', async () => {
     await signInShell()
     window.history.pushState({}, '', '/search')
@@ -602,7 +625,7 @@ describe('route transitions', () => {
     try {
       await screen.findByLabelText('posts')
 
-      fireEvent.click(screen.getByLabelText('search'))
+      fireEvent.click(screen.getByRole('link', { name: 'search' }))
       expect(stub.updates).toHaveLength(1)
       // the animated update is queued, so the route has not moved yet
       expect(window.location.pathname).toBe('/feed')
@@ -631,7 +654,7 @@ describe('route transitions', () => {
     const view = render(<App />)
     try {
       await screen.findByLabelText('posts')
-      fireEvent.click(screen.getByLabelText('search'))
+      fireEvent.click(screen.getByRole('link', { name: 'search' }))
       expect(stub.updates).toHaveLength(1)
 
       view.unmount()

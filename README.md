@@ -80,7 +80,7 @@ the password fallback works everywhere else, including `localhost`.
 | `c`                     | compose a post                                                  |
 | `,`                     | settings                                                        |
 | `?`                     | tap for keyboard help, hold for key badges                      |
-| `ctrl`/`cmd` + `←` `→`  | switch feeds / notifications tabs, plus a temporary profile tab |
+| `ctrl`/`cmd` + `←` `→`  | switch feeds / search / notifications tabs, plus a profile tab  |
 
 the deck has no letter movement: `h`, `j`, `k` and `l` do nothing on a deck.
 threads still use `j` and `k` for flat reading order. the media viewer is
@@ -92,11 +92,11 @@ field with text (clear it, then blur), then back out of a thread or profile or
 return to the previous tab. a feed deck has nowhere above it, so escape never
 leaves it.
 
-the top bar keeps the tab names: `feeds`, `notifications` and `@handle` for the
-open profile. the active one carries a `//` marker. every action on the right
-prints its word — `jump`, `search`, `help`, `settings` — and the chords stay off
-the bar until you hold `?`; on a phone the row wraps instead of dropping the
-words. holding `?` paints
+the top bar keeps the tab names: `feeds`, `search`, `notifications` and
+`@handle` for the open profile. the active one carries a `//` marker. every
+action on the right prints its word — `jump`, `help`, `settings` — and the
+chords stay off the bar until you hold `?`; on a phone the row wraps instead of
+dropping the words. holding `?` paints
 key badges over the top bar actions and the focused card's actions, and releasing
 it removes them; a tap still opens the keyboard help. the card footer has `re`
 replies, `like`, `rt` repost, `r` reply and `copy link`; `m` opens the focused
@@ -111,8 +111,9 @@ uri is not opened as a feed; it becomes search text. the palette lists pinned
 feeds, account suggestions and the last five jumps, and with an empty prompt it
 lists compose, account, feeds, search, settings and keyboard help. `@me` opens
 your own profile. a profile opened from a card gets a temporary tab after
-notifications and loses it when you leave. search is a route (`/search`) reached
-with `s`, not a permanent tab. there are no theme or appview commands.
+notifications and loses it when you leave. search is a tab between feeds and
+notifications in the arrow cycle, and `/` or `s` still jumps to it from any
+route. there are no theme or appview commands.
 
 ## feeds
 
@@ -127,8 +128,9 @@ and its `← feeds` hint. each feed is a card showing avatar, name and
 description, and left from the first feed returns to posts. feed mode shows the
 matching posts back on its left edge. mobile keeps the compact pinned strip.
 
-`R` or the narrow refresh button arms a five-second confirmation: the status
-note says `press R again to refresh` and the button says `refresh again`. a
+`R` or the narrow refresh button (which reads `press R to refresh`) arms a
+five-second confirmation: the status note says `press R again to refresh` and the
+button says `refresh again`. a
 second press in that window reloads only the first page and clears locally
 dismissed cards; waiting, escape, changing feeds or leaving the view cancels.
 arming is unavailable while a refresh runs or the pins are unresolved. there is
@@ -239,7 +241,8 @@ refresh card at the end of the deck reloads it.
 
 ## search
 
-search is a route (`/search`) reached with `s`. it has two modes: `posts` (text
+search is a tab (`/search`) between feeds and notifications, and `/` or `s`
+reaches it from any route. it has two modes: `posts` (text
 or author match) and `users` (accounts by handle or name); only the active target
 fetches. a user result opens the profile. on wide screens the content deck's
 leading peek card opens a search-modes deck and choosing a mode deals the

@@ -36,8 +36,9 @@ public/                 favicon
 routes: `/` and `/feed` render `FeedView`, `/search` renders `SearchView`,
 `/profile/:actor` renders `ProfileView`, `/thread?uri=…` renders `ThreadView`,
 `/notifications` renders `NotificationsView`, and anything else is the not-found
-view. `TAB_ROUTES` in `App.tsx` is `['/feed', '/notifications']`; search is a route and `s` shortcut, not a tab; a profile route
-is appended only while it is open.
+view. `TAB_ROUTES` in `App.tsx` is `['/feed', '/search', '/notifications']`;
+search is a tab between feeds and notifications, and `/` or `s` still jump to
+it from any route; a profile route is appended only while it is open.
 
 `FeedView`, `SearchView` and `ProfileView` share one deck switcher: on wide
 screens the content deck's leading peek card opens a second deck — the feeds
@@ -496,8 +497,9 @@ selection, no theme preview, no image-effect family and no high-contrast mode.
   `prefers-reduced-motion`.
 - the focused card keeps its inset double hairline, which survives rounded
   corners and a clipped frame. thread replies keep their depth rail and the top
-  bar keeps tab names and the `//` marker. an empty state keeps its solid
-  dithered glyph; letterforms dissolve at that size.
+  bar keeps the tab names — `feeds`, `search`, `notifications` — with search
+  between feeds and notifications; the active tab keeps the `//` marker. an
+  empty state keeps its solid dithered glyph; letterforms dissolve at that size.
 - settings and keyboard help both have a `/`-focused search field; settings
   search hides nonmatching sections instead of rendering result buttons.
 - the settings dialog no longer carries a theme picker, split preview, appview
@@ -557,9 +559,10 @@ there are five key layers, and they must not fight:
    one of these; it has its own listener in `AppShell` (see 6).
 2. tab switching is a separate capture listener in `App.tsx` for the platform
    primary modifier + left/right (meta on macOS, ctrl elsewhere), and it refuses
-   editable targets so caret word-jumps keep working. tabs are `/feed` and
-   `/notifications`; a `/profile/…` route is appended as a temporary tab while it
-   is open. search is a route reached by `/` or `s`, not a tab.
+   editable targets so caret word-jumps keep working. tabs are `/feed`,
+   `/search` and `/notifications`, in that cycle order; a `/profile/…` route is
+   appended as a temporary tab while it is open. search is a tab and a route,
+   also reached by `/` or `s`.
 3. a shortcut that belongs to a card or a thread yields to any interactive
    control **outside** that surface: `isInteractiveTarget` from
    `src/hooks/useHotkeys.ts` plus a containment check, so a focused top-bar
@@ -723,7 +726,8 @@ in the nearest existing file rather than creating a parallel suite.
   playback says so and offers none. `m` opens a media viewer for images or
   video. quoted posts show their author, text, media and an open link, and `o`
   opens the quote's own thread.
-- search is a route, not a tab: `/search` and the `s` shortcut reach it.
-  suggestions are accounts only; typed `#tag` searches as text.
+- search is a tab between feeds and notifications and also a route: clicking
+  the tab, `/` or `s` reach it. suggestions are accounts only; typed `#tag`
+  searches as text.
 - account labelers only contribute labels on cards and profiles; their full
   profiles are not rendered and no labeler-detail request exists.

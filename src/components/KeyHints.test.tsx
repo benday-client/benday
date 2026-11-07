@@ -104,7 +104,7 @@ function renderDeck(post: PostModel, options: DeckOptions = {}) {
   const ui = render(
     <QueryClientProvider client={createTestQueryClient()}>
       <Router hook={location.hook}>
-        <TopBar onSearch={vi.fn()} />
+        <TopBar />
         <PostCard
           post={post}
           focused
@@ -180,6 +180,9 @@ describe('KeyHints hold gesture', () => {
     expect(shown).toContain(registryLabel('card-media'))
     expect(shown).toContain(registryLabel('palette'))
     expect(shown).toContain(registryLabel('search'))
+    // search advertises its key from the tab row now, not an action button
+    expect(screen.getByRole('link', { name: 'search' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'search' })).toBeNull()
     expect(shown).toContain(registryLabel('compose'))
     expect(shown).toContain(registryLabel('settings'))
     expect(shown).toContain(registryLabel('help'))
@@ -302,7 +305,7 @@ describe('KeyHints hold gesture', () => {
     rerender(
       <QueryClientProvider client={createTestQueryClient()}>
         <Router hook={memoryLocation({ path: '/feed' }).hook}>
-          <TopBar onSearch={vi.fn()} />
+          <TopBar />
           <PostCard post={imagePost()} focused />
           <KeyHints route="/search" />
         </Router>
