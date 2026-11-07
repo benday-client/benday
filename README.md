@@ -13,7 +13,7 @@ proportional face so they read apart from the monospace text.
 an account is required. while the session restores the shell shows progress;
 without one it shows the sign-in gate. signing in adds likes, reposts, replies,
 a composer, own-post deletion, notifications, follow/mute/block controls and the
-account's pinned feeds. public reads go to the official `api.bsky.app` origin;
+account's pinned feeds. content reads go to the official `api.bsky.app` origin;
 writes and viewer state go through the signed-in account's pds.
 
 no account data is stored on a server owned by this project. ui settings live in
@@ -31,9 +31,9 @@ the sign-in dialog offers the bluesky portal only on the `127.0.0.1` and
 `[::1]` loopback origins. it uses the atproto loopback oauth client with
 `atproto transition:generic`, so the browser is sent to the pds authorization
 page and the password stays with the pds. open the dev server at
-`http://127.0.0.1:5173/` or `http://[::1]:5173/` for this flow; a `localhost`
-origin keeps the password form, because the oauth client would rewrite it to
-the loopback IP and orphan the localhost origin's stored session and settings.
+`http://127.0.0.1:5173/` for this flow; a `localhost` origin keeps the
+password form, because the oauth client would rewrite it to the loopback IP
+and orphan the localhost origin's stored session and settings.
 a public deployment needs hosted oauth client metadata before the portal can
 work there.
 
@@ -96,20 +96,20 @@ the top bar keeps the tab names: `feeds`, `notifications` and `@handle` for the
 open profile. the active one carries a `//` marker. every action on the right
 prints its word — `jump`, `search`, `help`, `settings` — and the chords stay off
 the bar until you hold `?`; on a phone the row wraps instead of dropping the
-words. the compose entry only appears once you are signed in. holding `?` paints
+words. holding `?` paints
 key badges over the top bar actions and the focused card's actions, and releasing
 it removes them; a tap still opens the keyboard help. the card footer has `re`
-replies, `like`, `rt` repost, `r` reply, `copy link` and `m` media. clicking a
-quoted post opens its thread; its open link still navigates independently. on
-your own posts a two-step `delete` action appears
-beside them. `y` copies the post's bsky.app permalink, and `1`-`9` are 1-based
-positions that act only while the deck or thread owns focus.
+replies, `like`, `rt` repost, `r` reply and `copy link`; `m` opens the focused
+post's media in the viewer. clicking a quoted post opens its thread; its open
+link still navigates independently. on your own posts a two-step `delete`
+action appears beside them. `y` copies the post's bsky.app permalink, and
+`1`-`9` are 1-based positions that act only while the deck or thread owns focus.
 
 the command palette accepts `@handle`, post `at://` uris, `#tags` and plain
 search text (enter searches when no command matches). a feed-generator `at://`
 uri is not opened as a feed; it becomes search text. the palette lists pinned
 feeds, account suggestions and the last five jumps, and with an empty prompt it
-lists compose or sign in, feeds, search, settings and keyboard help. `@me` opens
+lists compose, account, feeds, search, settings and keyboard help. `@me` opens
 your own profile. a profile opened from a card gets a temporary tab after
 notifications and loses it when you leave. search is a route (`/search`) reached
 with `s`, not a permanent tab. there are no theme or appview commands.
@@ -121,11 +121,11 @@ order. signed-in accounts open their first pinned feed; the view has no discover
 fallback and no add-feed dialog. an empty pinned list shows the no-feeds state.
 a `?uri=` selects a feed only when it names one of the pins; any other value
 resolves to the first pinned feed. on wide screens the first post hides the
-feeds deck behind its left edge; press left or up to enter it. the exposed half
-shows the back of the first post card with the feed title, post index, date and
-`api.bsky.app`. each feed is a card showing avatar, name and description, and
-left or up from the first feed returns to posts. feed mode shows the matching
-posts back on its left edge. mobile keeps the compact pinned strip.
+feeds deck behind its left edge; press left to enter it. the exposed half
+shows the back of the first post card with the feed title, post index, date
+and its `← feeds` hint. each feed is a card showing avatar, name and
+description, and left from the first feed returns to posts. feed mode shows the
+matching posts back on its left edge. mobile keeps the compact pinned strip.
 
 `R` or the narrow refresh button arms a five-second confirmation: the status
 note says `press R again to refresh` and the button says `refresh again`. a
@@ -193,14 +193,14 @@ signed-in account. it lists follows, likes, reposts, replies, mentions and
 quotes as cards, newest first, 50 at a time, with the reason in the frame head
 and the unread marker the appview supplies. each card shows who acted and when,
 then the post it points at — author, age, a three-line excerpt and its reply,
-like and repost counts — with a reply's own text above that context. one posts
-call per page fills the subject block; if it fails the notification still
-renders. a reply, mention or quote opens the new post itself, a like or repost
-opens the post it landed on, and a follow opens the profile. up/down focus rows
-and scrolls them into view; enter opens the focused row. opening the tab marks
-the list seen in the background using the newest row the pds returned, even
-when moderation hid that row from the list; a failed seen update never disturbs
-the list.
+like and repost counts — with a reply's own text above that context. subjects
+hydrate in 25-row `getPosts` chunks, so a full 50-row page costs more than one
+call; a failed chunk leaves only its own rows without context. a reply,
+mention or quote opens the new post itself, a like or repost opens the post it
+landed on, and a follow opens the profile. up/down focus rows and scrolls them
+into view; enter opens the focused row. opening the tab marks the list seen in
+the background using the newest row the pds returned, even when moderation hid
+that row from the list; a failed seen update never disturbs the list.
 
 there is no unread/shown count in the header, no header refresh button and no
 refresh action in the empty state. the query refetches when it is stale on
@@ -218,13 +218,13 @@ joined date and standalone account-label badges are not shown. relationship tags
 mark `follows you`, `muted`, `reposts hidden`, `quoteposts hidden` (independent
 scopes), `blocked` and `blocked by`.
 
-actions are follow/unfollow, mute/unmute, hide/show reposts and block/unblock.
+actions are follow/unfollow, mute/unmute and block/unblock.
 they need a signed-in account, update optimistically where it is safe and
-restore the previous viewer state on failure. hiding reposts also filters
-reposts out of the author deck on this client. the per-profile notification
-subscription control is not shown; stored subscription state is preserved and
-incoming notifications still read truthfully. every relationship action is
-hidden on your own profile.
+restore the previous viewer state on failure. a stored `reposts hidden` scope
+still filters repost entries out of the author deck on this client, and nothing
+here changes it. the per-profile notification subscription control is not shown;
+stored subscription state is preserved and incoming notifications still read
+truthfully. every relationship action is hidden on your own profile.
 
 the profile deck has four modes: `profile` (the identity card), `posts`
 (standalone posts), `replies` (replies this account wrote) and `media` (the
@@ -251,11 +251,12 @@ explicit reload.
 ## settings
 
 settings is the central window for appearance, account and transfer. open it
-with `,` or the gear button. type `/` to focus settings search. appearance
+with `,` or the settings button. type `/` to focus settings search. appearance
 selects system, light or dark and toggles single-key shortcuts (`keyboard
 shortcuts`, on by default): bare printable keys stop firing while arrows,
 enter, escape, page keys and every modifier chord keep working. the palette
-chord and `/` stay reachable either way.
+chord stays reachable, and so does the settings dialog's own `/` search; the
+global `/` search follows the setting.
 
 the search filters whole sections and shows its own empty state. the header
 cross closes the window. settings written in one tab rehydrate in every other

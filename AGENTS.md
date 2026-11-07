@@ -58,11 +58,10 @@ ownership by concern:
   portal's login hint. `src/lib/oauth.ts` owns the loopback portal and
   indexedDB. do not create a second session path or a second handle resolver.
 - `src/lib/actions.ts` owns writes: like, repost, reply, post, delete and
-  feed feedback. `src/lib/profileActions.ts` owns follow, mute, hide reposts,
-  block and per-account activity subscriptions. `src/lib/actionStore.ts` owns
-  optimistic like/repost state through one shared side transition: the same
-  canonical read, one-write-per-uri lock and freshness policy, with side-specific
-  fields and writes.
+  feed feedback. `src/lib/profileActions.ts` owns follow, mute and block.
+  `src/lib/actionStore.ts` owns optimistic like/repost state through one shared
+  side transition: the same canonical read, one-write-per-uri lock and freshness
+  policy, with side-specific fields and writes.
 - `src/lib/queries.ts` owns invalidation policy; `src/hooks/useBskyQueries.ts`
   owns query keys and paging. changing cache behavior means changing both.
 - `src/hooks/useRetainedError.ts` owns the first-load retry notice retention
@@ -88,8 +87,9 @@ ownership by concern:
   same-protocol destination survives, stored back as path+query+hash, so a
   protocol-relative, backslash-authority or blob: entry is ignored instead of
   becoming a route.
-- `src/lib/themes.ts` owns the two catppuccin names, schemes, meta colours and
-  the legacy theme-to-mode fallback. `src/styles/tokens.css` owns the per-palette
+- `src/lib/themes.ts` owns the two catppuccin theme ids, their meta colours and
+  the legacy palette-to-mode fallback; the settings store derives the active
+  scheme. `src/styles/tokens.css` owns the per-palette
   values and `src/styles/theme-effects.css` owns the motion, head-wash and corner
   consequences.
 - `src/lib/settingsTransfer.ts` owns the export/import file format and
@@ -248,7 +248,7 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - a password candidate that loses the epoch after its own login revokes that
   session best effort before returning false; the cleanup is candidate-local and
   never touches the committed account.
-- reads go to `https://api.bsky.app` with the signed-in account's labeler dids
+- content reads go to `https://api.bsky.app` with the signed-in account's labeler dids
   through the `accept-labelers` header; search terms and labelers are visible to
   that host. writes go through the account's pds. viewer-state reads and pinned
   generator metadata use the canonical `bsky_appview` proxy
@@ -292,8 +292,8 @@ writes:
 - writes that change records outside the feed (post, reply and delete)
   call `invalidateNonFeedQueries(queryClient)`. the stable roots it leaves alone
   are `feed` (an explicit-refresh deck), `pinned-feeds` (settings keyed by their
-  own inputs) and `feed-generator` (DID and interaction capability); everything
-  else is invalidated.
+  own inputs) and `account-labelers` (the account's own preference read);
+  everything else is invalidated.
   likes, reposts and profile relationship changes update their local stores or
   profile query instead.
 - a composed post or reply clears its draft and invalidates non-feed
@@ -309,8 +309,8 @@ query keys and policy:
 ['profile', actor, viewerDid | 'anonymous']
 ['thread', viewerDid | 'anonymous', uri]
 ['pinned-feeds', did]
+['account-labelers', did]
 ['notifications', 'list', did | 'anonymous']
-['feed-generator', uri]
 ['actor-suggestions', query]
 ```
 
@@ -348,17 +348,16 @@ patches nothing and shows no error.
 status and the full viewer state. `ProfileCard` renders the identity and owns the
 actions; it never fetches a second profile shape.
 
-- actions: follow/unfollow, mute/unmute, hide/show reposts and block/unblock.
-  mute, unmute, hide/show reposts and unblock apply an optimistic viewer patch;
+- actions: follow/unfollow, mute/unmute and block/unblock.
+  mute, unmute and unblock apply an optimistic viewer patch;
   follow/unfollow and block wait for the server result. any failure restores the
   previous viewer state and shows the error inline. per-profile activity
   subscriptions are no longer editable, but stored subscription state and its
   read badges stay truthful.
 - `mutedOnlyReposts` is applied twice: the profile deck filters reposted entries
   out client-side, and the relationship tag says `reposts hidden`.
-- `mutedOnlyQuoteposts` is an independent scope: `quoteposts hidden` shows on its
-  own, hiding reposts preserves it (`showReposts(did, true)` mutes with
-  `onlyQuoteposts`), and the toggle is disabled while only quotes are hidden.
+- `mutedOnlyQuoteposts` is an independent scope, so `quoteposts hidden` shows on
+  its own.
 - a failed action restores only the keys present in that action's optimistic
   patch; actions with no optimistic patch (follow, unfollow, block) never touch
   the cache, so a newer fetch is never rolled back.
@@ -367,8 +366,9 @@ actions; it never fetches a second profile shape.
 - modes are `profile`, `posts`, `replies` and `media`
   (`src/lib/profileModes.ts`). the three content modes are client-side filters
   over the loaded author pages: standalone non-reply entries, replies authored
-  by this account, and entries with image or video embeds. empty states describe
-  what has been fetched, not the whole account.
+  by this account, and the author's own entries with image or video embeds,
+  excluding repost entries. empty states describe what has been fetched, not
+  the whole account.
 - the profile switcher uses that shared deck with `ModeCard`s
   (`src/components/ui/ModeCard.tsx`) and a `CardBackButton` peek; `profile`
   shows only the identity card and the content modes show their post cards. the
@@ -471,10 +471,11 @@ still owns the surface.
 ## themes and surfaces
 
 the only palettes are catppuccin mocha (dark) and latte (light). `src/lib/themes.ts`
-is the source of truth for names, schemes, lowercase labels and meta colours, and
-`legacyAppearanceForTheme` names the mode an old palette painted. there is no
-seasonal availability, no per-scheme selection, no theme preview, no image-effect
-family and no high-contrast mode.
+owns the two theme ids, their meta colours and the legacy palette-to-mode
+fallback (`legacyAppearanceForTheme`); the settings store derives the active
+scheme from the appearance mode. it is not the source of truth for labels,
+groups or seasons, and there is no seasonal availability, no per-scheme
+selection, no theme preview, no image-effect family and no high-contrast mode.
 
 - appearance is `light`, `dark` or `system`; system follows
   `prefers-color-scheme`. the store derives the active `theme`, a fresh state
