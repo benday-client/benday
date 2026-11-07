@@ -350,8 +350,8 @@ function PostCardView({
         return
       }
 
-      // o opens the quoted post; 0 stays as a one-release alias
-      if ((event.key === 'o' || event.key === '0') && quotedUri !== null) {
+      // o opens the quoted post
+      if (event.key === 'o' && quotedUri !== null) {
         event.preventDefault()
         navigate(`/thread?uri=${encodeURIComponent(quotedUri)}`)
         return

@@ -354,7 +354,7 @@ describe('ThreadView tree keys', () => {
     expect(document.activeElement).toBe(container.querySelector('.b-thread'))
   })
 
-  it('opens the parent thread with ArrowUp at a parented focus post', async () => {
+  it('swallows ArrowUp at a parented focus post and leaves the parent to p', async () => {
     const parentModel = threadFixture(postFixture({ uri: PARENT_URI, text: 'parent post' }), [])
     const { history } = renderThread(threadFixture(parentedThread(), []), [parentModel])
     await settle()
@@ -362,7 +362,10 @@ describe('ThreadView tree keys', () => {
 
     await userEvent.keyboard('{ArrowUp}')
     await settle()
+    expect(history).toHaveLength(before)
 
+    await userEvent.keyboard('p')
+    await settle()
     expect(history).toHaveLength(before + 1)
     expect(history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(PARENT_URI)}`)
   })

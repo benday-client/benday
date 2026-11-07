@@ -104,24 +104,26 @@ describe('Deck keyboard', () => {
     expect(focusedIndex(container)).toBe('0')
   })
 
-  it('moves with j and k on a wide deck', () => {
+  it('leaves j, k, h and l inert on either axis', () => {
     const onExitStart = vi.fn()
     const { container, unmount } = render(deck(ITEMS, onExitStart))
 
-    fireEvent.keyDown(window, { key: 'j' })
+    for (const key of ['j', 'k', 'h', 'l']) fireEvent.keyDown(window, { key })
+    expect(focusedIndex(container)).toBe('0')
+
+    // the arrows still own movement on the wide axis
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(focusedIndex(container)).toBe('1')
-    fireEvent.keyDown(window, { key: 'j' })
-    expect(focusedIndex(container)).toBe('2')
-    fireEvent.keyDown(window, { key: 'k' })
-    expect(focusedIndex(container)).toBe('1')
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(focusedIndex(container)).toBe('0')
 
     unmount()
     stubWide(false)
     const narrow = render(deck(ITEMS, onExitStart))
-    fireEvent.keyDown(window, { key: 'j' })
-    expect(focusedIndex(narrow.container)).toBe('1')
-    fireEvent.keyDown(window, { key: 'k' })
+    for (const key of ['j', 'k', 'h', 'l']) fireEvent.keyDown(window, { key })
     expect(focusedIndex(narrow.container)).toBe('0')
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    expect(focusedIndex(narrow.container)).toBe('1')
     expect(onExitStart).not.toHaveBeenCalled()
   })
 
@@ -199,15 +201,11 @@ describe('Deck keyboard', () => {
     expect(onActivate).toHaveBeenCalledTimes(1)
   })
 
-  it('clamps h and l instead of leaving the deck', () => {
+  it('clamps forward movement instead of leaving the deck', () => {
     const onExitStart = vi.fn()
     const { container } = render(deck(ITEMS, onExitStart))
 
-    fireEvent.keyDown(window, { key: 'h' })
-    expect(onExitStart).not.toHaveBeenCalled()
-    expect(focusedIndex(container)).toBe('0')
-
-    for (let press = 0; press < 4; press += 1) fireEvent.keyDown(window, { key: 'l' })
+    for (let press = 0; press < 4; press += 1) fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(focusedIndex(container)).toBe('2')
     expect(onExitStart).not.toHaveBeenCalled()
 
@@ -217,18 +215,6 @@ describe('Deck keyboard', () => {
     expect(focusedIndex(container)).toBe('0')
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(onExitStart).toHaveBeenCalledTimes(1)
-  })
-
-  it('leaves h and l inert on a narrow deck', () => {
-    stubWide(false)
-    const onExitStart = vi.fn()
-    const { container } = render(deck(ITEMS, onExitStart))
-
-    fireEvent.keyDown(window, { key: 'h' })
-    fireEvent.keyDown(window, { key: 'l' })
-
-    expect(onExitStart).not.toHaveBeenCalled()
-    expect(focusedIndex(container)).toBe('0')
   })
 
   it('treats Home and End as canonical and g and G as aliases', () => {
@@ -295,7 +281,7 @@ describe('Deck keyboard', () => {
 
     fireEvent.keyDown(window, { key: 'Enter', isComposing: true })
     fireEvent.keyDown(window, { key: 'ArrowLeft', keyCode: 229 })
-    fireEvent.keyDown(window, { key: 'j', isComposing: true })
+    fireEvent.keyDown(window, { key: 'ArrowRight', isComposing: true })
 
     expect(onActivate).not.toHaveBeenCalled()
     expect(onExitStart).not.toHaveBeenCalled()
@@ -602,7 +588,7 @@ describe('Deck position memory', () => {
   it('restores by key when items are inserted before the focused card', () => {
     stubWide(false)
     const first = renderKeyed(['a', 'b', 'c'], 'memory-key')
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(focusedIndex(first.container)).toBe('1')
     first.unmount()
 
@@ -614,7 +600,7 @@ describe('Deck position memory', () => {
   it('falls back to the stored index when the saved card is gone', () => {
     stubWide(false)
     const first = renderKeyed(['a', 'b', 'c'], 'memory-missing-key')
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(focusedIndex(first.container)).toBe('1')
     first.unmount()
 
@@ -625,7 +611,7 @@ describe('Deck position memory', () => {
   it('keeps a saved position pending while the deck is still empty', () => {
     stubWide(false)
     const first = renderKeyed(['a', 'b', 'c'], 'memory-empty-mount')
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(focusedIndex(first.container)).toBe('1')
     first.unmount()
 
@@ -640,7 +626,7 @@ describe('Deck position memory', () => {
   it('keeps a saved key pending while only a loading placeholder is mounted', () => {
     stubWide(false)
     const first = renderKeyed(['a', 'b', 'c'], 'memory-loading-mount')
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(focusedIndex(first.container)).toBe('1')
     first.unmount()
 
@@ -663,7 +649,7 @@ describe('Deck position memory', () => {
   it('does not carry one namespace position into another', () => {
     stubWide(false)
     const first = renderKeyed(['a', 'b', 'c'], 'ns-a')
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
     first.unmount()
 
     renderKeyed(['x', 'y', 'z'], 'ns-b')
@@ -702,7 +688,7 @@ describe('Deck list semantics and status', () => {
     const status = () => container.querySelector('[role="status"]')?.textContent ?? null
     expect(status()).toBe('card 1 of 3')
 
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(status()).toBe('card 2 of 3')
 
     const third = container.querySelectorAll<HTMLButtonElement>('.b-deck__item button')[2]
@@ -766,7 +752,7 @@ describe('Deck list semantics and status', () => {
     outside.focus()
 
     expect(keyConsumed({ key: 'ArrowRight' }, outside)).toBe(false)
-    expect(keyConsumed({ key: 'j' }, outside)).toBe(false)
+    expect(keyConsumed({ key: 'g' }, outside)).toBe(false)
     expect(focusedIndex(container)).toBe('0')
   })
 })
@@ -796,9 +782,7 @@ describe('Deck character shortcut opt-out', () => {
     const { container } = render(activatable(onActivate, onExitStart))
 
     // neither consumed nor acted on: no card move, no activation, no exit
-    expect(keyConsumed({ key: 'j' })).toBe(false)
-    fireEvent.keyDown(window, { key: 'j' })
-    fireEvent.keyDown(window, { key: 'l' })
+    expect(keyConsumed({ key: 'g' })).toBe(false)
     fireEvent.keyDown(window, { key: '5' })
     fireEvent.keyDown(window, { key: 'g' })
     fireEvent.keyDown(window, { key: 'G' })
@@ -830,16 +814,19 @@ describe('Deck character shortcut opt-out', () => {
     expect(keyConsumed({ key: 'PageDown' })).toBe(false)
   })
 
-  it('restores the letters once the setting is back on', () => {
+  it('restores the shortcuts once the setting is back on', () => {
     const onActivate = vi.fn()
     const { container } = render(activatable(onActivate))
     useSettings.setState({ keyboardShortcuts: false })
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: '3' })
+    fireEvent.keyDown(window, { key: 'G' })
     expect(focusedIndex(container)).toBe('0')
 
     useSettings.setState({ keyboardShortcuts: true })
-    fireEvent.keyDown(window, { key: 'j' })
-    expect(focusedIndex(container)).toBe('1')
+    fireEvent.keyDown(window, { key: '3' })
+    expect(focusedIndex(container)).toBe('2')
+    fireEvent.keyDown(window, { key: 'g' })
+    expect(focusedIndex(container)).toBe('0')
     expect(onActivate).not.toHaveBeenCalled()
   })
 })

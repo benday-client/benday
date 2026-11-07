@@ -147,8 +147,8 @@ export default function ThreadView() {
       if (event.shiftKey) return
       if (event.isComposing) return
       // left is the thread's back key. down enters the replies and walks them
-      // in pre-order, up climbs to the parent thread at the opened post, and k
-      // does nothing at the top of the tree.
+      // in pre-order; at the opened post up is swallowed. p is the only way to
+      // open the parent thread.
       const key = event.key
       const isLeave = key === 'ArrowLeft'
       const isTreeKey =
@@ -172,16 +172,12 @@ export default function ThreadView() {
       }
 
       if (key === 'ArrowUp') {
-        // a held key must not push the parent thread more than once, and a
-        // focused link or button keeps the key for itself
-        if (event.repeat) return
+        // the opened post is the root of this view; up goes nowhere and must not
+        // scroll the page or open the parent thread
         if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
           return
         }
-        const parentUri = focusPost?.replyParent?.uri ?? null
-        if (parentUri === null) return
         event.preventDefault()
-        navigate(`/thread?uri=${encodeURIComponent(parentUri)}`)
         return
       }
 

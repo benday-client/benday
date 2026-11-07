@@ -697,7 +697,7 @@ describe('PostCard actions', () => {
     expect(document.querySelector('.b-video-player__video')).not.toBeNull()
   })
 
-  it('opens a quoted post with the 0 key and a link', () => {
+  it('opens a quoted post with o and a link', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     const quoted = {
@@ -731,11 +731,11 @@ describe('PostCard actions', () => {
       'href',
       `/thread?uri=${encodeURIComponent(quoted.uri)}`,
     )
-    fireEvent.keyDown(window, { key: '0' })
+    fireEvent.keyDown(window, { key: 'o' })
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('opens a quoted post with o and keeps 0 as an alias', () => {
+  it('leaves 0 inert and opens the quoted post with o', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     const quoted = quoteFixture()
@@ -748,9 +748,10 @@ describe('PostCard actions', () => {
       </QueryClientProvider>,
     )
 
-    fireEvent.keyDown(window, { key: 'o' })
-    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
     fireEvent.keyDown(window, { key: '0' })
+    expect(location.history).toEqual(['/'])
+
+    fireEvent.keyDown(window, { key: 'o' })
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
@@ -835,7 +836,7 @@ describe('PostCard actions', () => {
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
-  it('opens a quoted post with 0 even when the post owns a reply list', () => {
+  it('opens a quoted post with o even when the post owns a reply list', () => {
     const location = memoryLocation({ path: '/', record: true })
     const queryClient = createTestQueryClient()
     const quoted = {
@@ -868,6 +869,9 @@ describe('PostCard actions', () => {
     )
 
     fireEvent.keyDown(window, { key: '0' })
+    expect(location.history).toEqual(['/'])
+
+    fireEvent.keyDown(window, { key: 'o' })
     expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 

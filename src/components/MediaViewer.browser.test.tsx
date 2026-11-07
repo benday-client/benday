@@ -153,7 +153,7 @@ it('leaves Home, End and the arrows to the focused seek control', async () => {
   expect(count.textContent).toBe('1 / 2')
 })
 
-it('stops gallery letters and digits while the character preference is off', async () => {
+it('stops gallery digits while the character preference is off', async () => {
   useSettings.setState({ keyboardShortcuts: false })
   const onClose = vi.fn()
   const items = [
@@ -166,7 +166,6 @@ it('stops gallery letters and digits while the character preference is off', asy
   const count = () => container.querySelector('.b-media-viewer__count')?.textContent
   expect(count()).toBe('1 / 3 — first frame')
 
-  await userEvent.keyboard('j')
   await userEvent.keyboard('2')
   expect(count()).toBe('1 / 3 — first frame')
 

@@ -156,13 +156,12 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
   {
     id: 'deck-move',
     scope: 'deck',
-    keys: ['←', '→', '↑', '↓', 'j', 'k', 'h', 'l'],
+    keys: ['←', '→', '↑', '↓'],
     chords: [
       { key: 'ArrowLeft', shift: false },
       { key: 'ArrowRight', shift: false },
       { key: 'ArrowUp', shift: false },
       { key: 'ArrowDown', shift: false },
-      ...letterChords(['j', 'k', 'h', 'l']),
     ],
     label:
       'arrows follow the deck: left/right move a wide deck, up/down a narrow one; the back arrow leaves at the first card',
@@ -258,7 +257,6 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     keys: ['o'],
     chords: letterChords(['o']),
     label: 'open the quoted post when present',
-    aliases: [{ display: '0', chord: { key: '0', shift: false } }],
   },
   {
     id: 'card-reveal',
@@ -316,7 +314,7 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
     scope: 'thread',
     keys: ['↑'],
     chords: [{ key: 'ArrowUp', shift: false }],
-    label: 'move to the parent reply; at the opened post open its parent thread',
+    label: 'move to the parent reply',
   },
   {
     id: 'thread-ends',
@@ -464,11 +462,10 @@ const KEY_BINDINGS: readonly KeyBinding[] = [
   {
     id: 'media-move',
     scope: 'media',
-    keys: ['←', '→', 'j', 'k'],
+    keys: ['←', '→'],
     chords: [
       { key: 'ArrowLeft', shift: false },
       { key: 'ArrowRight', shift: false },
-      ...letterChords(['j', 'k']),
     ],
     label: 'show the previous or next image',
   },

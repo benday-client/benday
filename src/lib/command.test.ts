@@ -33,12 +33,12 @@ describe('parseCommand', () => {
     })
   })
 
-  it('routes generator at-uris to feeds', () => {
+  it('routes generator at-uris to search text', () => {
     const uri = 'at://did:plc:abc123/app.bsky.feed.generator/whats-hot'
     expect(parseCommand(uri)).toEqual({
       type: 'navigate',
-      href: `/feed?uri=${encodeURIComponent(uri)}`,
-      label: 'feed',
+      href: `/search?q=${encodeURIComponent(uri)}`,
+      label: `search “${uri}”`,
     })
   })
 

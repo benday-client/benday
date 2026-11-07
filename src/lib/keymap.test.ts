@@ -111,7 +111,7 @@ describe('character shortcut opt-out', () => {
   })
 
   it('rejects bare character shortcuts while the setting is off', () => {
-    const letters = ['f', 'b', 'r', 'y', 'v', 'm', 'o', 'x', 'j', 'k', 'h', 'l', 's', 'c']
+    const letters = ['f', 'b', 'r', 'y', 'v', 'm', 'o', 'x', 'j', 'k', 's', 'c']
     for (const key of [...letters, 'G', 'R']) {
       expect(characterShortcuts, `${key} is a registered character shortcut`).toContain(key)
       expect(characterShortcutAllowed(false, bare(key)), key).toBe(false)
@@ -160,13 +160,19 @@ describe('character shortcut opt-out', () => {
   })
 
   it('treats positional digits as character shortcuts too', () => {
-    // deck-position 1-9 and the quoted-open alias 0 are bare single-character
-    // shortcuts, so the opt-out covers them rather than leaving them active
-    for (const key of ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+    // deck and thread positions 1-9 are bare single-character shortcuts, so the
+    // opt-out covers them rather than leaving them active
+    for (const key of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
       expect(characterShortcuts, `${key} is registered`).toContain(key)
       expect(characterShortcutAllowed(false, bare(key)), key).toBe(false)
       expect(characterShortcutAllowed(true, bare(key)), key).toBe(true)
     }
+  })
+
+  it('drops the retired deck letters and the zero alias', () => {
+    for (const key of ['h', 'l', '0']) expect(characterShortcuts).not.toContain(key)
+    // j and k survive in the thread scope only
+    for (const key of ['j', 'k']) expect(characterShortcuts).toContain(key)
   })
 
   it('answers from the event instead of the document', () => {

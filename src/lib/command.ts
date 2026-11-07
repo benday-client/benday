@@ -16,18 +16,13 @@ export function parseCommand(input: string): ParsedCommand {
   }
 
   if (trimmed.startsWith('at://')) {
-    if (trimmed.includes('/app.bsky.feed.generator/')) {
+    // a feed-generator URI is not a thread; it falls through to search as text
+    if (!trimmed.includes('/app.bsky.feed.generator/')) {
       return {
         type: 'navigate',
-        href: `/feed?uri=${encodeURIComponent(trimmed)}`,
-        label: 'feed',
+        href: `/thread?uri=${encodeURIComponent(trimmed)}`,
+        label: 'thread',
       }
-    }
-
-    return {
-      type: 'navigate',
-      href: `/thread?uri=${encodeURIComponent(trimmed)}`,
-      label: 'thread',
     }
   }
 

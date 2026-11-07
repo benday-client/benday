@@ -559,14 +559,14 @@ describe('ThreadView focus parent boundary', () => {
     return thread
   }
 
-  it('opens the parent thread with arrow up at a parented focus post', () => {
+  it('swallows arrow up at a parented focus post', () => {
     const { memory } = renderParented()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
     fireEvent.keyDown(document.body, { key: 'ArrowUp' })
 
     expect(back).not.toHaveBeenCalled()
-    expect(memory.history).toEqual([threadUrl('at://focus'), threadUrl('at://focus-parent')])
+    expect(memory.history).toEqual([threadUrl('at://focus')])
     back.mockRestore()
   })
 
@@ -590,7 +590,7 @@ describe('ThreadView focus parent boundary', () => {
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
-  it('walks a reply back through the focus post before the parent thread', () => {
+  it('walks a reply back to the focus post and leaves the parent thread to p', () => {
     const { memory } = renderParented()
 
     fireEvent.keyDown(document.body, { key: 'j' })
@@ -601,6 +601,9 @@ describe('ThreadView focus parent boundary', () => {
     expect(memory.history).toEqual([threadUrl('at://focus')])
 
     fireEvent.keyDown(threadSurface(), { key: 'ArrowUp' })
+    expect(memory.history).toEqual([threadUrl('at://focus')])
+
+    fireEvent.keyDown(threadSurface(), { key: 'p' })
     expect(memory.history).toEqual([threadUrl('at://focus'), threadUrl('at://focus-parent')])
   })
 })

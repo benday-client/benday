@@ -92,7 +92,7 @@ export function MediaViewer({ open, items, initialIndex = 0, onClose }: MediaVie
 
       if (items.length > 1 && matchesBinding(event, MOVE_BINDING)) {
         event.preventDefault()
-        const direction = event.key === 'ArrowLeft' || event.key === 'k' ? -1 : 1
+        const direction = event.key === 'ArrowLeft' ? -1 : 1
         setIndex((current) => (current + direction + items.length) % items.length)
         return
       }

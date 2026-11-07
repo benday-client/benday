@@ -83,22 +83,27 @@ describe('MediaViewer navigation keys', () => {
     )
   }
 
-  it('moves with j and k on the visual axis', () => {
+  it('moves with the arrow keys and leaves j and k inert', () => {
     renderOpen(4)
     expect(screen.getByText('1 / 4')).toBeInTheDocument()
 
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(screen.getByText('2 / 4')).toBeInTheDocument()
 
-    fireEvent.keyDown(window, { key: 'j' })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(screen.getByText('3 / 4')).toBeInTheDocument()
 
+    // the viewer has no letter movement
+    fireEvent.keyDown(window, { key: 'j' })
     fireEvent.keyDown(window, { key: 'k' })
+    expect(screen.getByText('3 / 4')).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(screen.getByText('2 / 4')).toBeInTheDocument()
 
-    // the visual axis wraps like the arrow keys do
-    fireEvent.keyDown(window, { key: 'k' })
-    fireEvent.keyDown(window, { key: 'k' })
+    // the visual axis wraps like the arrows do
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(screen.getByText('4 / 4')).toBeInTheDocument()
   })
 
@@ -130,7 +135,7 @@ describe('MediaViewer navigation keys', () => {
   it('ignores keys that belong to an active composition', () => {
     renderOpen(4)
     const composing = new KeyboardEvent('keydown', {
-      key: 'j',
+      key: 'ArrowRight',
       isComposing: true,
       bubbles: true,
       cancelable: true,

@@ -728,15 +728,13 @@ export function Deck<T>({
     if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
 
     const key = event.key
-    // arrows follow the visual axis; j/k always follow reading order and h/l
-    // only exist where there is a horizontal axis
+    // arrows follow the visual axis; the deck has no letter movement
     const backArrow = axis === 'x' ? key === 'ArrowLeft' : key === 'ArrowUp'
     const forwardArrow = axis === 'x' ? key === 'ArrowRight' : key === 'ArrowDown'
-    const back = backArrow || key === 'k' || (horizontal && key === 'h')
-    const forward = forwardArrow || key === 'j' || (horizontal && key === 'l')
+    const back = backArrow
+    const forward = forwardArrow
 
-    // an empty deck still exits with the unmodified back arrow; letters never
-    // change route
+    // an empty deck still exits with the unmodified back arrow
     if (items.length === 0) {
       if (backArrow && !event.shiftKey) {
         event.preventDefault()
