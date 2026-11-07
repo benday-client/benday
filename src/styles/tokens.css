@@ -44,8 +44,6 @@
   --rust: #f38ba8;
   --acid: #a6e3a1;
   --shadow: #11111b;
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.18;
   --selection-ink: #1e1e2e;
 
   --topbar-height: 42px;
@@ -74,13 +72,6 @@
   --accent-5: var(--rust);
   --neon: transparent;
   --neon-alt: transparent;
-
-  /* shared surface texture: the paper scanline every card starts from */
-  --surface-texture: repeating-linear-gradient(
-    0deg,
-    transparent 0 3px,
-    color-mix(in srgb, var(--line) 18%, transparent) 3px 4px
-  );
 
   /* shared corner language: radius for interactive trim, clip for surfaces */
   --theme-radius: 0px;
@@ -145,8 +136,6 @@
   --accent-5: #94e2d5;
   --shadow: #11111b;
 
-  --noise-opacity: 0.05;
-  --scan-opacity: 0.18;
   --selection-ink: #1e1e2e;
 
   /* catppuccin: soft corners and a pastel head wash instead of the hatch */
@@ -185,8 +174,6 @@
   --accent-5: #179299;
   --shadow: #8c8fa1;
 
-  --noise-opacity: 0.04;
-  --scan-opacity: 0.08;
   --selection-ink: #eff1f5;
 
   /* catppuccin: soft corners and a pastel head wash instead of the hatch */

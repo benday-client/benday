@@ -16,9 +16,7 @@ import { TopBar } from './components/TopBar'
 import { EmptyState, ErrorNotice, Progress } from './components/ui'
 import { useAccountLabelers } from './hooks/useAccountLabelers'
 import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
-import { useInputMode } from './hooks/useInputMode'
 import { useAuthStore } from './lib/auth'
-import { installCursors } from './lib/cursors'
 import { goBackOrFallback, THREAD_FALLBACK_VIEW, withAppHistory } from './lib/history'
 import {
   bindingFor,
@@ -173,10 +171,8 @@ function AppShell() {
   const authenticated = authStatus === 'authenticated'
   const restoreError = useAuthStore((state) => state.restoreError)
   useAccountLabelers()
-  useInputMode()
 
   const theme = useSettings((state) => state.theme)
-  const highContrast = useSettings((state) => state.highContrast)
   const appearance = useSettings((state) => state.appearance)
   const syncSystemTheme = useSettings((state) => state.syncSystemTheme)
 
@@ -252,14 +248,10 @@ function AppShell() {
   }, [pathname])
 
   useEffect(() => {
-    // Contrast first: the cursors decode real colors, so both attributes must
-    // be on the root before anything reads them.
-    document.documentElement.dataset['contrast'] = highContrast ? 'high' : 'normal'
     document.documentElement.dataset['theme'] = theme
     const meta = document.querySelector('meta[name="theme-color"]')
-    if (meta instanceof HTMLMetaElement) meta.content = themeColor(theme, highContrast)
-    installCursors()
-  }, [theme, highContrast])
+    if (meta instanceof HTMLMetaElement) meta.content = themeColor(theme)
+  }, [theme])
 
   // a hidden tab catches up on the browser preference once it is visible;
   // there is no timer and no polling

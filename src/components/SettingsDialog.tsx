@@ -45,10 +45,6 @@ export interface SettingsDialogProps {
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const appearance = useSettings((state) => state.appearance)
   const setAppearance = useSettings((state) => state.setAppearance)
-  const imageEffects = useSettings((state) => state.imageEffects)
-  const setImageEffects = useSettings((state) => state.setImageEffects)
-  const highContrast = useSettings((state) => state.highContrast)
-  const setHighContrast = useSettings((state) => state.setHighContrast)
   const keyboardShortcuts = useSettings((state) => state.keyboardShortcuts)
   const setKeyboardShortcuts = useSettings((state) => state.setKeyboardShortcuts)
   const importSettings = useSettings((state) => state.importSettings)
@@ -122,8 +118,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     setTransferNotice(null)
     const json = serializeSettings({
       appearance,
-      imageEffects,
-      highContrast,
       keyboardShortcuts,
     })
     const blob = new Blob([json], { type: 'application/json' })
@@ -261,28 +255,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </button>
           ))}
         </fieldset>
-        <label className="b-settings__toggle">
-          <input
-            type="checkbox"
-            checked={imageEffects}
-            onChange={(event) => {
-              setImageEffects(event.currentTarget.checked)
-            }}
-          />
-          <span>image effects</span>
-          <span className="b-settings__toggle-note">dither and grunge</span>
-        </label>
-        <label className="b-settings__toggle">
-          <input
-            type="checkbox"
-            checked={highContrast}
-            onChange={(event) => {
-              setHighContrast(event.currentTarget.checked)
-            }}
-          />
-          <span>high contrast</span>
-          <span className="b-settings__toggle-note">maximum text and border contrast</span>
-        </label>
         <label className="b-settings__toggle">
           <input
             type="checkbox"

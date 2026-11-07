@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  isTheme,
-  legacyAppearanceForTheme,
-  THEME_COLORS,
-  THEME_EFFECTS,
-  THEME_SCHEMES,
-  themeColor,
-} from './themes'
+import { isTheme, legacyAppearanceForTheme, THEME_COLORS, themeColor } from './themes'
 
 describe('themes', () => {
   it('ships exactly the catppuccin pair', () => {
@@ -17,26 +10,10 @@ describe('themes', () => {
     expect(isTheme(3)).toBe(false)
   })
 
-  it('pins each palette to its scheme and grunge effect', () => {
-    expect(THEME_SCHEMES).toEqual({
-      'catppuccin-mocha': 'dark',
-      'catppuccin-latte': 'light',
-    })
-    expect(THEME_EFFECTS).toEqual({
-      'catppuccin-mocha': 'grunge',
-      'catppuccin-latte': 'grunge',
-    })
-  })
-
   it('paints the chrome colour the page uses', () => {
     expect(themeColor('catppuccin-mocha')).toBe('#1e1e2e')
     expect(themeColor('catppuccin-latte')).toBe('#eff1f5')
     expect(THEME_COLORS['catppuccin-mocha']).toBe('#1e1e2e')
-  })
-
-  it('uses a system black or white chrome in high contrast', () => {
-    expect(themeColor('catppuccin-mocha', true)).toBe('#000000')
-    expect(themeColor('catppuccin-latte', true)).toBe('#ffffff')
   })
 })
 

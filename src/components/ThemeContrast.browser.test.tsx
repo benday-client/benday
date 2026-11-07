@@ -114,9 +114,8 @@ function must<T extends Element | null>(value: T): NonNullable<T> {
 
 const SURFACE_TOKENS = ['--void', '--paper', '--panel', '--panel-raised'] as const
 
-function renderCatalogue(theme: Theme, highContrast: boolean) {
+function renderCatalogue(theme: Theme) {
   document.documentElement.dataset['theme'] = theme
-  document.documentElement.dataset['contrast'] = highContrast ? 'high' : 'normal'
   return renderStage(
     <>
       <Frame label="catalogue" meta="now">
@@ -167,78 +166,58 @@ function renderCatalogue(theme: Theme, highContrast: boolean) {
 }
 
 for (const theme of THEMES) {
-  for (const highContrast of [false, true]) {
-    for (const viewport of [
-      { width: 390, height: 844 },
-      { width: 1280, height: 800 },
-    ]) {
-      const mode = highContrast ? 'high contrast' : 'normal'
-      // the AA floor is 4.5; the high variant is a genuine AAA surface, so it
-      // must clear 7 rather than merely the normal floor
-      const minimum = highContrast ? 7 : 4.5
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ]) {
+    const minimum = 4.5
 
-      it(`keeps ${theme} readable in ${mode} at ${viewport.width}x${viewport.height}`, async () => {
-        await page.viewport(viewport.width, viewport.height)
-        const { container, unmount } = renderCatalogue(theme, highContrast)
-        const scope = container
+    it(`keeps ${theme} readable at ${viewport.width}x${viewport.height}`, async () => {
+      await page.viewport(viewport.width, viewport.height)
+      const { container, unmount } = renderCatalogue(theme)
+      const scope = container
 
-        const checks: Array<[string, number]> = [
-          ['frame label', textContrast(must(scope.querySelector('.b-frame__label')))],
-          ['frame meta', textContrast(must(scope.querySelector('.b-frame__meta')))],
-          ['body text', textContrast(must(scope.querySelector('.b-post-card__text')))],
-          ['prose link', textContrast(must(scope.querySelector('a')))],
-          ['solid button', fillContrast(must(scope.querySelector('.b-button--solid')))],
-          ['outline button', textContrast(must(scope.querySelector('.b-button--outline')))],
-          ['ghost button', textContrast(must(scope.querySelector('.b-button--ghost')))],
-          ['input hint', textContrast(must(scope.querySelector('.b-input__hint')))],
-          [
-            'input placeholder',
-            textContrast(must(scope.querySelector('.b-input__control')), '::placeholder'),
-          ],
-          ['default tag', textContrast(must(scope.querySelector('.b-tag--default')))],
-          ['accent tag', textContrast(must(scope.querySelector('.b-tag--accent')))],
-          ['warn tag', textContrast(must(scope.querySelector('.b-tag--warn')))],
-          ['error message', textContrast(must(scope.querySelector('.b-error__message')))],
-          ['empty hint', textContrast(must(scope.querySelector('.b-empty__hint')))],
-          ['relative time', textContrast(must(scope.querySelector('.b-relative-time')))],
-          ['progress label', textContrast(must(scope.querySelector('.b-progress__label')))],
-          ['solid hover', fillContrast(must(scope.querySelector('[data-probe="solid-hover"]')))],
-          ['selection', fillContrast(must(scope.querySelector('[data-probe="selection"]')))],
-        ]
+      const checks: Array<[string, number]> = [
+        ['frame label', textContrast(must(scope.querySelector('.b-frame__label')))],
+        ['frame meta', textContrast(must(scope.querySelector('.b-frame__meta')))],
+        ['body text', textContrast(must(scope.querySelector('.b-post-card__text')))],
+        ['prose link', textContrast(must(scope.querySelector('a')))],
+        ['solid button', fillContrast(must(scope.querySelector('.b-button--solid')))],
+        ['outline button', textContrast(must(scope.querySelector('.b-button--outline')))],
+        ['ghost button', textContrast(must(scope.querySelector('.b-button--ghost')))],
+        ['input hint', textContrast(must(scope.querySelector('.b-input__hint')))],
+        [
+          'input placeholder',
+          textContrast(must(scope.querySelector('.b-input__control')), '::placeholder'),
+        ],
+        ['default tag', textContrast(must(scope.querySelector('.b-tag--default')))],
+        ['accent tag', textContrast(must(scope.querySelector('.b-tag--accent')))],
+        ['warn tag', textContrast(must(scope.querySelector('.b-tag--warn')))],
+        ['error message', textContrast(must(scope.querySelector('.b-error__message')))],
+        ['empty hint', textContrast(must(scope.querySelector('.b-empty__hint')))],
+        ['relative time', textContrast(must(scope.querySelector('.b-relative-time')))],
+        ['progress label', textContrast(must(scope.querySelector('.b-progress__label')))],
+        ['solid hover', fillContrast(must(scope.querySelector('[data-probe="solid-hover"]')))],
+        ['selection', fillContrast(must(scope.querySelector('[data-probe="selection"]')))],
+      ]
 
-        for (const [label, value] of checks) {
-          expect(value, `${theme} ${mode}: ${label}`).toBeGreaterThanOrEqual(minimum)
-        }
+      for (const [label, value] of checks) {
+        expect(value, `${theme}: ${label}`).toBeGreaterThanOrEqual(minimum)
+      }
 
-        for (const surface of scope.querySelectorAll<HTMLElement>('[data-focus-surface]')) {
-          const name = surface.dataset['focusSurface'] ?? 'surface'
-          expect(
-            outlineContrast(surface),
-            `${theme} ${mode}: focus line on ${name}`,
-          ).toBeGreaterThanOrEqual(3)
-        }
+      for (const surface of scope.querySelectorAll<HTMLElement>('[data-focus-surface]')) {
+        const name = surface.dataset['focusSurface'] ?? 'surface'
+        expect(outlineContrast(surface), `${theme}: focus line on ${name}`).toBeGreaterThanOrEqual(
+          3,
+        )
+      }
 
-        unmount()
-      })
-    }
+      unmount()
+    })
   }
 }
 
 /* split preview scope ------------------------------------------------ */
-
-/**
- * The colour a role resolves to inside a theme scope. The raw custom property
- * may be a `var()` alias, so a probe element is the only way to read what the
- * cascade actually computed for that scope.
- */
-function scopedRoleColor(scope: Element, property: string): string {
-  const probe = document.createElement('span')
-  probe.style.color = `var(${property})`
-  scope.append(probe)
-  const color = getComputedStyle(probe).color
-  probe.remove()
-  return color
-}
 
 /* layout invariants -------------------------------------------------- */
 
@@ -513,48 +492,3 @@ function notificationRow(id: string): NotificationModel {
     indexedAt: '2026-10-29T12:00:00.000Z',
   }
 }
-
-/* high contrast boundaries ------------------------------------------- */
-
-describe('high contrast boundaries', () => {
-  it('draws the frame and the outline control at 3:1 on their surfaces', () => {
-    for (const [theme, scheme] of [
-      ['catppuccin-latte', 'light'],
-      ['catppuccin-mocha', 'dark'],
-    ] as const) {
-      document.documentElement.dataset['theme'] = theme
-      document.documentElement.dataset['contrast'] = 'high'
-      const { container, unmount } = render(
-        <Frame label="frame" meta="now">
-          <Button variant="outline" onClick={() => {}}>
-            action
-          </Button>
-        </Frame>,
-      )
-      try {
-        const frame = must(container.querySelector('.b-frame'))
-        const frameStyle = getComputedStyle(frame)
-        const border = parseColor(frameStyle.borderTopColor)
-        // the frame edge sits between the card sheet and the page behind it
-        for (const role of ['--paper', '--void']) {
-          const surface = parseColor(scopedRoleColor(frame, role))
-          expect(
-            contrast(border, surface),
-            `${scheme}: frame edge on ${role}`,
-          ).toBeGreaterThanOrEqual(3)
-        }
-
-        const button = must(container.querySelector('.b-button--outline'))
-        const buttonBorder = parseColor(getComputedStyle(button).borderTopColor)
-        const buttonSurface = parseColor(scopedRoleColor(button, '--paper'))
-        expect(
-          contrast(buttonBorder, buttonSurface),
-          `${scheme}: outline edge`,
-        ).toBeGreaterThanOrEqual(3)
-      } finally {
-        unmount()
-      }
-    }
-    document.documentElement.dataset['contrast'] = 'normal'
-  })
-})

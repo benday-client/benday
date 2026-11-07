@@ -96,7 +96,6 @@
   width: 100%;
   height: 100%;
   background-color: var(--paper);
-  background-image: var(--surface-texture);
 }
 
 .b-card-back__head .b-frame__label {
@@ -243,7 +242,6 @@
   color: var(--ink);
   text-align: left;
   background-color: var(--paper);
-  background-image: var(--surface-texture);
   transition:
     border-color 120ms linear,
     box-shadow 120ms linear;

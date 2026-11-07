@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { useSettings } from '../lib/store'
-import { THEME_EFFECTS } from '../lib/themes'
 
 export interface DitherImageProps {
   src: string | null
@@ -28,9 +26,6 @@ export function DitherImage({
   height,
 }: DitherImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
-  const theme = useSettings((state) => state.theme)
-  const imageEffects = useSettings((state) => state.imageEffects)
-  const effect = imageEffects ? THEME_EFFECTS[theme] : 'none'
 
   // the caller class sizes the failed frame too: a full-size viewer image keeps
   // its viewport cap instead of collapsing to the glyph line
@@ -54,12 +49,7 @@ export function DitherImage({
           }
         : {}
     return (
-      <span
-        className={[...classes, 'dither-image--fallback'].join(' ')}
-        data-effect={effect}
-        style={reserve}
-        {...label}
-      >
+      <span className={[...classes, 'dither-image--fallback'].join(' ')} style={reserve} {...label}>
         {fallback ?? '◱'}
       </span>
     )
@@ -70,7 +60,6 @@ export function DitherImage({
   return (
     <img
       className={classes.join(' ')}
-      data-effect={effect}
       src={imageSrc}
       alt={alt}
       {...(declaredWidth !== undefined ? { width: declaredWidth } : {})}

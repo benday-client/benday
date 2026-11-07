@@ -1,20 +1,5 @@
 import type { Theme } from './types'
 
-export type ImageEffect = 'grunge' | 'clean' | 'none' | 'industrial' | 'halftone'
-export type ThemeScheme = 'light' | 'dark'
-
-// both shipped palettes keep the grunge dither; the effect families leave in the
-// following cut, so the records stay until then.
-export const THEME_EFFECTS: Record<Theme, ImageEffect> = {
-  'catppuccin-mocha': 'grunge',
-  'catppuccin-latte': 'grunge',
-}
-
-export const THEME_SCHEMES: Record<Theme, ThemeScheme> = {
-  'catppuccin-mocha': 'dark',
-  'catppuccin-latte': 'light',
-}
-
 // the chrome colour each theme's page paints. it is the same value as that
 // theme's --void; keep index.html's pre-hydration table in step with it.
 export const THEME_COLORS: Record<Theme, string> = {
@@ -22,13 +7,9 @@ export const THEME_COLORS: Record<Theme, string> = {
   'catppuccin-latte': '#eff1f5',
 }
 
-/**
- * The browser chrome colour for a theme. High contrast keeps one system pair so
- * the browser toolbar never sits on a low-contrast palette surface.
- */
-export function themeColor(theme: Theme, highContrast = false): string {
-  if (!highContrast) return THEME_COLORS[theme]
-  return THEME_SCHEMES[theme] === 'light' ? '#ffffff' : '#000000'
+/** The browser chrome colour for a theme. */
+export function themeColor(theme: Theme): string {
+  return THEME_COLORS[theme]
 }
 
 export function isTheme(value: unknown): value is Theme {

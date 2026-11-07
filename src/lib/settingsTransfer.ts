@@ -15,8 +15,6 @@ export type PortableAppearanceMode = 'light' | 'dark' | 'system'
 
 export interface PortableSettings {
   appearance: PortableAppearanceMode
-  imageEffects: boolean
-  highContrast: boolean
   /** Bare single-character shortcuts; modifier chords stay available (WCAG 2.1.4). */
   keyboardShortcuts: boolean
 }
@@ -46,8 +44,6 @@ export function normalizePortableSettings(value: unknown): PortableSettings | nu
   if (appearance === null) return null
   return {
     appearance,
-    imageEffects: normalizeBoolean(value['imageEffects'], true),
-    highContrast: normalizeBoolean(value['highContrast'], false),
     keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
   }
 }
@@ -63,8 +59,6 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
     version: SETTINGS_FILE_VERSION,
     exportedAt: now.toISOString(),
     appearance,
-    imageEffects: normalizeBoolean(settings.imageEffects, true),
-    highContrast: normalizeBoolean(settings.highContrast, false),
     keyboardShortcuts: normalizeBoolean(settings.keyboardShortcuts, true),
   }
 }
@@ -101,8 +95,6 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
     ok: true,
     settings: {
       appearance,
-      imageEffects: normalizeBoolean(value['imageEffects'], true),
-      highContrast: normalizeBoolean(value['highContrast'], false),
       keyboardShortcuts: normalizeBoolean(value['keyboardShortcuts'], true),
     },
   }

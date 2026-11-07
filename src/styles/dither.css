@@ -12,15 +12,14 @@
   height: 100%;
   background: var(--panel);
   filter: var(--dither-filter, url(#benday-dither-catppuccin-mocha));
-  image-rendering: var(--dither-rendering, pixelated);
+  image-rendering: pixelated;
   object-fit: cover;
 }
 
-/* every theme scope declares both properties again, so a nested scope never
-   inherits its parent's filter or rendering */
+/* every theme scope declares the filter again, so a nested scope never
+   inherits its parent's palette */
 [data-theme] {
   --dither-filter: url(#benday-dither-catppuccin-mocha);
-  --dither-rendering: pixelated;
 }
 
 [data-theme="catppuccin-mocha"] {
@@ -29,11 +28,6 @@
 
 [data-theme="catppuccin-latte"] {
   --dither-filter: url(#benday-dither-catppuccin-latte);
-}
-
-.dither-image[data-effect="none"] {
-  filter: none;
-  image-rendering: auto;
 }
 
 .dither-image--fallback {
@@ -47,12 +41,7 @@
   );
   background-size: 4px 4px;
   color: var(--text-muted);
-  filter: none;
   font-size: var(--step-2);
   letter-spacing: 0.08em;
   place-items: center;
-}
-
-[data-theme] .dither-image--fallback {
-  filter: none;
 }

@@ -59,7 +59,6 @@
   min-width: 0;
   border-color: var(--line);
   background-color: var(--paper);
-  background-image: var(--surface-texture);
   line-height: 1.6;
   transition:
     border-color 120ms linear,

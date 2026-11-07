@@ -33,12 +33,8 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
 interface SettingsState {
   theme: Theme
   appearance: AppearanceMode
-  imageEffects: boolean
-  highContrast: boolean
   keyboardShortcuts: boolean
   setAppearance: (appearance: AppearanceMode) => void
-  setImageEffects: (enabled: boolean) => void
-  setHighContrast: (enabled: boolean) => void
   setKeyboardShortcuts: (enabled: boolean) => void
   syncSystemTheme: () => void
   /**
@@ -53,13 +49,9 @@ export const useSettings = create<SettingsState>()(
     (set, get) => ({
       theme: themeForAppearance('system', systemPrefersLight()),
       appearance: 'system',
-      imageEffects: true,
-      highContrast: false,
       keyboardShortcuts: true,
       setAppearance: (appearance) =>
         set({ appearance, theme: themeForAppearance(appearance, systemPrefersLight()) }),
-      setImageEffects: (imageEffects) => set({ imageEffects }),
-      setHighContrast: (highContrast) => set({ highContrast }),
       setKeyboardShortcuts: (keyboardShortcuts) => set({ keyboardShortcuts }),
       syncSystemTheme: () => {
         // only the system mode follows the browser; an explicit mode is fixed
@@ -75,8 +67,6 @@ export const useSettings = create<SettingsState>()(
           // the rendered theme follows the mode, not a contradictory file field
           theme: themeForAppearance(settings.appearance, systemPrefersLight()),
           appearance: settings.appearance,
-          imageEffects: settings.imageEffects,
-          highContrast: settings.highContrast,
           keyboardShortcuts: settings.keyboardShortcuts,
         })
         return true
@@ -87,8 +77,6 @@ export const useSettings = create<SettingsState>()(
       version: 1,
       partialize: (state) => ({
         appearance: state.appearance,
-        imageEffects: state.imageEffects,
-        highContrast: state.highContrast,
         keyboardShortcuts: state.keyboardShortcuts,
       }),
       merge: (persisted, current) => {
@@ -99,14 +87,6 @@ export const useSettings = create<SettingsState>()(
         const appearance = isAppearanceMode(stored['appearance'])
           ? stored['appearance']
           : (legacyAppearanceForTheme(stored['theme']) ?? 'system')
-        const imageEffects =
-          typeof stored['imageEffects'] === 'boolean'
-            ? stored['imageEffects']
-            : current.imageEffects
-        const highContrast =
-          typeof stored['highContrast'] === 'boolean'
-            ? stored['highContrast']
-            : current.highContrast
         const keyboardShortcuts =
           typeof stored['keyboardShortcuts'] === 'boolean'
             ? stored['keyboardShortcuts']
@@ -115,8 +95,6 @@ export const useSettings = create<SettingsState>()(
           ...current,
           theme: themeForAppearance(appearance, systemPrefersLight()),
           appearance,
-          imageEffects,
-          highContrast,
           keyboardShortcuts,
         }
       },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { resolveSrgbColor } from '../test/colors'
-import { THEME_SCHEMES, themeColor } from './themes'
+import { themeColor } from './themes'
 import type { Theme } from './types'
 
 const THEMES: readonly Theme[] = ['catppuccin-mocha', 'catppuccin-latte']
@@ -32,25 +32,10 @@ function paintedToken(name: string) {
 describe('theme chrome colour', () => {
   it.each(THEMES)('matches the painted page for %s', (theme: Theme) => {
     document.documentElement.dataset['theme'] = theme
-    const chrome = themeColor(theme, false)
+    const chrome = themeColor(theme)
 
     expect(CSS.supports('color', chrome)).toBe(true)
     expect(resolveSrgbColor(chrome)).toEqual(paintedToken('--void'))
-  })
-
-  it('keeps high-contrast chrome at the painted black or white page', () => {
-    document.documentElement.dataset['contrast'] = 'high'
-    try {
-      for (const theme of THEMES) {
-        document.documentElement.dataset['theme'] = theme
-        expect(resolveSrgbColor(themeColor(theme, true))).toEqual(paintedToken('--void'))
-        expect(THEME_SCHEMES[theme] === 'light' ? '#ffffff' : '#000000').toBe(
-          themeColor(theme, true),
-        )
-      }
-    } finally {
-      delete document.documentElement.dataset['contrast']
-    }
   })
 })
 

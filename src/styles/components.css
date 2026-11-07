@@ -822,10 +822,6 @@
 
 /* a hint is the loudest thing on screen for as long as it shows, so high
    contrast gives it the ink border instead of a raised panel wash */
-[data-contrast="high"] .b-keyhint {
-  border-color: var(--ink);
-  background: var(--void);
-}
 
 @keyframes b-keyhint-in {
   from {

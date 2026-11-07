@@ -115,27 +115,15 @@ describe('the first-paint bootstrap', () => {
     expect(rootTheme()).toBe('catppuccin-latte')
   })
 
-  it('uses the palette chrome colours when contrast is normal', () => {
-    storedSettings({ highContrast: false, appearance: 'light' })
+  it('uses the palette chrome colours', () => {
+    storedSettings({ appearance: 'light' })
     runBootstrap()
     expect(themeColor()).toBe('#eff1f5')
 
     delete document.documentElement.dataset['theme']
-    storedSettings({ highContrast: false, appearance: 'dark' })
+    storedSettings({ appearance: 'dark' })
     runBootstrap()
     expect(themeColor()).toBe('#1e1e2e')
-  })
-
-  it('uses a white or black chrome colour in high contrast', () => {
-    storedSettings({ highContrast: true, appearance: 'light' })
-    runBootstrap()
-    expect(document.documentElement.dataset['contrast']).toBe('high')
-    expect(themeColor()).toBe('#ffffff')
-
-    delete document.documentElement.dataset['theme']
-    storedSettings({ highContrast: true, appearance: 'dark' })
-    runBootstrap()
-    expect(themeColor()).toBe('#000000')
   })
 
   it('guards malformed storage', () => {

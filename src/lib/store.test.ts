@@ -20,8 +20,6 @@ beforeEach(() => {
   useSettings.setState({
     appearance: 'system',
     theme: 'catppuccin-mocha',
-    imageEffects: true,
-    highContrast: false,
     keyboardShortcuts: true,
   })
 })
@@ -70,18 +68,14 @@ describe('appearance mode', () => {
 })
 
 describe('settings persistence', () => {
-  it('persists only the mode, effects and shortcuts, never the derived theme', () => {
+  it('persists only the mode and shortcuts, never the derived theme', () => {
     useSettings.getState().setAppearance('light')
-    useSettings.getState().setImageEffects(false)
-    useSettings.getState().setHighContrast(true)
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
     const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
     expect(stored.state).toEqual({
       appearance: 'light',
-      imageEffects: false,
-      highContrast: true,
       keyboardShortcuts: true,
     })
   })
@@ -89,7 +83,7 @@ describe('settings persistence', () => {
   it('rehydrates a change written by another tab', async () => {
     const raw = JSON.stringify({
       version: 1,
-      state: { appearance: 'light', imageEffects: false },
+      state: { appearance: 'light' },
     })
     localStorage.setItem(SETTINGS_STORAGE_KEY, raw)
 
@@ -99,7 +93,6 @@ describe('settings persistence', () => {
       expect(useSettings.getState().appearance).toBe('light')
     })
     expect(useSettings.getState().theme).toBe('catppuccin-latte')
-    expect(useSettings.getState().imageEffects).toBe(false)
   })
 
   it('defaults keyboard shortcuts on and persists a toggle', async () => {
@@ -161,6 +154,7 @@ describe('stored state migration', () => {
       appearance: 'dark',
       labelers: ['did:plc:junk'],
       imageEffects: false,
+      highContrast: true,
     })
 
     // the next write stores the partialized shape, not the ignored fields
@@ -169,6 +163,8 @@ describe('stored state migration', () => {
     if (persisted === null) throw new Error('settings were not persisted')
     const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
     expect(stored.state).not.toHaveProperty('labelers')
-    expect(stored.state?.['imageEffects']).toBe(false)
+    expect(stored.state).not.toHaveProperty('imageEffects')
+    expect(stored.state).not.toHaveProperty('highContrast')
+    expect(stored.state?.['keyboardShortcuts']).toBe(false)
   })
 })

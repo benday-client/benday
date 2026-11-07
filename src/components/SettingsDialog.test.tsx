@@ -125,7 +125,7 @@ describe('SettingsDialog keyboard shortcuts setting', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
     localStorage.clear()
-    useSettings.setState({ keyboardShortcuts: true, imageEffects: true, highContrast: false })
+    useSettings.setState({ keyboardShortcuts: true })
   })
 
   it('reflects the stored setting', () => {
@@ -149,8 +149,6 @@ describe('SettingsDialog keyboard shortcuts setting', () => {
     expect(toggle).not.toBeChecked()
     expect(useSettings.getState().keyboardShortcuts).toBe(false)
     // every other accessible preference keeps its value
-    expect(useSettings.getState().imageEffects).toBe(before.imageEffects)
-    expect(useSettings.getState().highContrast).toBe(before.highContrast)
     expect(useSettings.getState().theme).toBe(before.theme)
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -341,8 +339,6 @@ describe('SettingsDialog import limits', () => {
   const MAX_BYTES = 256 * 1024
   const SAMPLE: PortableSettings = {
     appearance: 'dark',
-    imageEffects: true,
-    highContrast: false,
     keyboardShortcuts: true,
   }
 

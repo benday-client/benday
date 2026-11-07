@@ -15,8 +15,6 @@ const FIXED_TIME = new Date('2026-10-30T12:00:00.000Z')
 
 const SAMPLE: PortableSettings = {
   appearance: 'dark',
-  imageEffects: true,
-  highContrast: false,
   keyboardShortcuts: true,
 }
 
@@ -38,14 +36,7 @@ describe('settings file format', () => {
   it('writes exactly version exportedAt and the portable preferences', () => {
     const file = buildSettingsFile(SAMPLE, FIXED_TIME)
     expect(Object.keys(file).sort()).toEqual(
-      [
-        'appearance',
-        'exportedAt',
-        'highContrast',
-        'imageEffects',
-        'keyboardShortcuts',
-        'version',
-      ].sort(),
+      ['appearance', 'exportedAt', 'keyboardShortcuts', 'version'].sort(),
     )
     expect(file.version).toBe(SETTINGS_FILE_VERSION)
     expect(file.exportedAt).toBe(FIXED_TIME.toISOString())
@@ -65,16 +56,9 @@ describe('settings file format', () => {
   it('normalizes the exported snapshot instead of trusting its fields', () => {
     const normalized = normalizePortableSettings({
       appearance: 'system',
-      imageEffects: 'yes',
-      highContrast: 1,
       keyboardShortcuts: null,
     })
-    expect(normalized).toEqual({
-      appearance: 'system',
-      imageEffects: true,
-      highContrast: false,
-      keyboardShortcuts: true,
-    })
+    expect(normalized).toEqual({ appearance: 'system', keyboardShortcuts: true })
   })
 })
 
@@ -99,14 +83,7 @@ describe('credential and session exclusion', () => {
     const parsed = JSON.parse(json) as Record<string, unknown>
 
     expect(Object.keys(parsed).sort()).toEqual(
-      [
-        'appearance',
-        'exportedAt',
-        'highContrast',
-        'imageEffects',
-        'keyboardShortcuts',
-        'version',
-      ].sort(),
+      ['appearance', 'exportedAt', 'keyboardShortcuts', 'version'].sort(),
     )
     for (const secret of Object.values(secrets)) {
       expect(json).not.toContain(JSON.stringify(secret).slice(1, -1))
@@ -117,12 +94,7 @@ describe('credential and session exclusion', () => {
     const result = parseSettingsFile({ ...validFile(), ...secrets })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(Object.keys(result.settings).sort()).toEqual([
-      'appearance',
-      'highContrast',
-      'imageEffects',
-      'keyboardShortcuts',
-    ])
+    expect(Object.keys(result.settings).sort()).toEqual(['appearance', 'keyboardShortcuts'])
     expect(JSON.stringify(result.settings)).not.toContain('secret')
   })
 })
@@ -148,32 +120,6 @@ describe('appearance mode', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.settings).toEqual(SAMPLE)
-  })
-})
-
-describe('high contrast', () => {
-  it('exports the option and parses it back', () => {
-    const json = serializeSettings({ ...SAMPLE, highContrast: true }, FIXED_TIME)
-    expect(JSON.parse(json).highContrast).toBe(true)
-
-    const result = parseSettingsFileJson(json)
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.settings.highContrast).toBe(true)
-  })
-
-  it('reads a file without the field as normal contrast', () => {
-    const result = parseSettingsFile(validFile())
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.settings.highContrast).toBe(false)
-  })
-
-  it('falls back to normal contrast for a wrong-typed field', () => {
-    const result = parseSettingsFile(validFile({ highContrast: 'yes' }))
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.settings.highContrast).toBe(false)
   })
 })
 
@@ -265,8 +211,6 @@ describe('store settings import', () => {
     useSettings.setState({
       appearance: 'dark',
       theme: 'catppuccin-mocha',
-      imageEffects: true,
-      highContrast: false,
       keyboardShortcuts: true,
     })
   })
@@ -277,24 +221,18 @@ describe('store settings import', () => {
     expect(useSettings.getState()).toMatchObject({
       appearance: 'light',
       theme: 'catppuccin-latte',
-      imageEffects: true,
-      highContrast: false,
     })
   })
 
   it('applies every portable preference in one update', () => {
     const applied = useSettings.getState().importSettings({
       appearance: 'dark',
-      imageEffects: false,
-      highContrast: true,
       keyboardShortcuts: false,
     })
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       appearance: 'dark',
       theme: 'catppuccin-mocha',
-      imageEffects: false,
-      highContrast: true,
       keyboardShortcuts: false,
     })
   })
@@ -306,8 +244,6 @@ describe('store settings import', () => {
       const after = useSettings.getState()
       expect(after.appearance).toBe(before.appearance)
       expect(after.theme).toBe(before.theme)
-      expect(after.imageEffects).toBe(before.imageEffects)
-      expect(after.highContrast).toBe(before.highContrast)
       expect(after.keyboardShortcuts).toBe(before.keyboardShortcuts)
     }
   })

@@ -23,54 +23,24 @@ body {
   line-height: 1.55;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
-  cursor: var(--cursor-default, auto);
-}
-
-html[data-input="keyboard"],
-html[data-input="keyboard"] * {
-  cursor: none !important;
 }
 
 a,
 button,
 summary,
 [role="button"] {
-  cursor: var(--cursor-pointer, pointer);
+  cursor: pointer;
 }
 
 input,
 textarea {
-  cursor: var(--cursor-text, text);
+  cursor: text;
 }
 
 button:disabled,
 input:disabled,
 textarea:disabled {
   cursor: not-allowed;
-}
-
-body::before,
-body::after {
-  position: fixed;
-  z-index: 0;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-}
-
-body::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: var(--noise-opacity);
-  mix-blend-mode: soft-light;
-}
-
-body::after {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent 0 2px,
-    color-mix(in srgb, var(--shadow) 70%, transparent) 2px 3px
-  );
-  opacity: var(--scan-opacity);
 }
 
 #root {
