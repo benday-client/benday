@@ -30,7 +30,7 @@ function validFile(overrides: Record<string, unknown> = {}): Record<string, unkn
 describe('settings file format', () => {
   it('keeps a stable filename and version', () => {
     expect(SETTINGS_FILE_NAME).toBe('benday-settings.json')
-    expect(SETTINGS_FILE_VERSION).toBe(1)
+    expect(SETTINGS_FILE_VERSION).toBe(2)
   })
 
   it('writes exactly version exportedAt and the portable preferences', () => {
@@ -107,19 +107,52 @@ describe('appearance mode', () => {
     expect(result.settings.appearance).toBe(appearance)
   })
 
-  it('rejects an unknown or missing appearance', () => {
+  it('defaults to system for an unknown or missing appearance', () => {
     for (const appearance of ['void', '', 3, null, undefined]) {
       const result = parseSettingsFile(validFile({ appearance }))
-      expect(result).toEqual({ ok: false, error: 'settings file has an invalid appearance' })
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.settings.appearance, String(appearance)).toBe('system')
+      // the bare snapshot used by import still requires an explicit mode
       expect(normalizePortableSettings(validFile({ appearance }))).toBeNull()
     }
   })
 
-  it('ignores a retired palette field', () => {
+  it('derives the mode from a version 1 theme when the mode is absent', () => {
+    for (const [theme, expected] of [
+      ['bone', 'light'],
+      ['void', 'dark'],
+      ['neon', 'system'],
+    ] as const) {
+      const result = parseSettingsFile({ version: 1, theme })
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.settings.appearance, theme).toBe(expected)
+    }
+  })
+
+  it('keeps an explicit mode over the retired palette field', () => {
     const result = parseSettingsFile(validFile({ theme: 'void', lightTheme: 'bone' }))
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.settings).toEqual(SAMPLE)
+  })
+
+  it('imports a version 1 file and ignores every retired field', () => {
+    const result = parseSettingsFile({
+      version: 1,
+      appearance: 'light',
+      keyboardShortcuts: false,
+      theme: 'void',
+      appView: { host: 'junk' },
+      labelers: ['did:plc:junk'],
+      imageEffects: false,
+      highContrast: true,
+    })
+    expect(result).toEqual({
+      ok: true,
+      settings: { appearance: 'light', keyboardShortcuts: false },
+    })
   })
 })
 
@@ -182,13 +215,15 @@ describe('settings file validation', () => {
     }
   })
 
-  it('requires the current integer version', () => {
-    for (const version of [undefined, 0, -1, 1.5, '1', 2, 99]) {
-      const result = parseSettingsFile(validFile({ version }))
-      expect(result.ok).toBe(false)
+  it('accepts versions 1 and 2 and rejects the rest', () => {
+    for (const version of [1, 2]) {
+      expect(parseSettingsFile(validFile({ version })).ok, String(version)).toBe(true)
     }
-    const newer = parseSettingsFile(validFile({ version: 2 }))
-    expect(newer).toEqual({ ok: false, error: 'unsupported settings file version 2' })
+    for (const version of [undefined, 0, -1, 1.5, '1', 3, 99]) {
+      expect(parseSettingsFile(validFile({ version })).ok, String(version)).toBe(false)
+    }
+    const newer = parseSettingsFile(validFile({ version: 3 }))
+    expect(newer).toEqual({ ok: false, error: 'unsupported settings file version 3' })
     const missing = parseSettingsFile(validFile({ version: undefined }))
     expect(missing).toEqual({ ok: false, error: 'settings file has no valid version' })
   })

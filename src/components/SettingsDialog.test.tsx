@@ -227,7 +227,7 @@ describe('SettingsDialog search', () => {
     renderSettings()
     const search = screen.getByRole('searchbox', { name: 'search settings' })
 
-    for (const query of ['high contrast', 'dither grunge']) {
+    for (const query of ['light dark system', 'dither grunge']) {
       fireEvent.change(search, { target: { value: query } })
       expect(document.getElementById('settings-appearance')?.getAttribute('data-hidden')).not.toBe(
         'true',

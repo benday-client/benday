@@ -30,6 +30,16 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
   return value === 'light' || value === 'dark' || value === 'system'
 }
 
+/** The mode a stored document names, directly or through its retired palette. */
+function storedAppearance(stored: Record<string, unknown>): AppearanceMode {
+  if (isAppearanceMode(stored['appearance'])) return stored['appearance']
+  return legacyAppearanceForTheme(stored['theme']) ?? 'system'
+}
+
+function storedShortcuts(stored: Record<string, unknown>, fallback: boolean): boolean {
+  return typeof stored['keyboardShortcuts'] === 'boolean' ? stored['keyboardShortcuts'] : fallback
+}
+
 interface SettingsState {
   theme: Theme
   appearance: AppearanceMode
@@ -74,28 +84,29 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: SETTINGS_STORAGE_KEY,
-      version: 1,
+      version: 2,
+      // version 1 also stored the removed effects, contrast and palette fields;
+      // only the mode and the shortcut preference survive the migration
+      migrate: (persisted) => {
+        if (!isRecord(persisted)) return persisted
+        return {
+          appearance: storedAppearance(persisted),
+          keyboardShortcuts: storedShortcuts(persisted, true),
+        }
+      },
       partialize: (state) => ({
         appearance: state.appearance,
         keyboardShortcuts: state.keyboardShortcuts,
       }),
       merge: (persisted, current) => {
         if (!isRecord(persisted)) return current
-        const stored = persisted
         // bracket access is deliberate: noPropertyAccessFromIndexSignature is enabled
-        // a stored mode wins; an older stored palette names the scheme it painted
-        const appearance = isAppearanceMode(stored['appearance'])
-          ? stored['appearance']
-          : (legacyAppearanceForTheme(stored['theme']) ?? 'system')
-        const keyboardShortcuts =
-          typeof stored['keyboardShortcuts'] === 'boolean'
-            ? stored['keyboardShortcuts']
-            : current.keyboardShortcuts
+        const appearance = storedAppearance(persisted)
         return {
           ...current,
           theme: themeForAppearance(appearance, systemPrefersLight()),
           appearance,
-          keyboardShortcuts,
+          keyboardShortcuts: storedShortcuts(persisted, true),
         }
       },
     },

@@ -31,7 +31,7 @@ const SETTING_SEARCH: readonly SettingSearchEntry[] = [
     id: 'settings-appearance',
     label: 'appearance',
     keywords:
-      'theme themes colors image effects dither grunge contrast high mode maximum accessibility readable keyboard shortcuts wcag single key light dark system',
+      'theme themes colors dither grunge mode accessibility readable keyboard shortcuts wcag single key light dark system',
   },
   { id: 'settings-transfer', label: 'transfer', keywords: 'import export settings file backup' },
   { id: 'settings-account', label: 'account', keywords: 'sign in sign out login session' },
@@ -277,8 +277,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       >
         <h3 className="b-settings__heading">transfer</h3>
         <p className="b-settings__note">
-          move appearance, effects and shortcuts between browsers with one json file. sessions,
-          credentials, drafts and account data are never included.
+          move the appearance mode and keyboard shortcuts between browsers with one json file.
+          sessions, credentials, drafts and account data are never included.
         </p>
         <div className="b-settings__row">
           <Button variant="outline" onClick={exportSettings}>

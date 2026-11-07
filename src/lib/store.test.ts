@@ -73,9 +73,20 @@ describe('settings persistence', () => {
 
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
-    const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
+    const stored = JSON.parse(persisted) as {
+      version?: number
+      state?: Record<string, unknown>
+    }
+    expect(stored.version).toBe(2)
     expect(stored.state).toEqual({
       appearance: 'light',
+      keyboardShortcuts: true,
+    })
+  })
+
+  it('starts fresh at system with the browser preference', () => {
+    expect(useSettings.getInitialState()).toMatchObject({
+      appearance: 'system',
       keyboardShortcuts: true,
     })
   })
@@ -161,7 +172,12 @@ describe('stored state migration', () => {
     useSettings.getState().setKeyboardShortcuts(false)
     const persisted = localStorage.getItem(SETTINGS_STORAGE_KEY)
     if (persisted === null) throw new Error('settings were not persisted')
-    const stored = JSON.parse(persisted) as { state?: Record<string, unknown> }
+    const stored = JSON.parse(persisted) as {
+      version?: number
+      state?: Record<string, unknown>
+    }
+    expect(stored.version).toBe(2)
+    expect(Object.keys(stored.state ?? {}).sort()).toEqual(['appearance', 'keyboardShortcuts'])
     expect(stored.state).not.toHaveProperty('labelers')
     expect(stored.state).not.toHaveProperty('imageEffects')
     expect(stored.state).not.toHaveProperty('highContrast')

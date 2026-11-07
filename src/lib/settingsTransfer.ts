@@ -1,10 +1,11 @@
 import { isRecord } from './records'
+import { legacyAppearanceForTheme } from './themes'
 
 /** Stable filename offered by the settings export control. */
 export const SETTINGS_FILE_NAME = 'benday-settings.json'
 
 /** Bump only together with an explicit parser branch for older versions. */
-export const SETTINGS_FILE_VERSION = 1
+export const SETTINGS_FILE_VERSION = 2
 
 /**
  * The only portable preferences. Everything else the app persists — sessions,
@@ -63,7 +64,7 @@ export function buildSettingsFile(settings: PortableSettings, now = new Date()):
   }
 }
 
-/** Serializes a settings export; the output always has the v1 shape. */
+/** Serializes a settings export; the output always has the current shape. */
 export function serializeSettings(settings: PortableSettings, now = new Date()): string {
   return JSON.stringify(buildSettingsFile(settings, now), null, 2)
 }
@@ -81,15 +82,17 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
   if (!isRecord(value)) return fail('settings file is not a json object')
 
   const version = value['version']
-  if (version !== SETTINGS_FILE_VERSION) {
-    if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
-      return fail('settings file has no valid version')
-    }
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    return fail('settings file has no valid version')
+  }
+  if (version > SETTINGS_FILE_VERSION) {
     return fail(`unsupported settings file version ${version}`)
   }
 
-  const appearance = normalizeAppearance(value['appearance'])
-  if (appearance === null) return fail('settings file has an invalid appearance')
+  // version 1 carried the retired palette fields; its mode is still explicit on
+  // later exports, otherwise the old theme's scheme names the mode it painted
+  const appearance =
+    normalizeAppearance(value['appearance']) ?? legacyAppearanceForTheme(value['theme']) ?? 'system'
 
   return {
     ok: true,
