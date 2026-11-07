@@ -64,7 +64,6 @@ describe('nested theme scopes', () => {
       '--body-inset',
       '--card-shadow',
       '--frame-rule',
-      '--surface-texture',
       '--theme-radius',
       '--theme-clip',
       '--neon',

@@ -15,6 +15,13 @@ function imageItem(id: number): MediaItem {
 
 const images = (count: number) => Array.from({ length: count }, (_, index) => imageItem(index + 1))
 
+/** Reports whether the viewer cancelled the key; an inert key stays available. */
+function keyConsumed(init: KeyboardEventInit): boolean {
+  const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+  window.dispatchEvent(event)
+  return event.defaultPrevented
+}
+
 interface ViewerProps {
   open: boolean
   items: MediaItem[]
@@ -93,9 +100,9 @@ describe('MediaViewer navigation keys', () => {
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(screen.getByText('3 / 4')).toBeInTheDocument()
 
-    // the viewer has no letter movement
-    fireEvent.keyDown(window, { key: 'j' })
-    fireEvent.keyDown(window, { key: 'k' })
+    // the viewer has no letter movement and does not claim the keys
+    expect(keyConsumed({ key: 'j' })).toBe(false)
+    expect(keyConsumed({ key: 'k' })).toBe(false)
     expect(screen.getByText('3 / 4')).toBeInTheDocument()
 
     fireEvent.keyDown(window, { key: 'ArrowLeft' })

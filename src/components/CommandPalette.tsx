@@ -240,7 +240,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
       id: 'feeds',
       label: 'feeds',
       meta: '/feed',
-      keywords: 'home discover timeline feed',
+      keywords: 'home timeline feed',
       run: () => {
         go('/feed', 'feeds')
       },
@@ -258,7 +258,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
       id: 'settings',
       label: 'settings',
       meta: ',',
-      keywords: 'appearance theme labelers account preferences',
+      keywords: 'appearance theme account preferences',
       run: () => {
         onClose()
         onOpenSettings()
@@ -583,7 +583,7 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
           ·
         </span>
         <span>
-          <span className="b-palette__hint-glyph">at://</span> thread/feed
+          <span className="b-palette__hint-glyph">at://</span> thread
         </span>
         <span className="b-palette__hint-dot" aria-hidden="true">
           ·

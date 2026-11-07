@@ -116,7 +116,7 @@ export default function SearchView() {
   useViewerSync(posts)
 
   const deckStateKey = JSON.stringify(['search-results', mode, query])
-  // posts carry viewer-filtered interaction state; users and feeds do not
+  // posts carry viewer-filtered interaction state; users do not
   const postsStateKey = JSON.stringify(['search-posts', query, viewerDid ?? 'anonymous'])
   const emptyQuery = query.length === 0
   // a mode that never fetched has no result count yet
@@ -135,7 +135,7 @@ export default function SearchView() {
   const activeRetry = mode === 'posts' ? feed.retry : users.retry
   const failure = useRetainedError(
     // the viewer belongs to the identity only for posts, whose rows carry
-    // viewer-filtered state; users and feeds resolve independently
+    // viewer-filtered state; users resolve independently
     JSON.stringify(['search-failure', mode, query, viewerDid ?? 'anonymous']),
     activeData !== null,
     activeError,

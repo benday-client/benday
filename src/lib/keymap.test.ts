@@ -60,6 +60,21 @@ describe('keyboard registry', () => {
     expect(chordsOf(leave).some((chord) => chord.key === 'Escape')).toBe(false)
   })
 
+  it('moves the deck with the four arrows and the viewer on the pair', () => {
+    // the deck lost its letter aliases: only the arrows position a card
+    expect(chordsOf(bindingFor('deck-move'))).toEqual([
+      { key: 'ArrowLeft', shift: false },
+      { key: 'ArrowRight', shift: false },
+      { key: 'ArrowUp', shift: false },
+      { key: 'ArrowDown', shift: false },
+    ])
+    // the viewer shows images in reading order, so it never moves vertically
+    expect(chordsOf(bindingFor('media-move'))).toEqual([
+      { key: 'ArrowLeft', shift: false },
+      { key: 'ArrowRight', shift: false },
+    ])
+  })
+
   it('matches produced characters no matter which shift typed them', () => {
     // `G`, `R` and `+` arrive as their produced character with shift still set;
     // constraining shift on those chords would make them unmatchable

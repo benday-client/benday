@@ -11,7 +11,6 @@ installTestHygiene()
 
 const BASE_VIEWPORT = { width: 1280, height: 800 } as const
 const KEY_TYPES = new Set(['keydown', 'keyup', 'keypress'])
-const CURSOR_PROPERTIES = ['--cursor-default', '--cursor-pointer', '--cursor-text']
 
 interface TrackedListener {
   target: EventTarget
@@ -81,10 +80,7 @@ function clearTrackedListeners(): void {
 function resetRootChrome(): void {
   const root = document.documentElement
   // Same defaults the shipped index.html boots with.
-  root.dataset['theme'] = 'void'
-  root.dataset['contrast'] = 'normal'
-  delete root.dataset['input']
-  for (const property of CURSOR_PROPERTIES) root.style.removeProperty(property)
+  root.dataset['theme'] = 'catppuccin-mocha'
   document.body.removeAttribute('style')
 }
 

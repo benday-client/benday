@@ -360,8 +360,13 @@ describe('ThreadView tree keys', () => {
     await settle()
     const before = history.length
 
+    // the view claims up at the opened post instead of letting it scroll or
+    // reach a browser binding
+    const probe = keyProbe()
     await userEvent.keyboard('{ArrowUp}')
+    probe.stop()
     await settle()
+    expect(probe.consumed()).toBe(true)
     expect(history).toHaveLength(before)
 
     await userEvent.keyboard('p')
@@ -383,6 +388,23 @@ describe('ThreadView tree keys', () => {
 })
 
 describe('ThreadView inline reply', () => {
+  it('focuses the reply composer that arrives with the route', async () => {
+    const model = rootThread(false)
+    const focusPost = model.entries[0]?.post
+    if (focusPost === undefined) throw new Error('focus post missing')
+    // a reply action opens the thread and asks for the composer in the same
+    // navigation, so the request must survive the mount and take focus
+    useUiStore.setState({ inlineCompose: { mode: 'reply', post: focusPost } })
+
+    renderThread(model)
+    await settle()
+
+    expect(screen.getByLabelText('reply composer')).toBeInTheDocument()
+    const editor = screen.getByLabelText('compose reply')
+    if (!(editor instanceof HTMLTextAreaElement)) throw new Error('compose editor missing')
+    expect(document.activeElement).toBe(editor)
+  })
+
   it('extends a native editor selection without moving the page', async () => {
     const model = rootThread(false)
     const { container } = renderThread(model)

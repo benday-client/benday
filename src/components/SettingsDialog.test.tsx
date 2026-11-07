@@ -218,6 +218,47 @@ function renderReopenableSettings() {
   return { ...result, onClose }
 }
 
+describe('SettingsDialog appearance inventory', () => {
+  beforeEach(() => {
+    delete document.documentElement.dataset['theme']
+    localStorage.clear()
+    useSettings.setState({ appearance: 'dark', keyboardShortcuts: true })
+  })
+
+  it('offers exactly the three appearance modes and the shortcut toggle', () => {
+    const { container } = renderSettings()
+    const section = document.getElementById('settings-appearance')
+    if (section === null) throw new Error('appearance section missing')
+
+    const modes = Array.from(section.querySelectorAll('button[aria-pressed]'))
+    expect(modes.map((mode) => mode.textContent)).toEqual(['light', 'dark', 'system'])
+    for (const mode of modes) {
+      expect(mode).toHaveAttribute('aria-pressed', mode.textContent === 'dark' ? 'true' : 'false')
+    }
+
+    // the mode buttons and the one checkbox are the section's whole inventory
+    expect(section.querySelectorAll('button')).toHaveLength(3)
+    const inputs = section.querySelectorAll('input')
+    expect(inputs).toHaveLength(1)
+    expect(inputs[0]?.getAttribute('type')).toBe('checkbox')
+    expect(within(section).getByRole('checkbox', { name: /keyboard shortcuts/ })).toBeChecked()
+
+    // no effect, contrast, preview or labeler control survives anywhere
+    const dialog = dialogElement(container)
+    expect(dialog.querySelectorAll('input[type="range"], select, textarea')).toHaveLength(0)
+    expect(dialog.querySelector('[role="slider"]')).toBeNull()
+    expect(
+      dialog.querySelectorAll(
+        '[class*="effect"], [class*="preview"], [class*="picker"], [class*="labeler"], [class*="contrast"]',
+      ),
+    ).toHaveLength(0)
+    for (const name of [/high contrast/i, /image effect/i, /theme picker/i, /labeler/i]) {
+      expect(within(dialog).queryByRole('button', { name })).toBeNull()
+      expect(within(dialog).queryByRole('checkbox', { name })).toBeNull()
+    }
+  })
+})
+
 describe('SettingsDialog search', () => {
   beforeEach(() => {
     delete document.documentElement.dataset['theme']
@@ -248,6 +289,24 @@ describe('SettingsDialog search', () => {
     fireEvent.change(search, { target: { value: 'no such setting' } })
 
     expect(status).toHaveTextContent('no matching setting')
+  })
+
+  it('does not index the retired effect and labeler controls', () => {
+    renderSettings()
+    const search = screen.getByRole('searchbox', { name: 'search settings' })
+    const searchBlock = search.parentElement
+    if (searchBlock === null) throw new Error('search block missing')
+    const status = within(searchBlock).getByRole('status')
+
+    for (const query of ['high contrast', 'labelers']) {
+      fireEvent.change(search, { target: { value: query } })
+
+      expect(status).toHaveTextContent('no matching setting')
+      // only the surviving sections are indexed, so every one is filtered out
+      for (const id of ['settings-appearance', 'settings-transfer', 'settings-account']) {
+        expect(document.getElementById(id)?.getAttribute('data-hidden')).toBe('true')
+      }
+    }
   })
 
   it('starts with an empty filter every time it opens', () => {

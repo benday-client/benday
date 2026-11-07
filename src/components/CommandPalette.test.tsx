@@ -305,6 +305,38 @@ describe('CommandPalette', () => {
     expect(history.at(-1)).toBe('/search?q=atproto')
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('opens a post at:// uri as a thread', () => {
+    const { history, onClose } = renderPalette()
+    const uri = 'at://did:plc:test/app.bsky.feed.post/1'
+    submit(uri)
+    expect(history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(uri)}`)
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('sends a feed generator uri to search as text', () => {
+    const { history, onClose } = renderPalette()
+    const uri = 'at://did:plc:test/app.bsky.feed.generator/whats-hot'
+    submit(uri)
+    expect(history.at(-1)).toBe(`/search?q=${encodeURIComponent(uri)}`)
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('opens a pinned feed instead of searching its name', () => {
+    const uri = 'at://did:plc:test/app.bsky.feed.generator/whats-hot'
+    pinnedState.feeds = [{ uri, name: 'whats hot', description: 'trending posts', avatar: null }]
+    const { history, onClose } = renderPalette()
+
+    const row = screen.getByText('whats hot').closest('.b-palette__command')
+    if (row === null) throw new Error('pinned feed row missing')
+    fireEvent.click(row)
+
+    expect(history.at(-1)).toBe(`/feed?uri=${encodeURIComponent(uri)}`)
+    expect(history.at(-1)).not.toContain('/search')
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    pinnedState.feeds = []
+  })
 })
 
 describe('palette jump history', () => {
@@ -345,6 +377,25 @@ describe('palette jump history', () => {
     expect(history.at(-1)).toBe(
       '/thread?uri=at%3A%2F%2Fdid%3Aplc%3Atest%2Fapp.bsky.feed.post%2F1#reply-3',
     )
+  })
+
+  it('keeps only the five newest valid jumps', () => {
+    seedHistory(
+      Array.from({ length: 6 }, (_, index) => ({
+        href: `/feed?page=${index + 1}`,
+        label: `jump ${index + 1}`,
+      })),
+    )
+    renderPalette()
+
+    const recents = Array.from(document.querySelectorAll('.b-palette__command')).filter(
+      (row) => row.querySelector('.b-palette__meta')?.textContent === 'recent',
+    )
+    expect(recents).toHaveLength(5)
+    for (const label of ['jump 1', 'jump 2', 'jump 3', 'jump 4', 'jump 5']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('jump 6')).toBeNull()
   })
 
   it('drops a stored history that is not a list', () => {

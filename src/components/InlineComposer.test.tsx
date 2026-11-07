@@ -177,10 +177,12 @@ describe('InlineComposer', () => {
     const request: ComposeRequest = { mode: 'reply', post }
     const { client } = renderDock(request)
 
-    useUiStore.setState({ compose: request })
+    // the modal is the standalone post composer; replies belong to the dock
+    const modalRequest: ComposeRequest = { mode: 'post', post: null }
+    useUiStore.setState({ compose: modalRequest })
     const modal = render(
       <QueryClientProvider client={client}>
-        <ComposeDialog open request={request} onClose={vi.fn()} />
+        <ComposeDialog open request={modalRequest} onClose={vi.fn()} />
       </QueryClientProvider>,
     )
 

@@ -18,7 +18,6 @@ import { PostCard } from './PostCard'
 vi.mock('../lib/actions', () => ({
   createPost: vi.fn(),
   createReply: vi.fn(),
-  createQuote: vi.fn(),
   deletePost: vi.fn(),
   fetchViewerStates: vi.fn(async () => new Map()),
   likePost: vi.fn(),
@@ -181,6 +180,18 @@ describe('PostCard layout', () => {
     expect(timestamp.parentElement?.parentElement).toBe(authorRow)
     expect(meta.contains(timestamp)).toBe(false)
     expect(timestamp.closest('header')).toBeNull()
+  })
+
+  it('renders no top-comment preview on an ordinary post', () => {
+    const { container } = render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <Router hook={memoryLocation({ path: '/' }).hook}>
+          <PostCard post={postFixture({ replyCount: 4 })} />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(container.querySelector('[class*="b-post-card__comment"]')).toBeNull()
   })
 })
 
@@ -796,6 +807,33 @@ describe('PostCard actions', () => {
 
     expect(location.history).toEqual(['/'])
     expect(screen.queryByRole('button', { name: 'confirm delete' })).not.toBeInTheDocument()
+  })
+
+  it('offers no quote creation on a focused post that carries a quote', () => {
+    const quoted = quoteFixture()
+    const location = memoryLocation({ path: '/', record: true })
+    const queryClient = createTestQueryClient()
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Router hook={location.hook}>
+          <PostCard post={postFixture({ embed: { type: 'quote', post: quoted } })} focused />
+        </Router>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.queryByRole('button', { name: 'quote' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'quote' })).toBeNull()
+    expect(document.querySelector('[data-kind="quote"]')).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'q' })
+    expect(location.history).toEqual(['/'])
+    expect(useUiStore.getState().compose).toBeNull()
+    expect(useUiStore.getState().inlineCompose).toBeNull()
+
+    // the quoted post stays reachable through o and its clickable card
+    fireEvent.keyDown(window, { key: 'o' })
+    expect(location.history.at(-1)).toBe(`/thread?uri=${encodeURIComponent(quoted.uri)}`)
   })
 
   it('opens a quoted post when the quote card is clicked', () => {

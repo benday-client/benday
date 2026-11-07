@@ -5,6 +5,15 @@ import { useSettings } from '../lib/store'
 import { type MediaItem, MediaViewer } from './MediaViewer'
 
 const BROKEN = 'data:image/png;base64,AAAA'
+const FRAME = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+/**
+ * Chromium serializes a filter reference with quotes; the assertion is about
+ * the palette the image resolves to, not the serialization.
+ */
+function filterOf(element: Element): string {
+  return getComputedStyle(element).filter.replace(/["']/g, '')
+}
 
 /**
  * The player imports hls.js only after a poster is activated. The fake keeps
@@ -179,4 +188,65 @@ it('stops gallery digits while the character preference is off', async () => {
 
   await userEvent.keyboard('{Escape}')
   expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+it('dithers the viewer image with the active palette', () => {
+  const alt = 'a full-size image'
+  const item: MediaItem = {
+    kind: 'image',
+    src: FRAME,
+    alt,
+    image: { thumb: FRAME, fullsize: FRAME, alt, width: 4, height: 3 },
+  }
+  const { container } = render(<MediaViewer open items={[item]} onClose={() => {}} />)
+
+  const image = requireElement<HTMLElement>(container, '.b-media-viewer__stage .dither-image')
+
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  document.documentElement.dataset['theme'] = 'catppuccin-latte'
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
+  expect(filterOf(image)).not.toContain('catppuccin-mocha')
+})
+
+it('keeps the dither on a failed viewer image instead of flattening it', async () => {
+  const item = brokenImage('a broken full-size image', 800, 400)
+  const { container } = render(<MediaViewer open items={[item]} onClose={() => {}} />)
+
+  const fallback = await waitFor(() => {
+    const element = container.querySelector<HTMLElement>(
+      '.b-media-viewer__stage .dither-image--fallback',
+    )
+    if (element === null) throw new Error('fallback missing')
+    return element
+  })
+
+  const filter = filterOf(fallback)
+  expect(filter).not.toBe('none')
+  expect(filter).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  document.documentElement.dataset['theme'] = 'catppuccin-latte'
+  expect(filterOf(fallback)).toContain('url(#benday-dither-catppuccin-latte)')
+})
+
+it('leaves the activated video unfiltered while its poster is dithered', async () => {
+  const { container } = render(<MediaViewer open items={[videoItem]} onClose={() => {}} />)
+
+  const poster = requireElement<HTMLElement>(container, '.b-video-player__poster .dither-image')
+  expect(filterOf(poster)).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  document.documentElement.dataset['theme'] = 'catppuccin-latte'
+  expect(filterOf(poster)).toContain('url(#benday-dither-catppuccin-latte)')
+
+  await userEvent.click(page.getByRole('button', { name: 'play video' }))
+
+  const video = await waitFor(() => {
+    const element = container.querySelector<HTMLVideoElement>('video')
+    if (element === null) throw new Error('video missing')
+    return element
+  })
+
+  // the source frame plays as itself: the dither belongs to the poster only
+  expect(getComputedStyle(video).filter).toBe('none')
+  expect(container.querySelector('.b-video-player__poster')).toBeNull()
 })

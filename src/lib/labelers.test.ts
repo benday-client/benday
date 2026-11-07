@@ -24,6 +24,12 @@ describe('account labeler registry', () => {
     expect(currentAccountLabelers()).toEqual([])
   })
 
+  it('does not carry the previous owner list into the next one', () => {
+    setAccountLabelers('did:plc:alice', [VALID])
+    setAccountLabelers('did:plc:bravo', [OTHER])
+    expect(currentAccountLabelers()).toEqual([OTHER])
+  })
+
   it('clears on demand', () => {
     setAccountLabelers('did:plc:alice', [VALID])
     clearAccountLabelers()

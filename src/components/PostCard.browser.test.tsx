@@ -11,6 +11,15 @@ import { renderStage } from '../test/stage'
 import { PostCard } from './PostCard'
 
 const BROKEN = 'data:image/png;base64,AAAA'
+const FRAME = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+
+/**
+ * Chromium serializes a filter reference with quotes; the assertion is about
+ * the palette the image resolves to, not the serialization.
+ */
+function filterOf(element: Element): string {
+  return getComputedStyle(element).filter.replace(/["']/g, '')
+}
 
 const quoted: QuotedPostModel = {
   uri: 'at://did:plc:quoted/app.bsky.feed.post/1',
@@ -137,4 +146,77 @@ it('leaves a labelled thumbless external card focusable', async () => {
   expect(card.inert).toBe(false)
   card.focus()
   expect(document.activeElement).toBe(card)
+})
+
+it('dithers a rendered post image with the active palette', () => {
+  const { container } = renderCard(
+    postFixture({
+      embed: {
+        type: 'images',
+        images: [
+          {
+            thumb: FRAME,
+            fullsize: 'https://cdn.test/full.gif',
+            alt: 'a rendered caption',
+            width: 4,
+            height: 3,
+          },
+        ],
+      },
+    }),
+  )
+
+  const image = requireElement<HTMLElement>(container, '.b-embed__image-frame .dither-image')
+
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  document.documentElement.dataset['theme'] = 'catppuccin-latte'
+  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
+  expect(filterOf(image)).not.toContain('catppuccin-mocha')
+})
+
+it('keeps the dither on a failed post image instead of flattening it', async () => {
+  const { container } = renderCard(
+    postFixture({
+      embed: {
+        type: 'images',
+        images: [
+          {
+            thumb: BROKEN,
+            fullsize: 'https://cdn.test/full.jpg',
+            alt: 'a broken caption',
+            width: 800,
+            height: 400,
+          },
+        ],
+      },
+    }),
+  )
+
+  const fallback = await waitFor(() => {
+    const element = container.querySelector<HTMLElement>(
+      '.b-embed__image-frame .dither-image--fallback',
+    )
+    if (element === null) throw new Error('fallback missing')
+    return element
+  })
+
+  const filter = filterOf(fallback)
+  expect(filter).not.toBe('none')
+  expect(filter).toContain('url(#benday-dither-catppuccin-mocha)')
+
+  document.documentElement.dataset['theme'] = 'catppuccin-latte'
+  expect(filterOf(fallback)).toContain('url(#benday-dither-catppuccin-latte)')
+})
+
+it('paints no texture or cursor token and no body overlay over the card', () => {
+  const { container } = renderCard(postFixture())
+
+  // an undeclared token computes empty even where the card inherits the theme
+  const card = getComputedStyle(requireElement<HTMLElement>(container, '.b-post-card'))
+  expect(card.getPropertyValue('--surface-texture').trim()).toBe('')
+  expect(card.getPropertyValue('--cursor-default').trim()).toBe('')
+
+  // the shell layers no noise pseudo-element over the deck
+  expect(getComputedStyle(document.body, '::before').content).toBe('none')
 })

@@ -147,14 +147,10 @@ export function Dialog({
       return
     }
     dialog.dataset['closing'] = 'true'
-    // only the theme with a themed exit animates; every other theme closes at
-    // once instead of holding an invisible modal open
-    // the theme declares how long its exit runs; truth to materials declares
-    // none, cyberpunk overrides the transition with its own boot keyframes
+    // only a theme that declares an exit duration animates; without one the
+    // shell closes at once instead of holding an invisible modal open
     const themed = motionDuration(dialog)
-    const animatesExit =
-      !prefersReducedMotion() &&
-      (document.documentElement.dataset['theme'] === 'cyberpunk' || themed > 0)
+    const animatesExit = !prefersReducedMotion() && themed > 0
     if (!animatesExit) {
       finishClose(dialog)
       return

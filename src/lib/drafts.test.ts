@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from './auth'
 import {
   clearDraft,
   type DraftWrite,
@@ -7,6 +8,15 @@ import {
   readDraft,
   writeDraft,
 } from './drafts'
+
+// the portal is external I/O; sign-out itself stays real so the retention
+// check exercises the same reset the app runs
+vi.mock('./oauth', () => ({
+  canUseOAuth: () => false,
+  restoreOAuth: async () => null,
+  signInOAuth: async () => {},
+  signOutOAuth: async () => {},
+}))
 
 const KEY = 'benday:drafts'
 
@@ -202,19 +212,31 @@ describe('purgeRetiredDrafts', () => {
       KEY,
       JSON.stringify({
         'signed-out:post': { text: 'old signed-out post', updatedAt: 1 },
-        [`${account}:post`]: { text: 'post', updatedAt: 2 },
-        [`${account}:reply:at://post/a`]: { text: 'reply', updatedAt: 3 },
-        [`${account}:quote:at://post/a`]: { text: 'quote', updatedAt: 4 },
-        'unknown-key': { text: 'unknown', updatedAt: 5 },
+        'signed-out:reply:at://post/b': { text: 'old signed-out reply', updatedAt: 2 },
+        [`${account}:post`]: { text: 'post', updatedAt: 3 },
+        [`${account}:reply:at://post/a`]: { text: 'reply', updatedAt: 4 },
+        [`${account}:quote:at://post/a`]: { text: 'quote', updatedAt: 5 },
+        'unknown-key': { text: 'unknown', updatedAt: 6 },
       }),
     )
+    expect(stored()['signed-out:reply:at://post/b']).toBeDefined()
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
 
     purgeRetiredDrafts()
 
-    expect(Object.keys(stored()).sort()).toEqual(
+    // the map is rewritten once for the whole purge, not once per removed key
+    expect(setItem).toHaveBeenCalledTimes(1)
+    expect(setItem.mock.calls[0]?.[0]).toBe(KEY)
+    const kept = stored()
+    expect(Object.keys(kept).sort()).toEqual(
       [`${account}:post`, `${account}:reply:at://post/a`, 'unknown-key'].sort(),
     )
+    expect(kept['signed-out:post']).toBeUndefined()
+    expect(kept['signed-out:reply:at://post/b']).toBeUndefined()
+    expect(kept[`${account}:quote:at://post/a`]).toBeUndefined()
     expect(readDraft(`${account}:post`).text).toBe('post')
+    expect(readDraft(`${account}:reply:at://post/a`).text).toBe('reply')
+    expect(readDraft('unknown-key').text).toBe('unknown')
   })
 
   it('deletes nothing when storage cannot be read', () => {
@@ -239,5 +261,39 @@ describe('purgeRetiredDrafts', () => {
     purgeRetiredDrafts()
 
     expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+describe('drafts across sign-out', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('keeps an account post and reply readable after sign-out', async () => {
+    const account = 'did:plc:test'
+    const post = draftKeyFor('post', null, account)
+    const reply = draftKeyFor('reply', 'at://post/a', account)
+    const postRevision = revisionOf(writeDraft(post, 'unfinished post'))
+    const replyRevision = revisionOf(writeDraft(reply, 'unfinished reply'))
+    const before = localStorage.getItem(KEY)
+
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    await useAuthStore.getState().signOut()
+    purgeRetiredDrafts()
+
+    // signing out ends the session, not the compositions: no draft key is
+    // rewritten or removed, and both come back by their account-owned keys
+    expect(setItem).not.toHaveBeenCalledWith(KEY, expect.anything())
+    expect(localStorage.getItem(KEY)).toBe(before)
+    expect(readDraft(post)).toEqual({
+      text: 'unfinished post',
+      revision: postRevision,
+      available: true,
+    })
+    expect(readDraft(reply)).toEqual({
+      text: 'unfinished reply',
+      revision: replyRevision,
+      available: true,
+    })
   })
 })

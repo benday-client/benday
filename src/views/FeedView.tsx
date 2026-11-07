@@ -76,7 +76,7 @@ export default function FeedView() {
   const pinnedBlocked = pinnedUnresolved && pinnedFailureShown !== null
   const source = activeUri.length > 0 ? ({ kind: 'feed', uri: activeUri } as const) : null
   const feed = usePostFeed(source)
-  const feedKey = JSON.stringify([viewerDid ?? 'anonymous', activeUri])
+  const feedKey = JSON.stringify([viewerDid, activeUri])
 
   const clearArm = useCallback(() => {
     if (armTimerRef.current !== null) {
@@ -89,18 +89,18 @@ export default function FeedView() {
   // Refresh is a read, so a confirmed press is enough. It drops the loaded
   // pages and reloads exactly the first one; nothing refreshes implicitly.
   const refreshFeed = useCallback(() => {
-    if (pinnedUnresolved) return
+    if (pinnedUnresolved || activeUri.length === 0) return
     clearArm()
     refreshPendingRef.current = true
     // an explicit refresh starts a clean deck, including rows dismissed locally
     setDismissed(new Set())
     feed.retry()
-  }, [clearArm, feed.retry, pinnedUnresolved])
+  }, [activeUri, clearArm, feed.retry, pinnedUnresolved])
 
   // The first press arms for five seconds; the second inside that window is the
   // confirmation. A fetch already in flight has nothing to confirm.
   const armRefresh = useCallback(() => {
-    if (pinnedUnresolved) return
+    if (pinnedUnresolved || activeUri.length === 0) return
     if (refreshPendingRef.current || fetchingRef.current) return
     if (armed) {
       refreshFeed()
@@ -312,7 +312,7 @@ export default function FeedView() {
             {pinned.isPending ? (
               <span className="b-view__pinned-note">loading</span>
             ) : pinned.error !== null ? (
-              <button type="button" className="b-pinned-add" onClick={retryPinned}>
+              <button type="button" className="b-pinned-control" onClick={retryPinned}>
                 retry pinned
               </button>
             ) : (
@@ -334,7 +334,7 @@ export default function FeedView() {
           </fieldset>
           <button
             type="button"
-            className="b-pinned-add b-view__refresh"
+            className="b-pinned-control b-view__refresh"
             onClick={armRefresh}
             disabled={feed.isFetching || pinnedUnresolved}
             aria-label="refresh feed"
@@ -452,11 +452,7 @@ export default function FeedView() {
               onLoadMore={feed.loadMore}
               onRetryLoadMore={feed.retryLoadMore}
               label="posts"
-              {...(pinnedUnresolved
-                ? {}
-                : {
-                    stateKey: JSON.stringify([viewerDid ?? 'anonymous', activeUri]),
-                  })}
+              {...(pinnedUnresolved ? {} : { stateKey: feedKey })}
               empty={
                 pinnedBlocked && pinnedFailureShown !== null ? (
                   <ErrorNotice

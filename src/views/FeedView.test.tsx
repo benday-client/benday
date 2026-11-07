@@ -216,6 +216,50 @@ describe('FeedView pinned selection', () => {
     expect(feedCalls()).toHaveLength(0)
   })
 
+  it('does not arm refresh for a loaded empty pinned list and latches nothing', async () => {
+    await signInWith([])
+    const captured: { client?: QueryClient } = {}
+    renderFeed({
+      seed: (client) => {
+        captured.client = client
+      },
+    })
+
+    await screen.findByText('pin feeds in the bluesky app and they appear here.')
+    expect(feedCalls()).toHaveLength(0)
+
+    fireEvent.keyDown(window, { key: 'R' })
+    // nothing can be refreshed, so the confirmation never opens
+    expect(screen.queryByText('press R again to refresh')).toBeNull()
+
+    // a later selection refreshes: the refused press left no pending latch
+    transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: wirePost(1, 'alpha post') }] }),
+    )
+    await act(async () => {
+      captured.client?.setQueryData(
+        ['pinned-feeds', SESSION.did],
+        [
+          {
+            uri: FEED_A,
+            name: 'alpha',
+            description: 'a pinned feed for alpha',
+            avatar: null,
+            generatorDid: 'did:web:feeds.test',
+            acceptsInteractions: true,
+          },
+        ],
+      )
+    })
+    await screen.findByText('alpha post')
+    const loaded = feedCalls().length
+
+    fireEvent.keyDown(window, { key: 'R' })
+    expect(screen.getByText('press R again to refresh')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'R' })
+    await waitFor(() => expect(feedCalls()).toHaveLength(loaded + 1))
+  })
+
   it('does not treat a pending pinned read as an empty list', async () => {
     const gate = Promise.withResolvers<Response>()
     transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getPreferences`, () => gate.promise)
@@ -271,6 +315,34 @@ describe('FeedView refresh confirmation', () => {
     expect(screen.queryByText('press R again to refresh')).toBeNull()
     // a refresh drops the pages and asks for the first one only
     expect(new URL(feedCalls().at(-1)?.url ?? '').searchParams.get('cursor')).toBeNull()
+  })
+
+  it('restores a dismissed card when a confirmed refresh reloads the first page', async () => {
+    const first = wirePost(1, 'first post')
+    const second = wirePost(2, 'second post')
+    transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getFeed`, () =>
+      jsonResponse(200, { feed: [{ post: first }, { post: second }], cursor: 'page-2' }),
+    )
+    const accepted = Promise.withResolvers<Response>()
+    transport.route('POST', `${PDS}/xrpc/app.bsky.feed.sendInteractions`, () => accepted.promise)
+    renderFeed()
+
+    await screen.findByText('first post')
+    // the focused card is the first post; an accepted less signal drops it
+    fireEvent.keyDown(window, { key: '-' })
+    await waitFor(() => expect(feedbackCalls()).toHaveLength(1))
+
+    accepted.resolve(jsonResponse(200, {}))
+    await waitFor(() => expect(screen.queryByText('first post')).toBeNull())
+
+    const loaded = feedCalls().length
+    fireEvent.keyDown(window, { key: 'R' })
+    fireEvent.keyDown(window, { key: 'R' })
+    await waitFor(() => expect(feedCalls()).toHaveLength(loaded + 1))
+    // a refresh starts a clean deck from the newest page, cursor-free
+    expect(new URL(feedCalls().at(-1)?.url ?? '').searchParams.get('cursor')).toBeNull()
+    await screen.findByText('first post')
+    expect(screen.getByText('second post')).toBeInTheDocument()
   })
 
   it('relabels the narrow refresh button while armed', async () => {

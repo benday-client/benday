@@ -2,16 +2,15 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchActorSearch, fetchThread } from '../lib/atproto'
+import { fetchActorSearch, fetchFeedPage, fetchThread } from '../lib/atproto'
 import { useAuthStore } from '../lib/auth'
-import type { SearchActorModel, ThreadModel } from '../lib/types'
+import type { FeedSource, SearchActorModel, ThreadModel } from '../lib/types'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
-import { useActorSearch, useThread } from './useBskyQueries'
+import { useActorSearch, usePostFeed, useThread } from './useBskyQueries'
 
 vi.mock('../lib/atproto', () => ({
   fetchActorSearch: vi.fn(),
-  fetchFeedGenerator: vi.fn(),
   fetchFeedPage: vi.fn(),
   fetchProfile: vi.fn(),
   fetchThread: vi.fn(),
@@ -44,7 +43,35 @@ function threadFixture(): ThreadModel {
 beforeEach(() => {
   vi.mocked(fetchThread).mockReset()
   vi.mocked(fetchActorSearch).mockReset()
+  vi.mocked(fetchFeedPage).mockReset()
   useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
+})
+
+describe('usePostFeed', () => {
+  it.each<[string, FeedSource | null]>([
+    ['no source', null],
+    ['a blank feed uri', { kind: 'feed', uri: '  ' }],
+  ])(
+    'stays inactive without an active source and never requests a feed',
+    async (_label, source) => {
+      const queryClient = createTestQueryClient()
+      const { result } = renderHook(() => usePostFeed(source), { wrapper: wrapper(queryClient) })
+
+      await act(settle)
+      expect(fetchFeedPage).not.toHaveBeenCalled()
+      expect(result.current.data).toBeNull()
+      expect(result.current.isPending).toBe(false)
+      expect(result.current.isFetching).toBe(false)
+      expect(result.current.error).toBeNull()
+      expect(result.current.hasMore).toBe(false)
+
+      // a refresh on an inactive source has no request to make either
+      await act(async () => {
+        result.current.retry()
+      })
+      expect(fetchFeedPage).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe('useThread', () => {

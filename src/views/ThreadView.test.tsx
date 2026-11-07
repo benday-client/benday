@@ -121,6 +121,13 @@ function threadUrl(uri: string): string {
   return `/thread?uri=${encodeURIComponent(uri)}`
 }
 
+/** Reports whether the view cancelled the key, which is how it claims one. */
+function keyConsumed(init: KeyboardEventInit, target: EventTarget = document.body): boolean {
+  const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+  fireEvent(target as Element | Window, event)
+  return event.defaultPrevented
+}
+
 /** Marks this browser document as having app-owned entries behind it. */
 function seedHistoryDepth(depth: number): void {
   window.history.replaceState({ __bendayHistory: { depth } }, '')
@@ -268,10 +275,10 @@ describe('ThreadView parent navigation', () => {
     try {
       outside.focus()
 
-      // up would open the parent, and 1 would focus a reply: both belong to the
-      // control while it has focus, which keeps its own native keys
-      fireEvent.keyDown(outside, { key: 'ArrowUp' })
-      fireEvent.keyDown(outside, { key: '1' })
+      // up and the digits belong to the control while it has focus: neither is
+      // claimed by the thread, which keeps the control's own native keys
+      expect(keyConsumed({ key: 'ArrowUp' }, outside)).toBe(false)
+      expect(keyConsumed({ key: '1' }, outside)).toBe(false)
 
       expect(memory.history).toEqual([threadUrl('at://focus')])
       expect(document.activeElement).toBe(outside)
@@ -347,7 +354,8 @@ describe('ThreadView reply keys', () => {
   it('does not leave a root thread with arrow up at the opened post', () => {
     const { memory } = renderReplies()
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
+    // the opened post roots the view: up is claimed outright and goes nowhere
+    expect(keyConsumed({ key: 'ArrowUp' })).toBe(true)
 
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
@@ -387,9 +395,11 @@ describe('ThreadView reply keys', () => {
 
   it('ignores up inside a text field', () => {
     const { memory } = renderReplies()
+    const editor = screen.getByTestId('editor')
 
-    fireEvent.keyDown(screen.getByTestId('editor'), { key: 'ArrowUp' })
-    fireEvent.keyDown(screen.getByTestId('editor'), { key: 'k' })
+    // the editor owns its own keys, so the view leaves them uncancelled
+    expect(keyConsumed({ key: 'ArrowUp' }, editor)).toBe(false)
+    expect(keyConsumed({ key: 'k' }, editor)).toBe(false)
 
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
@@ -401,8 +411,9 @@ describe('ThreadView reply keys', () => {
     const link = document.querySelector('.b-thread__parent-link')
     if (!(link instanceof HTMLElement)) throw new Error('missing parent link')
 
-    fireEvent.keyDown(link, { key: 'ArrowUp' })
-    fireEvent.keyDown(link, { key: 'k' })
+    // the link is an anchor the view must not steal keys from
+    expect(keyConsumed({ key: 'ArrowUp' }, link)).toBe(false)
+    expect(keyConsumed({ key: 'k' }, link)).toBe(false)
 
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
@@ -563,7 +574,9 @@ describe('ThreadView focus parent boundary', () => {
     const { memory } = renderParented()
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => undefined)
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp' })
+    // up is claimed at the opened post instead of falling through to a
+    // browser history step or a page scroll
+    expect(keyConsumed({ key: 'ArrowUp' })).toBe(true)
 
     expect(back).not.toHaveBeenCalled()
     expect(memory.history).toEqual([threadUrl('at://focus')])
@@ -585,7 +598,7 @@ describe('ThreadView focus parent boundary', () => {
   it('does not reopen the parent on a held up key', () => {
     const { memory } = renderParented()
 
-    fireEvent.keyDown(document.body, { key: 'ArrowUp', repeat: true })
+    expect(keyConsumed({ key: 'ArrowUp', repeat: true })).toBe(true)
 
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
@@ -596,14 +609,15 @@ describe('ThreadView focus parent boundary', () => {
     fireEvent.keyDown(document.body, { key: 'j' })
     expect(document.activeElement).toBe(replyArticle())
 
-    fireEvent.keyDown(replyArticle(), { key: 'ArrowUp' })
+    expect(keyConsumed({ key: 'ArrowUp' }, replyArticle())).toBe(true)
     expect(document.activeElement).toBe(threadSurface())
     expect(memory.history).toEqual([threadUrl('at://focus')])
 
-    fireEvent.keyDown(threadSurface(), { key: 'ArrowUp' })
+    // at the opened post up is still claimed, and only p opens the parent
+    expect(keyConsumed({ key: 'ArrowUp' }, threadSurface())).toBe(true)
     expect(memory.history).toEqual([threadUrl('at://focus')])
 
-    fireEvent.keyDown(threadSurface(), { key: 'p' })
+    expect(keyConsumed({ key: 'p' }, threadSurface())).toBe(true)
     expect(memory.history).toEqual([threadUrl('at://focus'), threadUrl('at://focus-parent')])
   })
 })
@@ -692,6 +706,32 @@ describe('ThreadView leave history', () => {
 })
 
 describe('ThreadView reply dock Escape', () => {
+  it('keeps a reply request that targets the incoming thread', () => {
+    const focusPost = parentedPost('at://focus', null)
+    threadState.data = threadWith(focusPost)
+    act(() => {
+      useUiStore.getState().openInlineCompose({ mode: 'reply', post: focusPost })
+    })
+
+    renderThread(focusPost.uri)
+
+    expect(useUiStore.getState().inlineCompose?.post?.uri).toBe('at://focus')
+  })
+
+  it('drops a reply request aimed at another thread', () => {
+    const focusPost = parentedPost('at://focus', null)
+    threadState.data = threadWith(focusPost)
+    act(() => {
+      useUiStore
+        .getState()
+        .openInlineCompose({ mode: 'reply', post: parentedPost('at://other', null) })
+    })
+
+    renderThread(focusPost.uri)
+
+    expect(useUiStore.getState().inlineCompose).toBeNull()
+  })
+
   function openDock() {
     const focusPost = parentedPost('at://focus', null)
     threadState.data = threadWith(focusPost)
@@ -807,10 +847,11 @@ describe('ThreadView character shortcut opt-out', () => {
     threadState.data = threadWith(focusPost, [replyPost])
     const { memory } = renderThread(focusPost.uri)
 
-    fireEvent.keyDown(document.body, { key: 'p' })
-    fireEvent.keyDown(document.body, { key: 'j' })
-    fireEvent.keyDown(document.body, { key: 'k' })
-    fireEvent.keyDown(document.body, { key: '1' })
+    // the opt-out leaves the whole keys alone: nothing is consumed, so a
+    // browser-level binding for one of them still fires
+    for (const key of ['p', 'j', 'k', '1']) {
+      expect(keyConsumed({ key }), key).toBe(false)
+    }
     expect(memory.history).toEqual([threadUrl('at://focus')])
     expect(document.activeElement).toBe(document.body)
 
@@ -820,9 +861,10 @@ describe('ThreadView character shortcut opt-out', () => {
     expect(document.activeElement).toBe(reply)
 
     // the reply-focused handler is a second ladder: it must obey the opt-out too
-    fireEvent.keyDown(reply as HTMLElement, { key: 'j' })
-    fireEvent.keyDown(reply as HTMLElement, { key: 'k' })
-    fireEvent.keyDown(reply as HTMLElement, { key: 'End' })
+    expect(keyConsumed({ key: 'j' }, reply as HTMLElement)).toBe(false)
+    expect(keyConsumed({ key: 'k' }, reply as HTMLElement)).toBe(false)
+    // End is not a character shortcut, so it still lands on the last reply
+    expect(keyConsumed({ key: 'End' }, reply as HTMLElement)).toBe(true)
     expect(document.activeElement).toBe(reply)
     expect(memory.history).toEqual([threadUrl('at://focus')])
 

@@ -3,37 +3,34 @@ import { describe, expect, it } from 'vitest'
 import { createTestQueryClient } from '../test/queryClient'
 import { invalidateNonFeedQueries } from './queries'
 
-const HOST = 'https://api.bsky.app'
 const VIEWER = 'did:plc:viewer'
 const POST = 'at://did:plc:ada/app.bsky.feed.post/1'
-const GENERATOR = 'at://did:plc:gen/app.bsky.feed.generator/cats'
+const ACTOR = 'did:plc:ada'
+const QUERY = 'cats'
 
-// real viewer-scoped and host-scoped keys, not an abstract naming scheme
+// real production key shapes, not an abstract naming scheme
 const STABLE_KEYS = [
-  ['feed', HOST, 'discover', VIEWER],
+  ['feed', 'feed', 'at://did:plc:ada/app.bsky.feed.generator/cats', VIEWER],
+  ['feed', 'author', ACTOR, 'anonymous'],
+  ['feed', 'search', QUERY, VIEWER],
   ['pinned-feeds', VIEWER],
-  ['feed-generator', GENERATOR],
-  ['labeler-details', HOST, 'did:plc:lab,did:plc:lab2'],
+  ['account-labelers', ACTOR],
 ] as const
 
 const CHANGED_KEYS = [
-  ['profile', HOST, 'ada.test', VIEWER],
-  ['thread', HOST, POST],
-  ['top-comments', HOST, POST],
-  ['feed-preview', HOST, { kind: 'discover' }, VIEWER],
+  ['thread', VIEWER, POST],
+  ['profile', ACTOR, VIEWER],
   ['notifications', 'list', VIEWER],
-  ['actor-suggestions', HOST, 'ad'],
-  ['tag-suggestions', HOST, 'tensorpunk'],
-  ['search-actors', HOST, 'ad'],
-  ['search-feeds', HOST, 'cats'],
+  ['actor-suggestions', 'ad'],
+  ['search-actors', 'ad'],
 ] as const
 
 async function seed(client: QueryClient, key: readonly unknown[], counts: Map<string, number>) {
-  const root = String(key[0])
+  const id = JSON.stringify(key)
   await client.fetchQuery({
     queryKey: key,
     queryFn: async () => {
-      counts.set(root, (counts.get(root) ?? 0) + 1)
+      counts.set(id, (counts.get(id) ?? 0) + 1)
       return { key }
     },
   })
@@ -55,10 +52,10 @@ describe('invalidateNonFeedQueries', () => {
       expect(client.getQueryState(key)?.isInvalidated, String(key[0])).toBe(true)
     }
 
-    // refetching only what the policy invalidated: the changed roots run again
+    // refetching only what the policy invalidated: the changed keys run again
     // and the stable ones never do
     await client.refetchQueries({ predicate: (query) => query.state.isInvalidated })
-    for (const key of STABLE_KEYS) expect(counts.get(String(key[0]))).toBe(1)
-    for (const key of CHANGED_KEYS) expect(counts.get(String(key[0]))).toBe(2)
+    for (const key of STABLE_KEYS) expect(counts.get(JSON.stringify(key))).toBe(1)
+    for (const key of CHANGED_KEYS) expect(counts.get(JSON.stringify(key))).toBe(2)
   })
 })

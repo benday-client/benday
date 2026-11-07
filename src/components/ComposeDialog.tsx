@@ -10,9 +10,16 @@ export interface ComposeDialogProps {
 }
 
 export function ComposeDialog({ open, request, onClose }: ComposeDialogProps) {
-  const form = useComposeForm({ open, request, onClose })
+  // replies belong to their thread's inline dock; a reply request handed to the
+  // dialog is ignored rather than opening a second composition surface
+  const activeRequest = request !== null && request.mode === 'post' ? request : null
+  const form = useComposeForm({
+    open: open && activeRequest !== null,
+    request: activeRequest,
+    onClose,
+  })
 
-  if (request === null) {
+  if (activeRequest === null) {
     return (
       <Dialog open={false} title="compose" onClose={form.close}>
         {null}

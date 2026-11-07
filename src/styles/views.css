@@ -211,7 +211,7 @@
 }
 
 .b-card-back__date,
-.b-card-back__appview {
+.b-card-back__detail {
   color: var(--text-muted);
   font-size: var(--step--1);
   letter-spacing: 0.05em;
@@ -259,10 +259,6 @@
   box-shadow:
     2px 2px 0 0 var(--shadow),
     var(--card-shadow);
-}
-
-.b-feed-card[data-kind="add"] {
-  border-style: dashed;
 }
 
 .b-feed-card__body {
@@ -441,10 +437,10 @@
   color: var(--ink);
 }
 
-.b-pinned-add {
+.b-pinned-control {
   appearance: none;
   padding: 2px var(--space-2);
-  border: 1px dashed var(--line-strong);
+  border: 1px solid var(--line-strong);
   border-radius: 0;
   background: transparent;
   color: var(--text-muted);
@@ -455,7 +451,7 @@
   text-transform: lowercase;
 }
 
-.b-pinned-add:hover {
+.b-pinned-control:hover {
   border-color: var(--accent-2);
   color: var(--ink);
 }

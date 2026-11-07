@@ -36,7 +36,6 @@ function rootTheme(): string | undefined {
 
 beforeEach(() => {
   delete document.documentElement.dataset['theme']
-  delete document.documentElement.dataset['contrast']
   // jsdom starts from a blank document; the shipped head is not loaded here.
   let meta = document.querySelector('meta[name="theme-color"]')
   if (meta === null) {

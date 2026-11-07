@@ -38,9 +38,6 @@ type WireFeature =
   | { $type: 'app.bsky.richtext.facet#mention'; did: string }
   | { $type: 'app.bsky.richtext.facet#link'; uri: string }
   | { $type: 'app.bsky.richtext.facet#tag'; tag: string }
-  | { $type: 'app.bsky.richtext.facet#bold' }
-  | { $type: 'app.bsky.richtext.facet#italic' }
-  | { $type: 'app.bsky.richtext.facet#strikethrough' }
 
 interface PostedFacet {
   index: { byteStart: number; byteEnd: number }
@@ -107,10 +104,6 @@ function readFeature(value: unknown): WireFeature {
     case 'app.bsky.richtext.facet#tag':
       if (typeof value['tag'] !== 'string') malformed('tag feature has no tag')
       return { $type: type, tag: value['tag'] }
-    case 'app.bsky.richtext.facet#bold':
-    case 'app.bsky.richtext.facet#italic':
-    case 'app.bsky.richtext.facet#strikethrough':
-      return { $type: type }
     default:
       malformed(`unsupported facet feature ${type}`)
   }
@@ -191,7 +184,7 @@ function wireSegments(record: PostedRecord) {
   }))
 }
 
-// benday's overlap-aware walk keeps formatting that sits inside navigation
+// benday's facet mapping: explicit links win over autodetected navigation
 function mappedSegments(record: PostedRecord) {
   return segmentText(record.text, mapFacets(record.facets, record.text)).map((segment) => ({
     text: segment.text,

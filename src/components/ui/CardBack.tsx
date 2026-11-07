@@ -66,7 +66,7 @@ function CardBackContent({
         <span className="b-card-back__feed">{title}</span>
         <span className="b-card-back__rule" aria-hidden="true" />
         {date === undefined ? null : <span className="b-card-back__date">{date}</span>}
-        {detail === undefined ? null : <span className="b-card-back__appview">{detail}</span>}
+        {detail === undefined ? null : <span className="b-card-back__detail">{detail}</span>}
         <span className="b-card-back__hint">{hint}</span>
       </FrameBody>
     </>

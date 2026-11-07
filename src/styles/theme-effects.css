@@ -7,7 +7,6 @@
    little slower than mocha. reduced motion turns the whole thing off. */
 :root {
   --motion-lift: 4px;
-  --motion-tilt: 0deg;
   --motion-dur: 120ms;
   --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --deal-dur: 620ms;
@@ -29,13 +28,13 @@
   @starting-style {
     .b-dialog[open] {
       opacity: 0;
-      transform: translateY(var(--motion-lift)) rotate(var(--motion-tilt));
+      transform: translateY(var(--motion-lift));
     }
   }
 
   .b-dialog[data-closing="true"] {
     opacity: 0;
-    transform: translateY(calc(-0.5 * var(--motion-lift))) rotate(var(--motion-tilt));
+    transform: translateY(calc(-0.5 * var(--motion-lift)));
   }
 }
 

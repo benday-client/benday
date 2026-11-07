@@ -1,12 +1,12 @@
 import type { AppBskyNotificationListNotifications, AtpSessionData } from '@atproto/api'
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAuthStore } from '../lib/auth'
 import { createTestQueryClient } from '../test/queryClient'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
-import { useNotifications } from './useNotifications'
+import { notificationsQueryKey, useNotifications } from './useNotifications'
 
 const CID = 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'
 const POST = 'at://did:plc:me/app.bsky.feed.post/mine'
@@ -114,6 +114,39 @@ describe('useNotifications', () => {
     expect(result.current.notifications[0]?.indexedAt).toBe(OLDER)
 
     await waitFor(() => expect(seenBodies()).toEqual([{ seenAt: NEWEST }]))
+  })
+
+  it('sends the account one seen update across a mounted refetch and re-render', async () => {
+    await signIn()
+    const list = `${PDS}/xrpc/app.bsky.notification.listNotifications`
+    transport.route('GET', list, () =>
+      jsonResponse(200, { notifications: [visibleNotification(NEWEST)] }),
+    )
+    transport.route('POST', `${PDS}/xrpc/app.bsky.notification.updateSeen`, () =>
+      jsonResponse(200, {}),
+    )
+    const queryClient = createTestQueryClient()
+
+    const { result, rerender } = renderHook(() => useNotifications(), {
+      wrapper: wrapper(queryClient),
+    })
+
+    await waitFor(() => expect(result.current.notifications).toHaveLength(1))
+    await waitFor(() => expect(seenBodies()).toEqual([{ seenAt: NEWEST }]))
+
+    // the same account and cursor come back from a second fetch, so neither the
+    // refetch nor the re-render may acknowledge them again
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: notificationsQueryKey(ALICE.did) })
+    })
+    rerender()
+
+    // one macrotask is enough for a repeated seen request to be recorded
+    const { promise, resolve } = Promise.withResolvers<void>()
+    setTimeout(resolve, 0)
+    await promise
+    expect(transport.calls.filter((call) => call.url.includes(list))).toHaveLength(2)
+    expect(seenBodies()).toEqual([{ seenAt: NEWEST }])
   })
 
   it('still advances the cursor when every wire row is hidden', async () => {

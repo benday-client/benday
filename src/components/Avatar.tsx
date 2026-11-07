@@ -14,7 +14,7 @@ export interface AvatarProps {
 /**
  * An avatar with a dithered initial fallback. Presentation only: the caller
  * owns the wrapper element, the accessible alt text and where the name comes
- * from. DitherImage keeps owning load failure, effects and alt semantics.
+ * from. DitherImage keeps owning load failure and alt semantics.
  */
 export function Avatar({ src, alt, name, emptyGlyph = '?', preserveCase = false }: AvatarProps) {
   const initial = firstGrapheme(name.trimStart())

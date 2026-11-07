@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'wouter'
+import { bindingFor, displayKeys } from '../lib/keymap'
 import type {
   EmbedModel,
   ExternalEmbed,
@@ -14,6 +15,9 @@ import { DitherImage } from './DitherImage'
 import { FacetText } from './FacetText'
 import { Kbd, Tag } from './ui'
 import { VideoPlayer } from './VideoPlayer'
+
+/** The key that opens the quoted post, read from the registry binding. */
+const QUOTED_KEY = displayKeys(bindingFor('card-quoted'))[0] ?? ''
 
 export interface EmbedsProps {
   embed: EmbedModel
@@ -197,7 +201,7 @@ function QuoteCard({ post }: { post: QuotedPostModel }) {
       )}
       <div className="b-embed__quote-actions">
         <Link href={href} className="b-embed__quote-open">
-          open quoted post <Kbd>0</Kbd>
+          open quoted post <Kbd>{QUOTED_KEY}</Kbd>
         </Link>
       </div>
     </article>

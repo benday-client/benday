@@ -474,8 +474,8 @@
   font-family: var(--font-mono);
   font-size: var(--step-5);
   line-height: 1;
-  filter: var(--dither-filter, url(#benday-dither-void));
-  image-rendering: var(--dither-rendering, pixelated);
+  filter: var(--dither-filter, url(#benday-dither-catppuccin-mocha));
+  image-rendering: pixelated;
   opacity: 0.9;
 }
 
@@ -819,9 +819,6 @@
   text-align: center;
   white-space: nowrap;
 }
-
-/* a hint is the loudest thing on screen for as long as it shows, so high
-   contrast gives it the ink border instead of a raised panel wash */
 
 @keyframes b-keyhint-in {
   from {

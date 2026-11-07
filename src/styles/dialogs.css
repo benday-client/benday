@@ -1,4 +1,4 @@
-/* command palette, appview switcher, help */
+/* command palette, help */
 
 /* command palette --------------------------------------------------- */
 
@@ -341,8 +341,6 @@
   accent-color: var(--blue);
 }.b-settings__toggle-note{
   color: var(--text-muted);
-}.b-settings__subheading{
-  margin: 0;
 }.b-settings__account{
   display: flex;
   flex-wrap: wrap;

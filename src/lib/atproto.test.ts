@@ -569,9 +569,9 @@ describe('account-scoped reads', () => {
 })
 
 describe('fetchProfile', () => {
-  it('keeps public fields from the selected host and private state from the account', async () => {
+  it('keeps public fields from the public appview and private state from the account', async () => {
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.actor.getProfile`, () =>
-      jsonResponse(200, profileView({ displayName: 'custom host name' })),
+      jsonResponse(200, profileView({ displayName: 'public appview name' })),
     )
     transport.route('GET', `${PDS_A}/xrpc/app.bsky.actor.getProfile`, () =>
       jsonResponse(
@@ -591,7 +591,7 @@ describe('fetchProfile', () => {
 
     const profile = await fetchProfile('target.test', ALICE.did)
 
-    expect(profile.displayName).toBe('custom host name')
+    expect(profile.displayName).toBe('public appview name')
     expect(profile.viewer.following).toBe('at://did:plc:alice/app.bsky.graph.follow/1')
     expect(profile.viewer.muted).toBe(true)
     expect(profile.viewer.activitySubscription).toEqual({ post: true, reply: false })

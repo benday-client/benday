@@ -7,10 +7,12 @@ import { memoryLocation } from 'wouter/memory-location'
 import App from './App'
 import { Deck } from './components/Deck'
 import { PostCard } from './components/PostCard'
+import { AUTH_STORAGE_KEY, useAuthStore } from './lib/auth'
 import { useUiStore } from './lib/ui'
 import { postFixture } from './test/fixtures'
 import { createTestQueryClient } from './test/queryClient'
 import { renderStage } from './test/stage'
+import { installTransport } from './test/transport'
 
 async function mountApp(): Promise<() => void> {
   window.history.pushState({}, '', '/search')
@@ -61,6 +63,76 @@ describe('app shell', () => {
       })
       // the app-level escape must not have taken the route away
       expect(window.location.pathname).toBe('/search')
+    } finally {
+      unmount()
+    }
+  })
+})
+
+// the lists every signed-in route reads; the anonymous gate must request none
+const LIST_METHODS = [
+  'app.bsky.feed.getFeed',
+  'app.bsky.feed.getAuthorFeed',
+  'app.bsky.feed.searchPosts',
+]
+
+function listRequests(calls: readonly { url: string }[]): string[] {
+  return calls
+    .map((call) => call.url)
+    .filter((url) => LIST_METHODS.some((method) => url.includes(method)))
+}
+
+describe('shell auth gate', () => {
+  it('gates an anonymous session and opens the login dialog without reading a list', async () => {
+    const transport = installTransport()
+    // signed out for real: no stored session, and no restore pass that would
+    // flash the progress gate before settling on anonymous
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    useAuthStore.setState({
+      status: 'anonymous',
+      account: null,
+      pending: false,
+      error: null,
+      restoreError: null,
+      restore: () => Promise.resolve(),
+    })
+
+    window.history.pushState({}, '', '/feed')
+    let unmount = () => {}
+    await act(async () => {
+      unmount = render(<App />).unmount
+    })
+    try {
+      await vi.waitFor(() => {
+        expect(document.querySelector('.b-signedout-card')).not.toBeNull()
+      })
+      const gate = document.querySelector<HTMLButtonElement>('.b-signedout-card')
+      if (gate === null) throw new Error('sign-in gate missing')
+      // painted, readable, and the only thing behind the shell's top bar
+      expect(gate.getBoundingClientRect().height).toBeGreaterThan(0)
+      expect(gate.textContent).toContain('sign in to read benday')
+      expect(gate.textContent).toContain('the people you follow')
+      expect(document.querySelector('.b-view')).toBeNull()
+      // no route mounted, so no feed, search or profile list was asked for
+      expect(listRequests(transport.calls)).toEqual([])
+      expect(transport.calls).toHaveLength(0)
+      // nothing has asked for the dialog yet
+      expect(document.querySelector('dialog[open]')).toBeNull()
+
+      // the whole card is the sign-in control
+      await userEvent.click(gate)
+
+      await vi.waitFor(() => {
+        expect(document.querySelector('dialog[open].b-auth')).not.toBeNull()
+      })
+      const dialog = document.querySelector<HTMLDialogElement>('dialog[open].b-auth')
+      if (dialog === null) throw new Error('login dialog missing')
+      expect(dialog.open).toBe(true)
+      expect(dialog.querySelector('input[autocomplete="username"]')).not.toBeNull()
+      expect(dialog.querySelector('input[type="password"]')).not.toBeNull()
+      expect(useUiStore.getState().dialog).toBe('login')
+      // opening the dialog is local: still nothing was read
+      expect(listRequests(transport.calls)).toEqual([])
     } finally {
       unmount()
     }

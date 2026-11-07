@@ -101,4 +101,16 @@ describe('FacetText', () => {
 
     expect(container.querySelector('a')?.getAttribute('href')).toBe('/search?q=%23design')
   })
+
+  it('renders incoming italic, strikethrough and code styles', () => {
+    const { container } = renderText('a b c', [
+      { start: 0, end: 1, feature: { kind: 'italic' } },
+      { start: 2, end: 3, feature: { kind: 'strikethrough' } },
+      { start: 4, end: 5, feature: { kind: 'code' } },
+    ])
+
+    expect(container.querySelector('em')?.textContent).toBe('a')
+    expect(container.querySelector('s')?.textContent).toBe('b')
+    expect(container.querySelector('code')?.textContent).toBe('c')
+  })
 })

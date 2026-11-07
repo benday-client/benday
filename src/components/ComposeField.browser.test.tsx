@@ -153,11 +153,7 @@ describe('compose suggestion list', () => {
     const client = createTestQueryClient()
     render(
       <QueryClientProvider client={client}>
-        <ComposeDialog
-          open
-          request={{ mode: 'reply', post: postFixture() }}
-          onClose={() => undefined}
-        />
+        <ComposeDialog open request={{ mode: 'post', post: null }} onClose={() => undefined} />
       </QueryClientProvider>,
     )
     const dialog = document.querySelector<HTMLDialogElement>('dialog')

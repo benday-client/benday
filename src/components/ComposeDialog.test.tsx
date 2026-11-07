@@ -5,7 +5,7 @@ import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Router, useLocation, useSearch } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
-import { createPost } from '../lib/actions'
+import { createPost, createReply } from '../lib/actions'
 import { useAuthStore } from '../lib/auth'
 import { draftKeyFor, readDraft } from '../lib/drafts'
 import type { ComposeRequest } from '../lib/ui'
@@ -17,6 +17,7 @@ import { ComposeDialog } from './ComposeDialog'
 
 vi.mock('../lib/actions', () => ({
   createPost: vi.fn(async () => ({ uri: 'at://post', cid: 'post-cid' })),
+  createReply: vi.fn(async () => ({ uri: 'at://reply', cid: 'reply-cid' })),
 }))
 
 function LocationProbe() {
@@ -198,8 +199,8 @@ describe('ComposeDialog', () => {
   it('sends a post, keeps feed pages and invalidates everything else', async () => {
     const post = postFixture()
     const queryClient = createTestQueryClient()
-    const feedKey = ['feed', 'api.bsky.app', 'discover', 'anonymous']
-    const threadKey = ['thread', 'api.bsky.app', post.uri]
+    const feedKey = ['feed', 'author', 'test.bsky.social', OWNER]
+    const threadKey = ['thread', OWNER, post.uri]
     // keep the seeded entries alive: the test client otherwise collects
     // unobserved queries immediately
     queryClient.setQueryDefaults(feedKey, { gcTime: Number.POSITIVE_INFINITY })
@@ -524,6 +525,16 @@ describe('ComposeDialog', () => {
     expect(actions?.querySelector('.b-compose__count')).toHaveTextContent('0/300')
     expect(actions).toContainElement(screen.getByRole('button', { name: 'cancel' }))
     expect(actions).toContainElement(screen.getByRole('button', { name: 'post' }))
+  })
+
+  it('ignores a reply request so no second composition surface opens', () => {
+    renderComposer()
+    open({ mode: 'reply', post: postFixture() })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(createReply).not.toHaveBeenCalled()
+    expect(createPost).not.toHaveBeenCalled()
   })
 
   it('counts graphemes and gates sending from the shared footer', () => {

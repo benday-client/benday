@@ -477,4 +477,47 @@ describe('NotificationsView states', () => {
     expect(screen.getByRole('button', { name: 'retry' })).toBeInTheDocument()
     expect(document.querySelector('.b-deck')).toBeNull()
   })
+
+  it('refetches the page and renders the rows when the failed load is retried', async () => {
+    const list = `${PDS}/xrpc/app.bsky.notification.listNotifications`
+    transport.route('GET', list, () =>
+      jsonResponse(500, { error: 'InternalServerError', message: 'nope' }),
+    )
+    renderNotifications(null)
+
+    await screen.findByText('internal server error', undefined, { timeout: 3000 })
+    const listRequest = '/xrpc/app.bsky.notification.listNotifications'
+    const before = transport.calls.filter((call) => call.url.includes(listRequest)).length
+    expect(before).toBeGreaterThan(0)
+
+    transport.route('GET', list, () =>
+      jsonResponse(200, {
+        notifications: [
+          {
+            uri: 'at://did:plc:fan/app.bsky.graph.follow/1',
+            cid: 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm',
+            author: { did: 'did:plc:fan', handle: 'fan.test' },
+            reason: 'follow',
+            record: {
+              $type: 'app.bsky.graph.follow',
+              subject: VIEWER_DID,
+              createdAt: '2026-10-29T12:00:00.000Z',
+            },
+            isRead: true,
+            indexedAt: '2026-10-29T12:00:00.000Z',
+          },
+        ],
+      }),
+    )
+    transport.route('POST', `${PDS}/xrpc/app.bsky.notification.updateSeen`, () =>
+      jsonResponse(200, {}),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+
+    await waitFor(() => expect(document.querySelectorAll('.b-deck__item')).toHaveLength(1))
+    // the click really asked the server again instead of reusing a cached error
+    expect(transport.calls.filter((call) => call.url.includes(listRequest)).length).toBe(before + 1)
+    expect(screen.getByText('followed you')).toBeInTheDocument()
+  })
 })

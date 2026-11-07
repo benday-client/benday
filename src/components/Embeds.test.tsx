@@ -240,3 +240,15 @@ describe('concealed media', () => {
     expect(container.querySelector('.b-embed__thumb[aria-hidden]')).toBeNull()
   })
 })
+
+describe('quoted post link', () => {
+  it('teaches o, not zero, for opening the quoted post', () => {
+    const { container } = render(<Embeds embed={{ type: 'quote', post: quoted('only words') }} />)
+
+    const link = screen.getByRole('link', { name: /open quoted post/ })
+    const kbd = link.querySelector('kbd')
+    expect(kbd?.textContent).toBe('o')
+    expect(link.textContent).not.toContain('0')
+    expect(container.querySelector('.b-embed__quote-open kbd')?.textContent).toBe('o')
+  })
+})

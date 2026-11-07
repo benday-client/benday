@@ -21,6 +21,33 @@ describe('HelpDialog', () => {
     }
   })
 
+  it('documents no quote-creation shortcut', () => {
+    const { container } = render(<HelpDialog open onClose={vi.fn()} />)
+
+    const rows = Array.from(container.querySelectorAll<HTMLElement>('.b-help__row'))
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      const what = row.querySelector('.b-help__what')?.textContent ?? ''
+      const keys = Array.from(row.querySelectorAll('.b-help__keys kbd')).map(
+        (key) => key.textContent,
+      )
+      // "quoted" belongs to the retained o row; only a standalone quote action is gone
+      expect(what, `row for ${keys.join('/')}`).not.toMatch(/\bquote\b/i)
+      expect(keys).not.toContain('q')
+    }
+
+    const quotedRow = rows.find(
+      (row) =>
+        row.querySelector('.b-help__what')?.textContent === 'open the quoted post when present',
+    )
+    expect(quotedRow).toBeDefined()
+    expect(
+      Array.from(quotedRow?.querySelectorAll('.b-help__keys kbd') ?? []).map(
+        (key) => key.textContent,
+      ),
+    ).toEqual(['o'])
+  })
+
   it('filters the generated rows as the query changes', () => {
     render(<HelpDialog open onClose={vi.fn()} />)
     expect(screen.getByText('like or unlike')).toBeInTheDocument()

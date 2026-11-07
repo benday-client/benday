@@ -16,7 +16,7 @@ function query<T extends Element>(root: ParentNode, selector: string): T {
 
 describe('Dialog', () => {
   beforeEach(() => {
-    document.documentElement.dataset['theme'] = 'cyberpunk'
+    document.documentElement.dataset['theme'] = 'catppuccin-mocha'
   })
 
   afterEach(() => {
@@ -35,6 +35,9 @@ describe('Dialog', () => {
     )
     const dialog = dialogOf(container)
     expect(dialog.open).toBe(true)
+    // jsdom does not load the stylesheet, so the exit duration is declared
+    // inline: 120ms settles inside the shared 190ms floor
+    dialog.style.setProperty('--motion-dur', '120ms')
 
     rerender(
       <Dialog open={false} title="test" onClose={onClose}>
@@ -53,8 +56,7 @@ describe('Dialog', () => {
 
   it('keeps a themed exit open for its declared duration past the floor', () => {
     vi.useFakeTimers()
-    // cottagecore settles over 220ms, which is longer than the shared floor
-    document.documentElement.dataset['theme'] = 'cottagecore'
+    // this exit settles over 220ms, which is longer than the shared floor
     const onClose = vi.fn()
     const view = (open: boolean) => (
       <Dialog open={open} title="test" onClose={onClose}>
@@ -92,6 +94,8 @@ describe('Dialog', () => {
     )
     const { container, rerender } = render(view(true))
     const dialog = dialogOf(container)
+    // a nonzero exit duration keeps the shell marked as closing
+    dialog.style.setProperty('--motion-dur', '120ms')
 
     rerender(view(false))
     expect(dialog.dataset['closing']).toBe('true')
@@ -106,7 +110,7 @@ describe('Dialog', () => {
     expect(dialog.open).toBe(true)
   })
 
-  it('closes immediately for a theme without an exit animation', () => {
+  it('closes immediately without an exit duration', () => {
     const onClose = vi.fn()
     const view = (open: boolean) => (
       <Dialog open={open} title="test" onClose={onClose}>
@@ -117,7 +121,7 @@ describe('Dialog', () => {
     const dialog = dialogOf(container)
     expect(dialog.open).toBe(true)
 
-    document.documentElement.dataset['theme'] = 'truth-to-materials'
+    dialog.style.setProperty('--motion-dur', '0ms')
     rerender(view(false))
 
     expect(dialog.open).toBe(false)
@@ -187,6 +191,9 @@ describe('Dialog', () => {
     )
     const { container, rerender } = render(view(true))
     const dialog = dialogOf(container)
+    // the frozen shell only matters while the close animates, and jsdom does
+    // not load the stylesheet, so the 120ms exit is declared inline
+    dialog.style.setProperty('--motion-dur', '120ms')
 
     rerender(view(false))
 
@@ -275,7 +282,6 @@ describe('Dialog', () => {
   })
 
   it('returns focus to the opener after closing', () => {
-    document.documentElement.dataset['theme'] = 'truth-to-materials'
     const onClose = vi.fn()
     const view = (open: boolean) => (
       <>

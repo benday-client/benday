@@ -802,7 +802,7 @@ export function Deck<T>({
     if (!back && !forward) return
     event.preventDefault()
     if (back && focusIndex === 0) {
-      // only the back arrow leaves the deck; held or not, h/j/k clamp
+      // only the back arrow leaves the deck; a held key still clamps here
       if (backArrow && !event.repeat) exitDeck()
       return
     }

@@ -195,19 +195,17 @@ describe('ProfileCard actions', () => {
   })
 
   it("ignores a previous account's settle on another profile", async () => {
-    const gate = Promise.withResolvers<never>()
-    vi.mocked(follow).mockReturnValueOnce(gate.promise)
+    const gate = Promise.withResolvers<void>()
+    vi.mocked(mute).mockReturnValueOnce(gate.promise)
 
     const queryClient = createTestQueryClient()
-    const aliceKey = ['profile', 'custom.test', 'alpha.test', 'did:plc:alice']
-    const bobKey = ['profile', 'custom.test', 'bravo.test', 'did:plc:bob']
-    queryClient.setQueryDefaults(aliceKey, { gcTime: Number.POSITIVE_INFINITY })
-    queryClient.setQueryDefaults(bobKey, { gcTime: Number.POSITIVE_INFINITY })
-
     const alpha = profileFixture({ did: 'did:plc:alpha', handle: 'alpha.test' })
     const bravo = profileFixture({ did: 'did:plc:bravo', handle: 'bravo.test' })
-    queryClient.setQueryData(aliceKey, alpha)
-    queryClient.setQueryData(bobKey, bravo)
+    // the production key is ['profile', actor, viewer]; one viewer keeps both
+    // entries under the same viewer slot, so only the did inside each entry
+    // decides which cache entry an action may patch
+    const alphaKey = seedProfile(queryClient, alpha, 'did:plc:alice')
+    const bravoKey = seedProfile(queryClient, bravo, 'did:plc:alice')
 
     useAuthStore.setState({
       status: 'authenticated',
@@ -217,7 +215,12 @@ describe('ProfileCard actions', () => {
     })
 
     const { rerenderProfile } = renderProfile(alpha, queryClient)
-    fireEvent.click(screen.getByRole('button', { name: 'follow' }))
+    fireEvent.click(screen.getByRole('button', { name: 'mute' }))
+
+    // the optimistic patch lands on the visible profile's entry and leaves the
+    // other profile under the same viewer alone
+    expect(queryClient.getQueryData<ProfileModel>(alphaKey)?.viewer.muted).toBe(true)
+    expect(queryClient.getQueryData(bravoKey)).toEqual(bravo)
 
     act(() => {
       useAuthStore.setState({ account: { did: 'did:plc:bob', handle: 'bob.test' } })
@@ -225,12 +228,15 @@ describe('ProfileCard actions', () => {
     rerenderProfile(bravo)
 
     await act(async () => {
-      gate.reject(new Error('follow refused'))
+      gate.reject(new Error('mute refused'))
     })
 
-    expect(queryClient.getQueryData(bobKey)).toEqual(bravo)
+    // the stale settle belongs to the old epoch: it rolls nothing back, writes
+    // no other profile's cache and raises no alert on the new one
+    expect(queryClient.getQueryData<ProfileModel>(alphaKey)?.viewer.muted).toBe(true)
+    expect(queryClient.getQueryData(bravoKey)).toEqual(bravo)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'follow' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'mute' })).toBeEnabled()
   })
 
   it('leaves newer cache fields alone when an optimistic-free follow fails', async () => {

@@ -108,7 +108,11 @@ describe('Deck keyboard', () => {
     const onExitStart = vi.fn()
     const { container, unmount } = render(deck(ITEMS, onExitStart))
 
-    for (const key of ['j', 'k', 'h', 'l']) fireEvent.keyDown(window, { key })
+    // the retired letters are neither acted on nor consumed: the deck does not
+    // own them, so a page-level shortcut still sees the key
+    for (const key of ['j', 'k', 'h', 'l']) {
+      expect(keyConsumed({ key }), key).toBe(false)
+    }
     expect(focusedIndex(container)).toBe('0')
 
     // the arrows still own movement on the wide axis
@@ -120,7 +124,9 @@ describe('Deck keyboard', () => {
     unmount()
     stubWide(false)
     const narrow = render(deck(ITEMS, onExitStart))
-    for (const key of ['j', 'k', 'h', 'l']) fireEvent.keyDown(window, { key })
+    for (const key of ['j', 'k', 'h', 'l']) {
+      expect(keyConsumed({ key }), key).toBe(false)
+    }
     expect(focusedIndex(narrow.container)).toBe('0')
     fireEvent.keyDown(window, { key: 'ArrowDown' })
     expect(focusedIndex(narrow.container)).toBe('1')

@@ -101,7 +101,10 @@ export default function ThreadView() {
 
   useEffect(() => {
     setFocusedReply(null)
-    closeInlineCompose()
+    // a request that targets this thread arrived with the route change and must
+    // survive the mount so the dock can focus it; one for another thread closes
+    const request = useUiStore.getState().inlineCompose
+    if (request?.post?.uri !== uri) closeInlineCompose()
   }, [uri, closeInlineCompose])
 
   useEffect(() => {
@@ -206,7 +209,7 @@ export default function ThreadView() {
 
   // p jumps to the thread of the parent post (the focused reply's parent, or
   // the focus post's parent). Escape or left leaves the thread outright; up
-  // walks to a parent reply and opens the parent thread only at the focus post.
+  // walks to a parent reply and is swallowed at the focus post.
   useEffect(() => {
     const handleParentKey = (event: globalThis.KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return

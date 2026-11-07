@@ -620,6 +620,9 @@ describe('ProfileView media mode', () => {
               indexedAt,
               embed: imageEmbed('foreign'),
             },
+            // a pinned post from someone else is pinned context, not the
+            // author's own media, so it still stays out of the deck
+            reason: { $type: 'app.bsky.feed.defs#reasonPin' },
           },
         ],
       }),
