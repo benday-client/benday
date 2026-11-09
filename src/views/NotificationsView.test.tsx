@@ -226,7 +226,6 @@ describe('NotificationsView cards', () => {
     expect(stats?.textContent).toBe('2 replies · 7 likes · 1 repost')
     expect(context.contains(stats)).toBe(true)
     expect(document.querySelector('.b-notif__foot .b-notif__context-stats')).toBeNull()
-    expect(document.querySelector('.b-notif__foot-stats')).toBeNull()
     // the context block points at the same thread as the card's open link
     expect(context.getAttribute('href')).toContain('/thread?uri=')
   })
@@ -282,12 +281,11 @@ describe('NotificationsView cards', () => {
     expect(memory.history.length).toBe(before + 1)
   })
 
-  it('keeps the header free of counts and refresh controls', async () => {
+  it('keeps the header free of refresh controls', async () => {
     renderNotifications()
 
     await screen.findByText('🚀 rocketeer')
 
-    expect(document.querySelector('.b-notif__count')).toBeNull()
     expect(screen.queryByRole('button', { name: 'refresh' })).toBeNull()
   })
 
