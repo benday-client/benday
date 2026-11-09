@@ -350,6 +350,35 @@ describe('escape precedence stack', () => {
     }
   })
 
+  it('returns notifications to search when search was the previous tab', async () => {
+    const transport = await signInShell()
+    transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.searchPosts`, () =>
+      jsonResponse(200, { posts: [] }),
+    )
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      await screen.findByLabelText('posts')
+
+      act(() => {
+        window.history.pushState({}, '', '/search?q=cats')
+      })
+      await screen.findByLabelText('query')
+
+      act(() => {
+        window.history.pushState({}, '', '/notifications')
+      })
+      await screen.findByText('nothing yet')
+
+      fireEvent.keyDown(document.body, { key: 'Escape' })
+
+      await waitFor(() => expect(window.location.pathname).toBe('/search'))
+      expect(window.location.search).toBe('?q=cats')
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('closes the palette with escape without changing route', async () => {
     await signInShell()
     window.history.pushState({}, '', '/search')

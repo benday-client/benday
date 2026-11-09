@@ -189,6 +189,8 @@ function AppShell() {
       previousPath !== null &&
       previousPath !== pathname &&
       (previousPath === '/feed' ||
+        previousPath === '/' ||
+        previousPath === '/search' ||
         previousPath === '/notifications' ||
         previousPath.startsWith('/profile/'))
     ) {
