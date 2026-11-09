@@ -286,6 +286,25 @@ describe('sign-in transitions', () => {
     expect(storedSession()).toEqual(bobOnly)
   })
 
+  it('keeps a stored session from another tab through refresh and expiry', async () => {
+    await signInAs(ALICE)
+    const otherTab = JSON.stringify({ service: 'https://pds.test', session: BOB })
+    localStorage.setItem(AUTH_STORAGE_KEY, otherTab)
+
+    routeRefresh({ ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' })
+    await passwordSession(getAuthAgent())?.refreshSession()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBe(otherTab)
+
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.refreshSession', () =>
+      jsonResponse(401, { error: 'ExpiredToken', message: 'expired' }),
+    )
+    await expect(passwordSession(getAuthAgent())?.refreshSession()).rejects.toThrow()
+
+    expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', account: null })
+    expect(getAuthAgent()).toBeNull()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBe(otherTab)
+  })
+
   it('adopts a renamed handle from the committed agent refresh without replacing the session', async () => {
     await signInAs(ALICE)
     const agent = getAuthAgent()

@@ -189,7 +189,12 @@ function makeAgent(service: string): AtpAgent {
 
       if (event === 'create' || event === 'update') {
         if (session === undefined) return
-        writeStoredAuth(service, session)
+        // Another tab may own the stored slot. This agent's refresh must not
+        // overwrite a different account's persisted session with its own.
+        const stored = readStoredAuth()
+        if (stored === null || stored.session.did === session.did) {
+          writeStoredAuth(service, session)
+        }
         // A token refresh can carry a handle rename. The stored session now
         // has the new handle, so the live account must adopt it too; same did
         // and same agent, so neither the epoch nor interaction state moves.
@@ -201,7 +206,15 @@ function makeAgent(service: string): AtpAgent {
       }
 
       if (event === 'expired') {
-        clearStoredAuth()
+        // The stored record is only this agent's to delete while it names the
+        // same account. Another tab may have persisted a different session, so
+        // this tab's expiry must leave it alone. The sdk drops its own session
+        // before it reports expiry, so the committed account still in the
+        // store is the last identity this agent owned.
+        const { account } = useAuthStore.getState()
+        const ownedDid = agent.did ?? account?.did
+        const stored = readStoredAuth()
+        if (stored === null || stored.session.did === ownedDid) clearStoredAuth()
         activeAgent = null
 
         // A newer auth operation owns the epoch while it is pending. Clearing
