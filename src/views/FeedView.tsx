@@ -386,7 +386,7 @@ export default function FeedView() {
                     title="could not load pinned feeds"
                     message={pinnedFailureShown.message}
                     onRetry={retryPinned}
-                    retrying={pinned.isPending}
+                    retrying={pinned.isFetching}
                   />
                 ) : (
                   <EmptyState
@@ -459,7 +459,7 @@ export default function FeedView() {
                     title="could not load pinned feeds"
                     message={pinnedFailureShown.message}
                     onRetry={retryPinned}
-                    retrying={pinned.isPending}
+                    retrying={pinned.isFetching}
                   />
                 ) : noFeeds || pinnedUnresolved ? (
                   <EmptyState

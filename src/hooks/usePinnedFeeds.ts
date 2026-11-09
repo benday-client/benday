@@ -7,6 +7,7 @@ import type { PinnedFeedModel } from '../lib/types'
 export interface PinnedFeedsState {
   feeds: PinnedFeedModel[]
   isPending: boolean
+  isFetching: boolean
   error: Error | null
   reload: () => void
 }
@@ -27,6 +28,7 @@ export function usePinnedFeeds(): PinnedFeedsState {
   return {
     feeds: query.data ?? [],
     isPending: did !== null && query.isPending,
+    isFetching: did !== null && query.isFetching,
     error: did === null || query.data !== undefined ? null : normalizeError(query.error),
     reload: () => {
       void query.refetch()
