@@ -128,6 +128,23 @@ describe('external card', () => {
     expect(screen.queryByText('example.com/captcha-guide')).not.toBeInTheDocument()
   })
 
+  it('keeps a description when only the title is missing', () => {
+    const { container } = render(
+      <Embeds
+        embed={external({
+          uri: 'https://example.com/notes/one',
+          title: '',
+          description: 'still worth reading',
+        })}
+      />,
+    )
+
+    expect(container.querySelector('.b-embed__external-title')?.textContent).toBe(
+      'example.com/notes/one',
+    )
+    expect(screen.getByText('still worth reading')).toBeInTheDocument()
+  })
+
   it('falls back to the domain when the uri does not parse', () => {
     const { container } = render(
       <Embeds

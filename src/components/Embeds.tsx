@@ -129,10 +129,10 @@ function ExternalCard({ embed, concealed }: { embed: ExternalEmbed; concealed: b
   const href = safeExternalUrl(embed.uri)
   // crawler block pages arrive as ordinary titles, so show the address instead;
   // a legit title that merely mentions a captcha needs the description to agree
+  const missingTitle = embed.title.length === 0
   const blocked =
-    embed.title.length === 0 ||
-    (looksLikeBlockPage(embed.title) && looksLikeBlockPage(embed.description))
-  const title = blocked ? externalAddress(embed.uri, embed.domain) : embed.title
+    !missingTitle && looksLikeBlockPage(embed.title) && looksLikeBlockPage(embed.description)
+  const title = missingTitle || blocked ? externalAddress(embed.uri, embed.domain) : embed.title
   const content = (
     <>
       {embed.thumb !== null && embed.thumb.length > 0 ? (
