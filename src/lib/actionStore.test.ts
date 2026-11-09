@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { postFixture } from '../test/fixtures'
 import {
+  displayedCount,
   UNCONFIRMED_STATE,
   useActionStore,
   VIEWER_STALE_TIME,
@@ -295,5 +296,29 @@ describe('action store freshness', () => {
     expect(entry()?.likeUri).toBe('at://like/1')
     expect(entry()?.likeDelta).toBe(1)
     expect(entry()?.error).toBeNull()
+  })
+
+  it('retires a delta once a newer snapshot supersedes its base', async () => {
+    expect(displayedCount(0, 0, -1)).toBe(0)
+    vi.mocked(fetchViewerStates).mockResolvedValue(viewerState({}))
+    vi.mocked(likePost).mockResolvedValue({ uri: 'at://like/local', cid: 'cid' })
+
+    await useActionStore.getState().toggleLike(POST)
+    expect(entry()?.likeBaseCount).toBe(2)
+    expect(entry()?.likeDelta).toBe(1)
+
+    // a card that still carries the old count leaves the delta alone
+    useActionStore.getState().retireCounts([{ uri: URI, likeCount: 2, repostCount: 1 }])
+    expect(entry()?.likeBaseCount).toBe(2)
+    expect(entry()?.likeDelta).toBe(1)
+
+    // the refreshed count already includes the write, so the delta is spent
+    useActionStore.getState().retireCounts([{ uri: URI, likeCount: 5, repostCount: 1 }])
+    expect(entry()?.likeBaseCount).toBeNull()
+    expect(entry()?.likeDelta).toBe(0)
+
+    // a later snapshot back at the old base must not revive the ignored delta
+    useActionStore.getState().retireCounts([{ uri: URI, likeCount: 2, repostCount: 1 }])
+    expect(displayedCount(2, entry()?.likeBaseCount ?? null, entry()?.likeDelta ?? 0)).toBe(2)
   })
 })

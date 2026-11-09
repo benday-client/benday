@@ -37,12 +37,16 @@ export const UNCONFIRMED_STATE = 'could not confirm the current interaction stat
 interface ActionState {
   byUri: Record<string, ActionEntry>
   syncViewer: (uris: readonly string[]) => Promise<void>
+  retireCounts: (snapshots: readonly PostCountSnapshot[]) => void
   toggleLike: (post: PostModel) => Promise<void>
   toggleRepost: (post: PostModel) => Promise<void>
   reset: () => void
 }
 
 type Side = 'like' | 'repost'
+
+/** the canonical counts a currently loaded card carries */
+type PostCountSnapshot = Pick<PostModel, 'uri' | 'likeCount' | 'repostCount'>
 
 const EMPTY_ENTRY: ActionEntry = {
   likeUri: null,
@@ -97,7 +101,7 @@ function withEntry(
  */
 export function displayedCount(count: number, base: number | null, delta: number): number {
   if (base === null || count !== base) return count
-  return count + delta
+  return Math.max(0, count + delta)
 }
 
 function rebaseCount(
@@ -392,6 +396,41 @@ export const useActionStore = create<ActionState>()((set, get) => {
       } catch {
         // viewer state is an enhancement here; a toggle reports its own failure
       }
+    },
+
+    /**
+     * a newer canonical snapshot that disagrees with a stored base makes its
+     * delta permanently stale; leaving the delta in place would revive it on
+     * the next snapshot that happens to match the old base again
+     */
+    retireCounts: (snapshots) => {
+      set((state) => {
+        let byUri = state.byUri
+        let changed = false
+        for (const snapshot of snapshots) {
+          const entry = byUri[snapshot.uri]
+          if (entry === undefined) continue
+          const retireLike =
+            entry.likeBaseCount !== null &&
+            entry.likeBaseCount !== snapshot.likeCount &&
+            entry.likeDelta !== 0
+          const retireRepost =
+            entry.repostBaseCount !== null &&
+            entry.repostBaseCount !== snapshot.repostCount &&
+            entry.repostDelta !== 0
+          if (!retireLike && !retireRepost) continue
+          if (!changed) {
+            byUri = { ...state.byUri }
+            changed = true
+          }
+          byUri[snapshot.uri] = {
+            ...entry,
+            ...(retireLike ? { likeBaseCount: null, likeDelta: 0 } : {}),
+            ...(retireRepost ? { repostBaseCount: null, repostDelta: 0 } : {}),
+          }
+        }
+        return changed ? { byUri } : {}
+      })
     },
 
     toggleLike: async (post) => {
