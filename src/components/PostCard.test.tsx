@@ -1296,6 +1296,28 @@ describe('PostCard actions', () => {
     expect(deletePost).not.toHaveBeenCalled()
   })
 
+  it('does not confirm the delete from enter on an in-card control', async () => {
+    vi.mocked(deletePost).mockResolvedValue(undefined)
+    renderOwnFocused()
+
+    fireEvent.keyDown(window, { key: 'd' })
+    const cancel = screen.getByRole('button', { name: 'cancel' })
+    cancel.focus()
+
+    // the card must not claim the press, so the control keeps native activation
+    expect(fireEvent.keyDown(cancel, { key: 'Enter' })).toBe(true)
+    // jsdom has no native activation, so the click it would produce is explicit
+    fireEvent.click(cancel)
+
+    expect(screen.queryByRole('button', { name: 'cancel' })).not.toBeInTheDocument()
+    expect(deletePost).not.toHaveBeenCalled()
+
+    // the card surface still confirms a fresh arm with enter
+    fireEvent.keyDown(window, { key: 'd' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() => expect(deletePost).toHaveBeenCalledTimes(1))
+  })
+
   it('hands focus to the owning deck before the confirm control is disabled', () => {
     vi.mocked(deletePost).mockReturnValue(new Promise<void>(() => {}))
     useAuthStore.setState({

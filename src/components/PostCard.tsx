@@ -469,6 +469,9 @@ function PostCardView({
 
       // enter confirms an armed delete; d arms and then confirms
       if (event.key !== 'd' && !(confirmingDelete && event.key === 'Enter')) return
+      // a control inside the card runs its own activation: enter on cancel
+      // must disarm, and enter on copy must copy, not delete the post
+      if (confirmingDelete && event.key === 'Enter' && isInteractiveTarget(event.target)) return
 
       event.preventDefault()
       if (confirmingDelete) {
