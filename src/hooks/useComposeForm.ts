@@ -282,10 +282,7 @@ export function useComposeForm({
   const mode: ComposeMode = request === null ? 'post' : request.mode
   const target = request === null ? null : request.post
   const token = suggestOpen ? suggestionAt(text, cursor) : null
-  const actorSuggestions = useActorSuggestions(
-    token?.kind === 'mention' ? token.query : '',
-    token?.kind === 'mention',
-  )
+  const actorSuggestions = useActorSuggestions(token?.query ?? '', token !== null)
   const suggestions = buildSuggestions(token, actorSuggestions.suggestions)
   const suggestionsPending = actorSuggestions.isPending
   const showSuggestions =

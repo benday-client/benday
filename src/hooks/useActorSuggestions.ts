@@ -7,14 +7,10 @@ export interface ActorSuggestionsState {
   isPending: boolean
 }
 
-export interface MentionToken {
+export interface SuggestionToken {
   start: number
   end: number
   query: string
-}
-
-export interface SuggestionToken extends MentionToken {
-  kind: 'mention'
 }
 
 const TOKEN_CHAR = /[\p{L}\p{N}._-]/u
@@ -67,7 +63,7 @@ export function suggestionAt(text: string, cursor: number): SuggestionToken | nu
   // around the token, so the replacement span and its query stop before them
   while (end > start + 1 && TRAILING_TOKEN_PUNCTUATION[text.charAt(end - 1)] === true) end -= 1
   const query = text.slice(start + 1, Math.min(cursor, end))
-  return { start, end, query, kind: 'mention' }
+  return { start, end, query }
 }
 
 /**

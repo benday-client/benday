@@ -18,7 +18,6 @@ describe('suggestionAt punctuation boundaries', () => {
       start: 3,
       end: 6,
       query: 'ad',
-      kind: 'mention',
     })
     // a typed hashtag is ordinary search text and never opens suggestions
     expect(suggestionAt('look #tag.', 10)).toBeNull()
@@ -29,7 +28,6 @@ describe('suggestionAt punctuation boundaries', () => {
       start: 3,
       end: 6,
       query: 'ad',
-      kind: 'mention',
     })
   })
 
@@ -38,7 +36,6 @@ describe('suggestionAt punctuation boundaries', () => {
       start: 3,
       end: 6,
       query: 'ad',
-      kind: 'mention',
     })
   })
 
@@ -47,13 +44,11 @@ describe('suggestionAt punctuation boundaries', () => {
       start: 3,
       end: 21,
       query: 'alice.bsky.social',
-      kind: 'mention',
     })
     expect(suggestionAt('hi @some-handle', 15)).toEqual({
       start: 3,
       end: 15,
       query: 'some-handle',
-      kind: 'mention',
     })
   })
 })

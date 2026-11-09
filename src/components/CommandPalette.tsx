@@ -105,10 +105,6 @@ interface PaletteCommand {
   run: () => void
 }
 
-interface PaletteSuggestion extends SuggestionItem {
-  kind: 'mention'
-}
-
 export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: CommandPaletteProps) {
   const [, navigate] = useLocation()
   const account = useAuthStore((state) => state.account)
@@ -129,15 +125,8 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
   const selectedIdRef = useRef<string | null>(null)
   const justOpenedRef = useRef(false)
   const token = open ? suggestionAt(input, cursor) : null
-  const actorSuggestions = useActorSuggestions(
-    token?.kind === 'mention' ? token.query : '',
-    token?.kind === 'mention',
-  )
-  const shaped = buildSuggestions(token, actorSuggestions.suggestions)
-  // the palette is the one surface that also labels which marker an item came
-  // from, so its rows keep their own discriminant
-  const suggestions: PaletteSuggestion[] =
-    token === null ? [] : shaped.map((item) => ({ ...item, kind: 'mention' }))
+  const actorSuggestions = useActorSuggestions(token?.query ?? '', token !== null)
+  const suggestions = buildSuggestions(token, actorSuggestions.suggestions)
 
   const suggestionsPending = actorSuggestions.isPending
 
@@ -288,14 +277,14 @@ export function CommandPalette({ open, onClose, onOpenHelp, onOpenSettings }: Co
 
   // an exact `@me` query is answered by the real account command, not by a
   // literal handle that would resolve to a made-up /profile/me
-  const exactMeMention = token?.kind === 'mention' && token.query.trim().toLowerCase() === 'me'
-  const mentionSuggestions: PaletteSuggestion[] = exactMeMention
+  const exactMeMention = token !== null && token.query.trim().toLowerCase() === 'me'
+  const mentionSuggestions: SuggestionItem[] = exactMeMention
     ? suggestions.filter((suggestion) => suggestion.value.toLowerCase() !== 'me')
     : suggestions
   const autocompleteCommands: PaletteCommand[] = [
     ...(exactMeMention ? [meCommand] : []),
     ...mentionSuggestions.map((suggestion) => ({
-      id: `jump-suggestion:${suggestion.kind}:${suggestion.value}`,
+      id: `jump-suggestion:mention:${suggestion.value}`,
       label: suggestion.label,
       meta: suggestion.detail,
       keywords: '',
