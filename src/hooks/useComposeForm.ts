@@ -289,7 +289,7 @@ export function useComposeForm({
   const suggestions = buildSuggestions(token, actorSuggestions.suggestions)
   const suggestionsPending = actorSuggestions.isPending
   const showSuggestions =
-    !pending && token !== null && (suggestionsPending || suggestions.length > 0)
+    !pending && !sent && token !== null && (suggestionsPending || suggestions.length > 0)
   const activeSuggestion =
     suggestions.length === 0 ? -1 : Math.min(selectedSuggestion, suggestions.length - 1)
   const plain = markdownText(text)
@@ -320,6 +320,7 @@ export function useComposeForm({
     .join(' ')
 
   const applySuggestion = (value: string) => {
+    if (sent) return
     const activeToken = suggestionAt(text, cursor)
     if (activeToken === null) return
 
@@ -339,6 +340,9 @@ export function useComposeForm({
   }
 
   const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    // the read-only editor after a send may keep its native selection, not its
+    // text changes
+    if (sent) return
     const next = event.target.value
     const position = event.target.selectionStart ?? next.length
     updateText(next)
@@ -364,6 +368,7 @@ export function useComposeForm({
       event.currentTarget.form?.requestSubmit()
       return
     }
+    if (sent) return
     if (!showSuggestions) return
 
     const options = suggestions.length
