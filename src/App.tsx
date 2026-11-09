@@ -213,16 +213,21 @@ function AppShell() {
     document.title = `benday // ${routeTitle(pathname, search)}`
   }, [pathname, search])
 
+  // a thread route carries its post in the query, so another thread is another
+  // focus identity; every other route keeps focus across its query edits
+  const routeFocusKey =
+    pathname === '/thread' ? `${pathname}${search.length > 0 ? `?${search}` : ''}` : pathname
+
   useEffect(() => {
     const main = mainRef.current
     if (main === null) return
     // the first commit is a landing, not a swap: the route focuses itself
     const landed = landedPathRef.current
-    landedPathRef.current = pathname
-    if (landed === null || landed === pathname) return
+    landedPathRef.current = routeFocusKey
+    if (landed === null || landed === routeFocusKey) return
     const focusMain = () => {
       // a later route has already committed; its own effect owns focus now
-      if (landedPathRef.current !== pathname) return
+      if (landedPathRef.current !== routeFocusKey) return
       // the incoming route may have focused its own control (query field,
       // deck, menu), and that focus is always more useful than the container
       if (main.contains(document.activeElement)) return
@@ -247,7 +252,7 @@ function AppShell() {
     const handleClose = () => focusMain()
     closing.addEventListener('close', handleClose, { once: true })
     return () => closing.removeEventListener('close', handleClose)
-  }, [pathname])
+  }, [routeFocusKey])
 
   useEffect(() => {
     document.documentElement.dataset['theme'] = theme
