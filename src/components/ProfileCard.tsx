@@ -1,9 +1,10 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { type Query, type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../lib/auth'
 import { focusOwningDeck } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { block, follow, mute, unblock, unfollow, unmute } from '../lib/profileActions'
+import { isRecord } from '../lib/records'
 import type { ProfileModel, ProfileViewerState } from '../lib/types'
 import { Avatar } from './Avatar'
 import { DitherImage } from './DitherImage'
@@ -19,6 +20,33 @@ export interface ProfileCardProps {
 }
 
 type ProfileAction = 'follow' | 'unfollow' | 'mute' | 'unmute' | 'block' | 'unblock'
+
+// one attempt token per viewer and profile on a query client, so a remounted
+// card and an older action share a slot: only the newest attempt may settle
+const profileAttempts = new WeakMap<QueryClient, Map<string, symbol>>()
+
+function profileAttemptKey(identity: ProfileIdentity): string {
+  return `${identity.viewerDid}\n${identity.profileDid}`
+}
+
+function startProfileAttempt(queryClient: QueryClient, identity: ProfileIdentity): symbol {
+  const key = profileAttemptKey(identity)
+  let attempts = profileAttempts.get(queryClient)
+  if (attempts === undefined) {
+    attempts = new Map()
+    profileAttempts.set(queryClient, attempts)
+  }
+  const attempt = Symbol(key)
+  attempts.set(key, attempt)
+  return attempt
+}
+
+/** a profile query this account owns for the action's profile, by key and did */
+function ownsProfileQuery(query: Query, identity: ProfileIdentity): boolean {
+  if (query.queryKey[0] !== 'profile' || query.queryKey[2] !== identity.viewerDid) return false
+  const data = query.state.data
+  return isRecord(data) && data['did'] === identity.profileDid
+}
 
 function httpUrl(raw: string): string | null {
   try {
@@ -105,18 +133,15 @@ export function ProfileCard({ profile }: ProfileCardProps) {
     // cross-host patches for the same account stay; another viewer or another
     // profile's cache entry never receives this state
     queryClient.setQueriesData<ProfileModel>(
-      {
-        predicate: (query) =>
-          query.queryKey[0] === 'profile' && query.queryKey[2] === identity.viewerDid,
-      },
+      { predicate: (query) => ownsProfileQuery(query, identity) },
       (current) => {
-        if (current === undefined || current.did !== identity.profileDid) return current
+        if (current === undefined) return current
         return { ...current, viewer: { ...current.viewer, ...patch } }
       },
     )
   }
 
-  const runAction = (
+  const runAction = async (
     action: ProfileAction,
     task: () => Promise<Partial<ProfileViewerState> | null>,
     optimistic: Partial<ProfileViewerState> | null,
@@ -124,31 +149,38 @@ export function ProfileCard({ profile }: ProfileCardProps) {
     if (pending !== null) return
 
     const captured = identityRef.current
+    const attempt = startProfileAttempt(queryClient, captured)
     const previous = profile.viewer
+    // a remount shares this token slot, so an older completion can no longer
+    // overwrite the newer surface or its cache
+    const owns = () =>
+      profileAttempts.get(queryClient)?.get(profileAttemptKey(captured)) === attempt &&
+      (useAuthStore.getState().account?.did ?? 'anonymous') === captured.viewerDid &&
+      identityRef.current.profileDid === captured.profileDid
+
     // every action disables the toolbar while it runs; move the keyboard to
     // the owning deck before the focused control becomes unreachable
     focusOwningDeck(actionsRef.current)
     setPending(action)
     setError(null)
+
+    // a profile fetch that started before this action would land with the
+    // pre-action viewer state, so it is cancelled before the guess is written
+    await queryClient.cancelQueries({ predicate: (query) => ownsProfileQuery(query, captured) })
+    if (!owns()) return
     if (optimistic !== null) applyViewer(optimistic, captured)
 
-    const owns = () =>
-      identityRef.current.viewerDid === captured.viewerDid &&
-      identityRef.current.profileDid === captured.profileDid
-
-    void task()
-      .then((patch) => {
-        if (patch !== null && owns()) applyViewer(patch, captured)
-      })
-      .catch((reason: unknown) => {
-        if (!owns()) return
-        const rollback = rollbackViewer(optimistic, previous)
-        if (rollback !== null) applyViewer(rollback, captured)
-        setError(errorInfo(reason).detail)
-      })
-      .finally(() => {
-        if (owns()) setPending(null)
-      })
+    try {
+      const patch = await task()
+      if (patch !== null && owns()) applyViewer(patch, captured)
+    } catch (reason: unknown) {
+      if (!owns()) return
+      const rollback = rollbackViewer(optimistic, previous)
+      if (rollback !== null) applyViewer(rollback, captured)
+      setError(errorInfo(reason).detail)
+    } finally {
+      if (owns()) setPending(null)
+    }
   }
 
   const toggling = pending !== null
@@ -235,7 +267,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
               onClick={() => {
                 if (viewer.following !== null) {
                   const followUri = viewer.following
-                  runAction(
+                  void runAction(
                     'unfollow',
                     async () => {
                       await unfollow(followUri)
@@ -245,7 +277,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
                   )
                   return
                 }
-                runAction(
+                void runAction(
                   'follow',
                   async () => {
                     const result = await follow(profile.did)
@@ -272,7 +304,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
               disabled={toggling}
               onClick={() => {
                 if (viewer.muted) {
-                  runAction(
+                  void runAction(
                     'unmute',
                     async () => {
                       await unmute(profile.did)
@@ -282,7 +314,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
                   )
                   return
                 }
-                runAction(
+                void runAction(
                   'mute',
                   async () => {
                     await mute(profile.did)
@@ -310,7 +342,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
               onClick={() => {
                 if (viewer.blocking !== null) {
                   const blockUri = viewer.blocking
-                  runAction(
+                  void runAction(
                     'unblock',
                     async () => {
                       await unblock(blockUri)
@@ -320,7 +352,7 @@ export function ProfileCard({ profile }: ProfileCardProps) {
                   )
                   return
                 }
-                runAction(
+                void runAction(
                   'block',
                   async () => {
                     const result = await block(profile.did)

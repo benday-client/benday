@@ -1,10 +1,10 @@
 // biome-ignore-all lint/a11y/noNoninteractiveTabindex: the deck stand-in is a focusable scroll region, like Deck.tsx
 import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../lib/auth'
-import { follow, mute } from '../lib/profileActions'
+import { follow, mute, unmute } from '../lib/profileActions'
 import type { ProfileModel } from '../lib/types'
 import { profileFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
@@ -219,7 +219,9 @@ describe('ProfileCard actions', () => {
 
     // the optimistic patch lands on the visible profile's entry and leaves the
     // other profile under the same viewer alone
-    expect(queryClient.getQueryData<ProfileModel>(alphaKey)?.viewer.muted).toBe(true)
+    await waitFor(() =>
+      expect(queryClient.getQueryData<ProfileModel>(alphaKey)?.viewer.muted).toBe(true),
+    )
     expect(queryClient.getQueryData(bravoKey)).toEqual(bravo)
 
     act(() => {
@@ -282,7 +284,9 @@ describe('ProfileCard actions', () => {
 
     renderProfile(alpha, queryClient)
     fireEvent.click(screen.getByRole('button', { name: 'mute' }))
-    expect(queryClient.getQueryData<ProfileModel>(key)?.viewer.muted).toBe(true)
+    await waitFor(() =>
+      expect(queryClient.getQueryData<ProfileModel>(key)?.viewer.muted).toBe(true),
+    )
 
     const fetched: ProfileModel = {
       ...alpha,
@@ -305,6 +309,49 @@ describe('ProfileCard actions', () => {
       activitySubscription: fetched.viewer.activitySubscription,
     })
     expect(screen.getByRole('alert')).toHaveTextContent('mute refused')
+  })
+
+  it('keeps a newer action result when an older mount settles late', async () => {
+    const stale = Promise.withResolvers<void>()
+    const current = Promise.withResolvers<void>()
+    vi.mocked(mute).mockReturnValueOnce(stale.promise)
+    vi.mocked(unmute).mockReturnValueOnce(current.promise)
+    signedIn()
+
+    const queryClient = createTestQueryClient()
+    const alpha = profileFixture({ did: 'did:plc:alpha', handle: 'alpha.test' })
+    const key = seedProfile(queryClient, alpha, 'did:plc:me')
+    const { unmount } = renderProfile(alpha, queryClient)
+
+    fireEvent.click(screen.getByRole('button', { name: 'mute' }))
+    await waitFor(() =>
+      expect(queryClient.getQueryData<ProfileModel>(key)?.viewer.muted).toBe(true),
+    )
+
+    unmount()
+    const cached = queryClient.getQueryData<ProfileModel>(key)
+    if (cached === undefined) throw new Error('profile cache missing')
+
+    // the remounted card starts from the optimistic state and unmutes it
+    renderProfile(cached, queryClient)
+    fireEvent.click(screen.getByRole('button', { name: 'unmute' }))
+    await waitFor(() =>
+      expect(queryClient.getQueryData<ProfileModel>(key)?.viewer.muted).toBe(false),
+    )
+    await act(async () => {
+      current.resolve()
+    })
+
+    // the older mute settles last, but the newer attempt owns the pair now
+    const settled = Promise.withResolvers<void>()
+    await act(async () => {
+      stale.resolve()
+      setTimeout(() => {
+        settled.resolve()
+      }, 0)
+      await settled.promise
+    })
+    expect(queryClient.getQueryData<ProfileModel>(key)?.viewer.muted).toBe(false)
   })
 })
 
