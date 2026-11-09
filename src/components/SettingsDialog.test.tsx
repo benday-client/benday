@@ -562,4 +562,25 @@ describe('SettingsDialog import limits', () => {
     expect(await screen.findByText('settings imported')).toBeInTheDocument()
     expect(useSettings.getState().theme).toBe('catppuccin-mocha')
   })
+
+  it('keeps the newer pick when an older read resolves last', async () => {
+    const { container } = renderSettings()
+    const slowRead = Promise.withResolvers<string>()
+    const slow = new File(['slow'], 'slow.json', { type: 'application/json' })
+    Object.defineProperty(slow, 'text', { value: () => slowRead.promise })
+    const fast = new File([serializeSettings({ ...SAMPLE, appearance: 'light' })], 'fast.json', {
+      type: 'application/json',
+    })
+
+    pickFile(container, slow)
+    pickFile(container, fast)
+    expect(await screen.findByText('settings imported')).toBeInTheDocument()
+    expect(useSettings.getState().appearance).toBe('light')
+
+    // the older pick lands after the newer one and changes nothing
+    slowRead.resolve(serializeSettings(SAMPLE))
+    await act(async () => undefined)
+    expect(useSettings.getState().appearance).toBe('light')
+    expect(screen.queryByText('could not read settings file')).toBeNull()
+  })
 })

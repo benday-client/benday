@@ -67,6 +67,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   // Monotonic id of the currently open instance. A sign-out captures it so a
   // completion can only close the opening it was started from.
   const openingRef = useRef(0)
+  // the latest file pick owns the transfer; an older read that resolves last
+  // cannot apply its settings or report into a newer opening
+  const transferRef = useRef(0)
   const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
   const settingMatches = SETTING_SEARCH.filter((entry) =>
     matchesSearchTokens(`${entry.label} ${entry.keywords}`, settingQuery),
@@ -162,13 +165,20 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       return
     }
 
+    const opening = openingRef.current
+    const transfer = ++transferRef.current
+
     let text: string
     try {
       text = await file.text()
     } catch {
-      setTransferError('could not read settings file')
+      if (opening === openingRef.current && transfer === transferRef.current) {
+        setTransferError('could not read settings file')
+      }
       return
     }
+    // a newer pick or another opening replaced this read while it waited
+    if (opening !== openingRef.current || transfer !== transferRef.current) return
 
     const result = parseSettingsFileJson(text)
     if (!result.ok) {
