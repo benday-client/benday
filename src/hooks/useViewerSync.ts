@@ -11,6 +11,9 @@ import type { PostModel } from '../lib/types'
  */
 export function useViewerSync(posts: readonly PostModel[]): void {
   const status = useAuthStore((state) => state.status)
+  // the same uris under another account are a different viewer read, so the
+  // account identity belongs to the effect key
+  const accountDid = useAuthStore((state) => state.account?.did ?? null)
   const key = posts.map((post) => post.uri).join('\n')
   // retirement follows the canonical counts, so this string keys the effect
   // off count changes instead of every freshly flattened feed array
@@ -23,7 +26,7 @@ export function useViewerSync(posts: readonly PostModel[]): void {
   useEffect(() => {
     if (status !== 'authenticated' || key.length === 0) return
     void useActionStore.getState().syncViewer(key.split('\n'))
-  }, [status, key])
+  }, [status, accountDid, key])
 
   useEffect(() => {
     if (status !== 'authenticated' || countsKey.length === 0) return
