@@ -39,7 +39,7 @@ export interface LoopbackLocation {
 // signing in on /feed and then opening /notifications would present a token
 // issued to a different client and the pds answers "token was not issued to
 // this client". one canonical callback keeps the id stable across routes.
-export const OAUTH_REDIRECT_PATH = '/feed'
+const OAUTH_REDIRECT_PATH = '/feed'
 
 /**
  * A loopback client id must carry no path: `http://localhost/feed?...` is

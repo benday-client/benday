@@ -253,7 +253,7 @@ function isMediaEmbed(embed: EmbedModel): embed is MediaEmbed {
   )
 }
 
-export function mapEmbed(embed: EmbedView): EmbedModel | null {
+function mapEmbed(embed: EmbedView): EmbedModel | null {
   if (AppBskyEmbedImages.isView(embed)) {
     const images: ImageEmbed = {
       type: 'images',
@@ -371,7 +371,7 @@ export function mapPostView(view: AppBskyFeedDefs.PostView): PostModel {
   }
 }
 
-export function replyContextFromPost(post: PostModel): ReplyContextModel {
+function replyContextFromPost(post: PostModel): ReplyContextModel {
   return {
     uri: post.uri,
     cid: post.cid,

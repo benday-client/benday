@@ -4,7 +4,7 @@ import { hidesAuthor, mapAuthor, mapPostView } from './model'
 import { isRecord } from './records'
 import type { AuthorModel, PostModel } from './types'
 
-export const NOTIFICATION_LIMIT = 50
+const NOTIFICATION_LIMIT = 50
 
 export type NotificationReasonGroup =
   | 'follow'
