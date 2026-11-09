@@ -69,6 +69,7 @@ function readStrongRef(value: unknown): StrongRefModel | null {
   const uri = value['uri']
   const cid = value['cid']
   if (typeof uri !== 'string' || typeof cid !== 'string') return null
+  if (uri.length === 0 || cid.length === 0) return null
   return { uri, cid }
 }
 
