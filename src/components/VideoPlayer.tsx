@@ -166,8 +166,14 @@ export function VideoPlayer({ video, className }: VideoPlayerProps) {
     if (element.paused) {
       hlsRef.current?.startLoad()
       void element.play().catch((reason: unknown) => {
-        // an autoplay refusal leaves the player paused on its own play button
-        if (reason instanceof DOMException && reason.name === 'NotAllowedError') return
+        // an autoplay refusal or an interrupted play leaves the player paused
+        // on its own play button instead of reporting a load failure
+        if (
+          reason instanceof DOMException &&
+          (reason.name === 'NotAllowedError' || reason.name === 'AbortError')
+        ) {
+          return
+        }
         if (readyRef.current) setError('load')
       })
       return

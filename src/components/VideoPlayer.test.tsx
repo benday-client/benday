@@ -60,6 +60,42 @@ describe('VideoPlayer fatal playback', () => {
   })
 })
 
+describe('VideoPlayer interrupted play', () => {
+  beforeEach(() => {
+    hls.handlers.clear()
+  })
+
+  it('keeps the transport usable when a play request is interrupted', async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockRejectedValue(new DOMException('interrupted', 'AbortError'))
+    try {
+      render(<VideoPlayer video={video} />)
+      fireEvent.click(screen.getByRole('button', { name: 'play video' }))
+      await waitFor(() => {
+        expect(hls.handlers.get('hlsManifestParsed')).toBeDefined()
+      })
+      act(() => {
+        hls.handlers.get('hlsManifestParsed')?.('hlsManifestParsed', { fatal: false })
+      })
+
+      const transport = screen.getAllByRole('button', { name: 'play video' }).at(-1)
+      if (transport === undefined) throw new Error('missing play transport')
+      fireEvent.click(transport)
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      // an interrupted request is not a source failure
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'retry video' })).toBeNull()
+      expect(screen.getAllByRole('button', { name: 'play video' }).at(-1)).toBeEnabled()
+    } finally {
+      play.mockRestore()
+    }
+  })
+})
+
 describe('VideoPlayer plate and unavailable states', () => {
   beforeEach(() => {
     hls.handlers.clear()
