@@ -260,8 +260,10 @@ function PostCardView({
   )
 
   // a different post or account invalidates the previous token and every timer
-  // it owned; the cleanup runs before the new identity paints
+  // it owned; the cleanup runs before the new identity paints. setup restores
+  // ownership because StrictMode replays setup and cleanup on the same token
   useLayoutEffect(() => {
+    owner.active = true
     return () => {
       owner.active = false
       if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
