@@ -6,8 +6,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import { isEditableTarget } from '../hooks/useHotkeys'
+import { isEditableTarget, isImeComposing } from '../hooks/useHotkeys'
 import { useAuthStore } from '../lib/auth'
+import { bindingFor, characterShortcutAllowed, matchesBinding } from '../lib/keymap'
 import { matchesSearchTokens } from '../lib/searchTokens'
 import {
   parseSettingsFileJson,
@@ -25,6 +26,11 @@ interface SettingSearchEntry {
 
 // a portable settings file is tiny; anything larger is not this format
 const MAX_SETTINGS_FILE_BYTES = 256 * 1024
+
+// the dialog's bare characters come from the same registry the palette and the
+// help list use, so a rebinding lands here too
+const SEARCH_BINDING = bindingFor('dialog-search')
+const CLOSE_BINDING = bindingFor('dialog-close')
 
 const SETTING_SEARCH: readonly SettingSearchEntry[] = [
   {
@@ -87,11 +93,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     if (!open) return
     const handleSearchKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.key !== '/') return
-      if (event.target instanceof HTMLElement) {
-        if (event.target.isContentEditable) return
-        if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return
-      }
+      if (!matchesBinding(event, SEARCH_BINDING)) return
+      // bare characters obey the character-shortcut preference
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
+      // an IME owns the key that commits its composition
+      if (isImeComposing(event)) return
+      if (isEditableTarget(event.target)) return
       event.preventDefault()
       settingSearchRef.current?.focus()
     }
@@ -179,9 +186,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   // themselves; , closes the panel the way it opens it
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDialogElement>) => {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    // an IME owns the key that commits its composition
+    if (isImeComposing(event.nativeEvent)) return
     if (isEditableTarget(event.target)) return
 
-    if (event.key === ',') {
+    if (matchesBinding(event, CLOSE_BINDING)) {
+      // bare characters obey the character-shortcut preference
+      if (!characterShortcutAllowed(useSettings.getState().keyboardShortcuts, event)) return
       event.preventDefault()
       onClose()
       return

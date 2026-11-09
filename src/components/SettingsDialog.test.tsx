@@ -173,6 +173,27 @@ describe('SettingsDialog keyboard shortcuts setting', () => {
       expect(screen.getByRole('checkbox', { name: /keyboard shortcuts/ })).toBeInTheDocument()
     }
   })
+
+  it('obeys the character-shortcut opt-out for / and ,', () => {
+    useSettings.setState({ keyboardShortcuts: false })
+    const first = renderSettings()
+    const closeButton = screen.getByRole('button', { name: 'close settings' })
+    const search = screen.getByRole('searchbox', { name: 'search settings' })
+    closeButton.focus()
+
+    fireEvent.keyDown(window, { key: '/' })
+    expect(search).not.toHaveFocus()
+
+    fireEvent.keyDown(closeButton, { key: ',' })
+    expect(first.onClose).not.toHaveBeenCalled()
+    expect(dialogElement(first.container).open).toBe(true)
+    first.unmount()
+
+    useSettings.setState({ keyboardShortcuts: true })
+    renderSettings()
+    fireEvent.keyDown(window, { key: '/' })
+    expect(screen.getByRole('searchbox', { name: 'search settings' })).toHaveFocus()
+  })
 })
 
 async function settle(): Promise<void> {
