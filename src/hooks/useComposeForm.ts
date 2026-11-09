@@ -1,4 +1,3 @@
-import { RichText } from '@atproto/api'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   type ChangeEvent,
@@ -18,6 +17,7 @@ import { errorInfo } from '../lib/errors'
 import { graphemes } from '../lib/graphemes'
 import { bindingFor, matchesBinding } from '../lib/keymap'
 import { markdownText } from '../lib/markdown'
+import { measurePost, postLimitError } from '../lib/postLimits'
 import { invalidateNonFeedQueries } from '../lib/queries'
 import type { PostModel } from '../lib/types'
 import { type ComposeMode, type ComposeRequest, useUiStore } from '../lib/ui'
@@ -31,7 +31,6 @@ import {
 } from './useActorSuggestions'
 import { isImeComposing } from './useHotkeys'
 
-export const MAX_GRAPHEMES = 300
 const EXCERPT_LENGTH = 120
 const SAVE_DELAY = 250
 // the draft never claims durability it does not have
@@ -79,9 +78,11 @@ export interface ComposeFormState {
   listboxId: string
   countId: string
   errorId: string
+  limitErrorId: string
   describedBy: string
   invalid: boolean
   limitStatus: string
+  limitError: string | null
   token: SuggestionToken | null
   suggestions: SuggestionItem[]
   suggestionsPending: boolean
@@ -188,6 +189,7 @@ export function useComposeForm({
   const listboxId = useId()
   const countId = useId()
   const errorId = useId()
+  const limitErrorId = useId()
   const storageWarningId = useId()
   const compositionRef = useRef<Composition | null>(null)
   const draftKey =
@@ -291,9 +293,11 @@ export function useComposeForm({
   const activeSuggestion =
     suggestions.length === 0 ? -1 : Math.min(selectedSuggestion, suggestions.length - 1)
   const plain = markdownText(text)
-  const count = new RichText({ text: plain }).graphemeLength
+  const limits = measurePost(plain)
+  const count = limits.graphemes
+  const limitError = postLimitError(limits)
   const empty = plain.trim().length === 0
-  const overLimit = count > MAX_GRAPHEMES
+  const overLimit = limitError !== null
   const missingTarget = mode !== 'post' && target === null
   const disabled = pending || sent || empty || overLimit || missingTarget
 
@@ -302,16 +306,13 @@ export function useComposeForm({
   useEffect(() => {
     if (wasOverLimit.current === overLimit) return
     wasOverLimit.current = overLimit
-    setLimitStatus(
-      overLimit
-        ? `over the ${MAX_GRAPHEMES} grapheme limit`
-        : `within the ${MAX_GRAPHEMES} grapheme limit`,
-    )
-  }, [overLimit])
+    setLimitStatus(overLimit ? (limitError ?? '') : 'within the post limit')
+  }, [overLimit, limitError])
 
   const invalid = overLimit || error !== null
   const describedBy = [
     countId,
+    limitError === null ? null : limitErrorId,
     error === null ? null : errorId,
     storageWarning === null ? null : storageWarningId,
   ]
@@ -482,9 +483,11 @@ export function useComposeForm({
     listboxId,
     countId,
     errorId,
+    limitErrorId,
     describedBy,
     invalid,
     limitStatus,
+    limitError,
     token,
     suggestions,
     suggestionsPending,

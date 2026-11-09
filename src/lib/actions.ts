@@ -2,6 +2,7 @@ import type { AppBskyFeedPost, AppBskyRichtextFacet, AtpBaseClient } from '@atpr
 import { AppBskyFeedDefs, RichText } from '@atproto/api'
 import { getAuthAgent } from './auth'
 import { parseMarkdown } from './markdown'
+import { postLimitError } from './postLimits'
 import type { PostModel } from './types'
 
 export interface ViewerState {
@@ -126,6 +127,10 @@ function requireSameAgent(agent: AtpBaseClient): void {
 async function preparedText(text: string, agent: AtpBaseClient): Promise<RichText> {
   const parsed = parseMarkdown(text)
   const rich = new RichText({ text: parsed.text })
+  // the wire caps both graphemes and bytes on the outgoing text, so the markup
+  // a labelled link strips must not count toward either
+  const limitError = postLimitError({ graphemes: rich.graphemeLength, bytes: rich.length })
+  if (limitError !== null) throw new Error(limitError)
   if (rich.text.length > 0) await rich.detectFacets(agent)
   rich.facets = canonicalFacets(parsed.facets, rich.facets ?? [])
   return rich

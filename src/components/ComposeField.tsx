@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { type ComposeFormState, composePlaceholder, MAX_GRAPHEMES } from '../hooks/useComposeForm'
+import { type ComposeFormState, composePlaceholder } from '../hooks/useComposeForm'
 import { bindingFor, displayKeys } from '../lib/keymap'
+import { MAX_POST_GRAPHEMES } from '../lib/postLimits'
 import { Button } from './ui'
 
 const SEND_HINT = displayKeys(bindingFor('compose-send')).join(' ')
@@ -73,7 +74,7 @@ export function ComposeActions({ form, label }: ComposeActionsProps) {
         className="b-compose__count"
         data-over={form.overLimit ? 'true' : 'false'}
       >
-        {form.count}/{MAX_GRAPHEMES}
+        {form.count}/{MAX_POST_GRAPHEMES}
       </span>
       <Button variant="ghost" onClick={form.close}>
         {form.sent ? 'close' : 'cancel'}
@@ -182,6 +183,12 @@ export function ComposeField({ form, inputClassName }: ComposeFieldProps) {
         <div className="b-compose__meta">
           <span className="b-compose__markdown">[link](url) · @ suggestions</span>
         </div>
+
+        {form.limitError === null ? null : (
+          <p id={form.limitErrorId} className="b-compose__error">
+            {form.limitError}
+          </p>
+        )}
       </form>
 
       {form.storageWarning === null ? null : (

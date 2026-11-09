@@ -431,6 +431,30 @@ describe('ComposeDialog', () => {
     expect(send).toBeEnabled()
   })
 
+  it('enforces the byte limit on the parsed outgoing text', () => {
+    renderComposer()
+    open({ mode: 'post', post: null })
+    const send = screen.getAllByRole('button').find((button) => button.textContent === 'post')
+    if (send === undefined) throw new Error('missing send button')
+
+    // 120 family emoji are 120 graphemes but exactly 3000 utf-8 bytes
+    const atByteLimit = '👩‍👩‍👧‍👦'.repeat(120)
+    type(atByteLimit)
+    expect(send).toBeEnabled()
+
+    // one more grapheme stays under the grapheme cap but breaks the byte cap
+    type(`${atByteLimit}👩‍👩‍👧‍👦`)
+    expect(send).toBeDisabled()
+    expect(
+      screen.getByText('post is over 3000 bytes', { selector: '.b-compose__error' }),
+    ).toBeInTheDocument()
+
+    // a labelled link sends only its label, so the destination cannot count
+    type(`[see](https://example.test/${'x'.repeat(3200)})`)
+    expect(send).toBeEnabled()
+    expect(screen.getByText('3/300')).toBeInTheDocument()
+  })
+
   it('accepts a suggestion with a trailing space at the caret', async () => {
     renderComposer()
     open({ mode: 'post', post: null })
@@ -751,7 +775,7 @@ describe('ComposeDialog', () => {
     observer.observe(status, { subtree: true, childList: true, characterData: true })
 
     type('a'.repeat(301))
-    await waitFor(() => expect(status).toHaveTextContent('over the 300 grapheme limit'))
+    await waitFor(() => expect(status).toHaveTextContent('post is over 300 graphemes'))
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(records).toHaveLength(1)
 
@@ -760,10 +784,10 @@ describe('ComposeDialog', () => {
     type('a'.repeat(303))
     await act(async () => undefined)
     expect(records).toHaveLength(1)
-    expect(status).toHaveTextContent('over the 300 grapheme limit')
+    expect(status).toHaveTextContent('post is over 300 graphemes')
 
     type('a'.repeat(5))
-    await waitFor(() => expect(status).toHaveTextContent('within the 300 grapheme limit'))
+    await waitFor(() => expect(status).toHaveTextContent('within the post limit'))
     expect(input).not.toHaveAttribute('aria-invalid')
     expect(records).toHaveLength(2)
 
