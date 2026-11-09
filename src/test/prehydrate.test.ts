@@ -125,14 +125,29 @@ describe('the first-paint bootstrap', () => {
     expect(themeColor()).toBe('#1e1e2e')
   })
 
-  it('guards malformed storage', () => {
+  it('paints the system theme when stored settings cannot be read', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('light') }))
+
     localStorage.setItem(SETTINGS_STORAGE_KEY, 'not json at all')
     expect(() => runBootstrap()).not.toThrow()
-    expect(rootTheme()).toBeUndefined()
+    expect(rootTheme()).toBe('catppuccin-latte')
+    expect(themeColor()).toBe('#eff1f5')
 
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ state: 'nonsense' }))
+    delete document.documentElement.dataset['theme']
+    const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage denied')
+    })
+    expect(() => runBootstrap()).not.toThrow()
+    read.mockRestore()
+    expect(rootTheme()).toBe('catppuccin-latte')
+    expect(themeColor()).toBe('#eff1f5')
+
+    // an explicit stored mode still wins over the system fallback
+    delete document.documentElement.dataset['theme']
+    storedSettings({ appearance: 'dark' })
     runBootstrap()
     expect(rootTheme()).toBe('catppuccin-mocha')
+    expect(themeColor()).toBe('#1e1e2e')
   })
 })
 

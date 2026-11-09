@@ -42,7 +42,14 @@
           'dead-leaves',
           'duotone',
         ])
-        const stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
+        // denied storage or malformed json means no usable stored preference;
+        // the system fallback below still decides the first paint
+        let stored = null
+        try {
+          stored = JSON.parse(localStorage.getItem('benday:settings') ?? 'null')
+        } catch {
+          stored = null
+        }
         const state =
           typeof stored === 'object' && stored !== null && typeof stored.state === 'object'
             ? stored.state
