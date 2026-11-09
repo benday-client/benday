@@ -1,6 +1,7 @@
 import { Agent } from '@atproto/api'
 import type { BrowserOAuthClient, OAuthSession } from '@atproto/oauth-client-browser'
 import { resolveHandleDid } from './identity'
+import { boundedFetch } from './requestTimeout'
 
 const HANDLE_RESOLVER = 'https://public.api.bsky.app'
 const OAUTH_SCOPE = 'atproto transition:generic'
@@ -66,6 +67,7 @@ async function getClient(): Promise<BrowserOAuthClient | null> {
       return BrowserOAuthClient.load({
         clientId,
         handleResolver: HANDLE_RESOLVER,
+        fetch: boundedFetch,
       })
     })().catch((error: unknown) => {
       clientPromise = null

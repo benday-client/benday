@@ -8,11 +8,11 @@ import { resolveHandleDid } from './identity'
 import { applyConfiguredLabelers } from './labelers'
 import { restoreOAuth, signInOAuth, signOutOAuth } from './oauth'
 import { isRecord } from './records'
+import { boundedFetch, REQUEST_TIMEOUT_MS } from './requestTimeout'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
 
 const FALLBACK_PDS = 'https://bsky.social'
-const REQUEST_TIMEOUT = 8000
 
 export interface AuthAccount {
   did: string
@@ -101,7 +101,7 @@ function clearStoredAuth(): void {
 }
 
 async function fetchJson(url: string): Promise<unknown> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT) })
+  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
   if (!response.ok) throw new Error(`request failed (${response.status})`)
   return response.json()
 }
@@ -180,6 +180,7 @@ function makeAgent(service: string): AtpAgent {
   const createdEpoch = authEpoch
   const agent = new AtpAgent({
     service,
+    fetch: boundedFetch,
     persistSession: (event: AtpSessionEvent, session: AtpSessionData | undefined) => {
       // Only the committed agent owns the stored session. A pending candidate
       // cannot persist before it is committed, and a superseded agent can

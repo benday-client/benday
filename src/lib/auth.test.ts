@@ -2,6 +2,7 @@ import { AtpAgent, type AtpBaseClient, type AtpSessionData } from '@atproto/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
 import { AUTH_STORAGE_KEY, getAuthAgent, useAuthStore } from './auth'
+import { boundedFetch } from './requestTimeout'
 
 const oauthControl = vi.hoisted(() => ({
   portalError: 'portal sign in needs a loopback address' as string | null,
@@ -340,6 +341,27 @@ describe('sign-in transitions', () => {
       pending: false,
     })
     expect(state.error).toContain('loopback')
+  })
+})
+
+describe('request deadline', () => {
+  it('bounds each request and keeps the caller signal composed', async () => {
+    const seen: Array<{ input: string; signal: AbortSignal | null | undefined }> = []
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({ input: String(input), signal: init?.signal })
+      return Promise.resolve(jsonResponse(200, {}))
+    })
+
+    await boundedFetch('https://pds.test/xrpc/deadline')
+    expect(seen[0]?.input).toBe('https://pds.test/xrpc/deadline')
+    expect(seen[0]?.signal).toBeInstanceOf(AbortSignal)
+    expect(seen[0]?.signal?.aborted).toBe(false)
+
+    const caller = new AbortController()
+    await boundedFetch('https://pds.test/xrpc/cancelled', { signal: caller.signal })
+    caller.abort()
+    // the caller's cancellation still wins over the deadline
+    expect(seen[1]?.signal?.aborted).toBe(true)
   })
 })
 

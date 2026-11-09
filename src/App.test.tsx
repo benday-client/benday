@@ -607,6 +607,11 @@ describe('route transitions', () => {
 
   function feedRoutes(): void {
     const transport = installTransport()
+    // the agent's fetch reads the current global, so the replaced transport
+    // must also answer the account reads the shell starts on mount
+    transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getPreferences`, () =>
+      jsonResponse(200, { preferences: [] }),
+    )
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
