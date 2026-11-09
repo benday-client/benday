@@ -164,6 +164,10 @@ export default function ThreadView() {
       if (!isLeave && !isTreeKey) return
       if (interactiveOutsideThread(event.target)) return
       if (isEditableTarget(event.target)) return
+      // a link or button inside the thread keeps its own keys
+      if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
+        return
+      }
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
 
@@ -177,9 +181,6 @@ export default function ThreadView() {
       if (key === 'ArrowUp') {
         // the opened post is the root of this view; up goes nowhere and must not
         // scroll the page or open the parent thread
-        if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
-          return
-        }
         event.preventDefault()
         return
       }
@@ -218,6 +219,10 @@ export default function ThreadView() {
       if (event.key !== 'p') return
       if (interactiveOutsideThread(event.target)) return
       if (isEditableTarget(event.target)) return
+      // a link or button inside the thread keeps its own keys
+      if (event.target instanceof HTMLElement && event.target.closest('a, button') !== null) {
+        return
+      }
       if (document.querySelector('dialog[open]') !== null) return
       if (uiOwnsKeyboard()) return
       const parentUri = threadParentTarget(focusPost, focusedReplyPost)

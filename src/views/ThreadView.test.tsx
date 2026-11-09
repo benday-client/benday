@@ -418,6 +418,21 @@ describe('ThreadView reply keys', () => {
     expect(memory.history).toEqual([threadUrl('at://focus')])
   })
 
+  it('leaves left and p native while a link inside the thread is focused', () => {
+    const focusPost = parentedPost('at://focus', 'at://parent')
+    threadState.data = threadWith(focusPost, [postFixture({ uri: 'at://reply-1' })])
+    const { memory } = renderThread(focusPost.uri)
+    const link = document.querySelector('.b-thread__parent-link')
+    if (!(link instanceof HTMLElement)) throw new Error('missing parent link')
+
+    // focus inside the thread is not an outside control, but the link still
+    // owns its own keys
+    expect(keyConsumed({ key: 'ArrowLeft' }, link)).toBe(false)
+    expect(keyConsumed({ key: 'p' }, link)).toBe(false)
+
+    expect(memory.history).toEqual([threadUrl('at://focus')])
+  })
+
   it('opens the focused reply with enter and not with space', () => {
     const { memory, replies } = renderReplies()
 
