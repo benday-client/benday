@@ -44,7 +44,10 @@ const BOB: AtpSessionData = {
 }
 
 function sessionFor(identifier: string): AtpSessionData {
-  return identifier.includes('bob') ? BOB : ALICE
+  if (identifier.includes('bob')) return BOB
+  // a discovered identity must get a session that names it, so these fixtures
+  // never depend on a mismatched did being accepted
+  return identifier.startsWith('did:') ? { ...ALICE, did: identifier } : ALICE
 }
 
 function storedSession(): AtpSessionData | null {
@@ -92,12 +95,15 @@ beforeEach(async () => {
       jsonResponse(200, {}),
     )
   }
-  transport.route('POST', 'https://pds.example.com/xrpc/com.atproto.server.createSession', () =>
-    jsonResponse(200, ALICE),
-  )
-  transport.route('POST', 'https://bsky.social/xrpc/com.atproto.server.createSession', () =>
-    jsonResponse(200, ALICE),
-  )
+  // every host answers for the identifier it was sent, so the discovered did
+  // and the session it commits always agree
+  const createSession = (request: { body: string | null }) => {
+    const body = request.body === null ? {} : (JSON.parse(request.body) as { identifier?: string })
+    return jsonResponse(200, sessionFor(body.identifier ?? ''))
+  }
+  for (const host of ['https://pds.test', 'https://pds.example.com', 'https://bsky.social']) {
+    transport.route('POST', `${host}/xrpc/com.atproto.server.createSession`, createSession)
+  }
   // password sign-in discovers the pds from the account's did document
   for (const did of [ALICE.did, BOB.did]) {
     transport.route('GET', `https://plc.directory/${did}`, () =>
@@ -113,11 +119,6 @@ beforeEach(async () => {
       }),
     )
   }
-  transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', (request) => {
-    const body = request.body === null ? {} : (JSON.parse(request.body) as { identifier?: string })
-    return jsonResponse(200, sessionFor(body.identifier ?? ''))
-  })
-
   await useAuthStore.getState().signOut()
   transport.calls.length = 0
 })
@@ -206,6 +207,32 @@ describe('sign-in transitions', () => {
       account: { did: 'did:plc:alice' },
     })
     expect(getAuthAgent()?.did).toBe('did:plc:alice')
+  })
+
+  it('rejects a session that names a different account than discovery', async () => {
+    await signInAs(ALICE)
+    const committedRecord = localStorage.getItem(AUTH_STORAGE_KEY)
+    const revocations: Array<string | undefined> = []
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', (request) => {
+      revocations.push(request.headers['authorization'])
+      return jsonResponse(200, {})
+    })
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', () =>
+      jsonResponse(200, BOB),
+    )
+
+    await expect(useAuthStore.getState().signIn(ALICE.did, 'password')).resolves.toBe(false)
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'authenticated',
+      account: { did: 'did:plc:alice' },
+      pending: false,
+      error: 'login returned another account',
+    })
+    expect(getAuthAgent()?.did).toBe('did:plc:alice')
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBe(committedRecord)
+    // only the candidate session is revoked, never the committed account's
+    expect(revocations).toEqual([`Bearer ${BOB.refreshJwt}`])
   })
 
   it('clears an expired committed session without cancelling a newer login', async () => {

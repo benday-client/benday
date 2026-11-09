@@ -359,10 +359,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
 
     try {
-      const service = (await resolvePds(cleaned)).service
+      const discovery = await resolvePds(cleaned)
       if (epoch !== authEpoch) return false
 
-      const candidate = makeAgent(service)
+      const candidate = makeAgent(discovery.service)
       await candidate.login({ identifier: cleaned, password })
 
       // A candidate that loses the epoch after its own login must revoke the
@@ -382,6 +382,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
       const session = candidate.session
       if (session === undefined) throw new Error('login did not return a session')
 
+      // A session that names another account than the one discovery resolved
+      // cannot be committed: the reader asked for that identity. Revoke only
+      // the candidate and leave the committed pair and its stored record alone.
+      if (session.did !== discovery.did) {
+        await discard()
+        if (epoch !== authEpoch) return false
+        release()
+        set({ pending: false, error: 'login returned another account' })
+        return false
+      }
+
       // A password sign-in owns the account now: drop any portal session so a
       // later restore cannot quietly switch back to the previous account.
       await signOutOAuth()
@@ -389,7 +400,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
       release()
       activeAgent = candidate
-      writeStoredAuth(service, session)
+      writeStoredAuth(discovery.service, session)
       set({
         status: 'authenticated',
         account: { did: session.did, handle: session.handle },
