@@ -398,12 +398,15 @@ export function mapFeedViewPost(view: AppBskyFeedDefs.FeedViewPost): PostModel {
 }
 
 // a retracted label (neg) must stop rendering, and a malformed value must not
-// stand in for one
+// stand in for one; chips key on the value, so a repeated value renders once
 function readLabels(labels: readonly ComAtprotoLabelDefs.Label[] | undefined): string[] {
   const values: string[] = []
+  const seen = new Set<string>()
   for (const label of labels ?? []) {
     if (label.neg === true) continue
     if (typeof label.val !== 'string') continue
+    if (seen.has(label.val)) continue
+    seen.add(label.val)
     values.push(label.val)
   }
   return values

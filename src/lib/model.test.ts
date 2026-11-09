@@ -356,6 +356,14 @@ describe('mapPostView', () => {
     expect(mapPostView(view).labels).toEqual(['nsfw'])
   })
 
+  it('renders a repeated label value once and keeps distinct ones', () => {
+    const view = postView({
+      labels: [label('nsfw'), label('nsfw'), label('graphic-media'), label('nsfw', true)],
+    })
+
+    expect(mapPostView(view).labels).toEqual(['nsfw', 'graphic-media'])
+  })
+
   it('projects malformed record content instead of asserting the sdk record', () => {
     const view = postView({
       record: {
