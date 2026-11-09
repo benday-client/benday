@@ -6,6 +6,7 @@ import { PostCard } from '../components/PostCard'
 import { Button, EmptyState, ErrorNotice, Frame, Progress } from '../components/ui'
 import { usePostFeed } from '../hooks/useBskyQueries'
 import { useDealFlash } from '../hooks/useDealFlash'
+import { useDismissEscape } from '../hooks/useDismissEscape'
 import { isEditableTarget, isImeComposing } from '../hooks/useHotkeys'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { usePinnedFeeds } from '../hooks/usePinnedFeeds'
@@ -217,21 +218,9 @@ export default function FeedView() {
     }
   }, [refreshBinding, armRefresh, showingFeeds])
 
-  // an armed confirmation owns Escape so it cancels instead of leaving the feed
-  useEffect(() => {
-    if (!armed) return
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== 'Escape') return
-      event.preventDefault()
-      clearArm()
-    }
-
-    window.addEventListener('keydown', handleEscape, true)
-    return () => {
-      window.removeEventListener('keydown', handleEscape, true)
-    }
-  }, [armed, clearArm])
+  // an armed confirmation owns Escape so it cancels instead of leaving the
+  // feed; the open feed switcher is the higher surface and keeps it first
+  useDismissEscape(armed && !showingFeeds, clearArm)
 
   useEffect(() => {
     if (!canPickFeeds) setFeedsMode(false)
@@ -275,25 +264,10 @@ export default function FeedView() {
     focusDeck()
   }
 
-  useEffect(() => {
-    if (!showingFeeds) return
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== 'Escape') return
-      if (uiOwnsKeyboard()) return
-      // an open native modal keeps Escape for itself
-      if (document.querySelector('dialog[open]') !== null) return
-      event.preventDefault()
-      switchMode(false)
-    }
-
-    // capture phase so the feed switcher closes before the app's bubble-phase
-    // Escape handling can leave the feed
-    window.addEventListener('keydown', handleEscape, true)
-    return () => {
-      window.removeEventListener('keydown', handleEscape, true)
-    }
-  }, [showingFeeds])
+  // the feed switcher closes before the app's back layer can leave the feed
+  useDismissEscape(showingFeeds, () => {
+    switchMode(false)
+  })
 
   const noFeeds = pinned.error === null && !pinned.isPending && feedChoices.length === 0
 

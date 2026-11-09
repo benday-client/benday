@@ -16,6 +16,7 @@ import {
 } from '../components/ui'
 import { usePostFeed, useProfile } from '../hooks/useBskyQueries'
 import { useDealFlash } from '../hooks/useDealFlash'
+import { useDismissEscape } from '../hooks/useDismissEscape'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
@@ -30,7 +31,7 @@ import {
   profileModeName,
 } from '../lib/profileModes'
 import type { PostModel } from '../lib/types'
-import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
+import { useUiStore } from '../lib/ui'
 
 function decodeActor(raw: string): string {
   try {
@@ -184,25 +185,10 @@ export default function ProfileView() {
     if (!wide) setModeDeck(false)
   }, [wide])
 
-  useEffect(() => {
-    if (!modeDeck) return
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== 'Escape') return
-      if (uiOwnsKeyboard()) return
-      // an open native modal keeps Escape for itself
-      if (document.querySelector('dialog[open]') !== null) return
-      event.preventDefault()
-      switchModeDeck(false)
-    }
-
-    // capture phase so the switcher closes before the app's bubble-phase
-    // Escape handling can navigate away from the profile
-    window.addEventListener('keydown', handleEscape, true)
-    return () => {
-      window.removeEventListener('keydown', handleEscape, true)
-    }
-  }, [modeDeck])
+  // the mode deck closes before the app's back layer can leave the profile
+  useDismissEscape(modeDeck, () => {
+    switchModeDeck(false)
+  })
 
   const modeIndex = Math.max(
     0,

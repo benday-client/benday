@@ -403,6 +403,24 @@ describe('FeedView refresh confirmation', () => {
     expect(history()).not.toContain('/feed?')
   })
 
+  it('closes the feed switcher before an armed refresh is cancelled', async () => {
+    routeAlphaPosts()
+    const { onEscape } = renderFeed()
+    await screen.findByText('alpha post')
+
+    fireEvent.keyDown(window, { key: 'R' })
+    expect(screen.getByText('press R again to refresh')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    await screen.findByLabelText('feed cards')
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+
+    // the higher surface closes first and the armed confirmation survives
+    expect(screen.queryByLabelText('feed cards')).toBeNull()
+    expect(screen.getByText('press R again to refresh')).toBeInTheDocument()
+    expect(onEscape).not.toHaveBeenCalled()
+  })
+
   it('cancels when the feed changes', async () => {
     stubWide(false)
     transport.route('GET', `${PDS}/xrpc/app.bsky.feed.getFeed`, (request) => {

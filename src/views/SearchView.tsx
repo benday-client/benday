@@ -20,6 +20,7 @@ import {
 } from '../hooks/useActorSuggestions'
 import { useActorSearch, usePostFeed } from '../hooks/useBskyQueries'
 import { useDealFlash } from '../hooks/useDealFlash'
+import { useDismissEscape } from '../hooks/useDismissEscape'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useRetainedError } from '../hooks/useRetainedError'
 import { useViewerSync } from '../hooks/useViewerSync'
@@ -28,7 +29,7 @@ import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { resultCountLabel, SEARCH_MODES, type SearchMode, searchModeName } from '../lib/searchModes'
 import type { PostModel, SearchActorModel } from '../lib/types'
-import { uiOwnsKeyboard, useUiStore } from '../lib/ui'
+import { useUiStore } from '../lib/ui'
 
 function actorHref(handle: string): string {
   return `/profile/${encodeURIComponent(handle)}`
@@ -220,27 +221,12 @@ export default function SearchView() {
     if (!wide) setModeDeck(false)
   }, [wide])
 
-  useEffect(() => {
-    if (!modeDeck) return
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.key !== 'Escape') return
-      if (uiOwnsKeyboard()) return
-      // an open native modal keeps Escape for itself
-      if (document.querySelector('dialog[open]') !== null) return
-      event.preventDefault()
-      switchModeDeck(false)
-      // a keyboard exit from the mode cards lands on the results deck
-      requestDeckFocus()
-    }
-
-    // capture phase so the switcher closes before the app's bubble-phase
-    // Escape handling can leave search
-    window.addEventListener('keydown', handleEscape, true)
-    return () => {
-      window.removeEventListener('keydown', handleEscape, true)
-    }
-  }, [modeDeck, switchModeDeck, requestDeckFocus])
+  // the mode deck closes before the app's back layer can leave search; a
+  // keyboard exit from the mode cards lands on the results deck
+  useDismissEscape(modeDeck, () => {
+    switchModeDeck(false)
+    requestDeckFocus()
+  })
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
