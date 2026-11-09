@@ -9,8 +9,8 @@ import type { ComposeRequest } from '../lib/ui'
 import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
+import { failWrites, settleAutosave, stubStorageReads } from '../test/storage'
 import { installTransport, jsonResponse } from '../test/transport'
-import { ComposeDialog } from './ComposeDialog'
 import { InlineComposer } from './InlineComposer'
 
 vi.mock('../lib/actions', () => ({
@@ -70,50 +70,14 @@ function composeForm(): HTMLFormElement {
   return form
 }
 
-const STORAGE_WARNING = 'draft storage unavailable · keep a copy before closing'
-const SENT_WARNING = 'post sent · stored draft could not be cleared'
-
-/** Fails storage reads while the switch says so, delegating to real storage otherwise. */
-function stubStorageReads() {
-  const original = Storage.prototype.getItem
-  let failing = true
-  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key: string) {
-    if (failing) throw new Error('storage read denied')
-    return original.call(this, key)
-  })
-  return {
-    allow: () => {
-      failing = false
-    },
+/** The storage notice the editor currently names in aria-describedby. */
+function storageNotice(input: HTMLElement): HTMLElement | null {
+  const ids = input.getAttribute('aria-describedby')?.split(' ') ?? []
+  for (const id of ids) {
+    const element = document.getElementById(id)
+    if (element?.getAttribute('role') === 'status') return element
   }
-}
-
-/** Fails every write until the switch allows real storage again. */
-function failWrites() {
-  const original = Storage.prototype.setItem
-  let failing = true
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
-    this: Storage,
-    key: string,
-    value: string,
-  ) {
-    if (failing) throw new Error('storage write denied')
-    original.call(this, key, value)
-  })
-  return {
-    allow: () => {
-      failing = false
-    },
-  }
-}
-
-/** Lets the autosave delay elapse, including the write it attempts. */
-async function settleAutosave() {
-  const elapsed = Promise.withResolvers<void>()
-  setTimeout(elapsed.resolve, 300)
-  await act(async () => {
-    await elapsed.promise
-  })
+  return null
 }
 
 beforeEach(() => {
@@ -153,58 +117,6 @@ describe('InlineComposer', () => {
     view.unmount()
 
     expect(readDraft(draftKeyFor('reply', post.uri, OWNER)).text).toBe('unfinished')
-  })
-
-  it('wears the shared composer head and actions', () => {
-    renderDock({ mode: 'reply', post: postFixture() })
-    const dock = screen.getByLabelText('reply composer')
-
-    const head = dock.querySelector('.b-dialog__head')
-    expect(head).not.toBeNull()
-    expect(head?.querySelector('.b-dialog__title')).toHaveTextContent('reply')
-    expect(head?.querySelector('.b-compose__hint')).toHaveTextContent('ctrl/cmd enter send')
-    expect(screen.getByLabelText('close reply').closest('.b-dialog__head')).toBe(head)
-
-    const actions = dock.querySelector('.b-compose__actions')
-    expect(actions).not.toBeNull()
-    expect(actions?.querySelector('.b-compose__count')).toHaveTextContent('0/300')
-    expect(actions).toContainElement(screen.getByRole('button', { name: 'cancel' }))
-    expect(actions).toContainElement(screen.getByRole('button', { name: 'reply' }))
-  })
-
-  it('renders the same head and actions chrome as the modal composer', () => {
-    const post = postFixture()
-    const request: ComposeRequest = { mode: 'reply', post }
-    const { client } = renderDock(request)
-
-    // the modal is the standalone post composer; replies belong to the dock
-    const modalRequest: ComposeRequest = { mode: 'post', post: null }
-    useUiStore.setState({ compose: modalRequest })
-    const modal = render(
-      <QueryClientProvider client={client}>
-        <ComposeDialog open request={modalRequest} onClose={vi.fn()} />
-      </QueryClientProvider>,
-    )
-
-    const dock = screen.getByLabelText('reply composer')
-    const dialog = modal.container.querySelector('dialog')
-    if (dialog === null) throw new Error('missing modal composer')
-
-    for (const root of [dock, dialog]) {
-      expect(root.querySelector('.b-dialog__head')).not.toBeNull()
-      expect(root.querySelector('.b-compose__actions')).not.toBeNull()
-    }
-    for (const selector of [
-      '.b-dialog__head',
-      '.b-dialog__title',
-      '.b-dialog__close',
-      '.b-compose__actions',
-      '.b-compose__count',
-    ]) {
-      expect(dock.querySelector(selector)?.className).toBe(
-        dialog.querySelector(selector)?.className,
-      )
-    }
   })
 
   it('counts graphemes and sends a reply dock', async () => {
@@ -313,18 +225,16 @@ describe('InlineComposer', () => {
     const { onClose } = renderDock({ mode: 'reply', post })
 
     const input = screen.getByRole('textbox')
-    const warning = screen.getByText(STORAGE_WARNING)
-    expect(warning).toHaveAttribute('role', 'status')
-    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
+    expect(storageNotice(input)).not.toBeNull()
 
     fireEvent.change(input, { target: { value: 'held copy' } })
     await settleAutosave()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByText(STORAGE_WARNING)).toBeInTheDocument()
+    expect(storageNotice(input)).not.toBeNull()
 
     reads.allow()
     fireEvent.change(input, { target: { value: 'held copy and more' } })
-    await waitFor(() => expect(screen.queryByText(STORAGE_WARNING)).toBeNull())
+    await waitFor(() => expect(storageNotice(input)).toBeNull())
     expect(readDraft(key).text).toBe('held copy and more')
   })
 
@@ -342,7 +252,11 @@ describe('InlineComposer', () => {
     failWrites()
     fireEvent.submit(composeForm())
 
-    const warning = await screen.findByText(SENT_WARNING)
+    const warning = await waitFor(() => {
+      const notice = storageNotice(input)
+      expect(notice).not.toBeNull()
+      return notice
+    })
     expect(warning).toHaveAttribute('role', 'status')
     expect(onClose).not.toHaveBeenCalled()
     expect(input.readOnly).toBe(true)

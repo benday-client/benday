@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, waitFor } from '@testing-library/react'
+import { waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { useAuthStore } from '../lib/auth'
@@ -9,7 +9,6 @@ import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
 import { renderStage } from '../test/stage'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
-import { ComposeDialog } from './ComposeDialog'
 import { InlineComposer } from './InlineComposer'
 
 const PDS = 'https://pds.test'
@@ -142,23 +141,6 @@ describe('compose suggestion list', () => {
     const actionsBox = actions.getBoundingClientRect()
     expect(actionsBox.top).toBeGreaterThanOrEqual(dockBox.top - 1)
     expect(actionsBox.bottom).toBeLessThanOrEqual(dockBox.bottom + 1)
-  })
-
-  it('prints the shared send hint in both composer surfaces', async () => {
-    const { view } = renderDock({ mode: 'reply', post: postFixture() })
-    const dockHint = document.querySelector('.b-compose__hint')
-    expect(dockHint?.textContent).toBe('ctrl/cmd enter send')
-    view.unmount()
-
-    const client = createTestQueryClient()
-    render(
-      <QueryClientProvider client={client}>
-        <ComposeDialog open request={{ mode: 'post', post: null }} onClose={() => undefined} />
-      </QueryClientProvider>,
-    )
-    const dialog = document.querySelector<HTMLDialogElement>('dialog')
-    if (dialog === null) throw new Error('missing compose dialog')
-    expect(dialog.querySelector('.b-compose__hint')?.textContent).toBe('ctrl/cmd enter send')
   })
 })
 

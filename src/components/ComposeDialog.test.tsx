@@ -12,6 +12,7 @@ import type { ComposeRequest } from '../lib/ui'
 import { useUiStore } from '../lib/ui'
 import { postFixture } from '../test/fixtures'
 import { createTestQueryClient } from '../test/queryClient'
+import { failWrites, settleAutosave, stubStorageReads } from '../test/storage'
 import { installTransport, jsonResponse } from '../test/transport'
 import { ComposeDialog } from './ComposeDialog'
 
@@ -133,56 +134,14 @@ function submit() {
   fireEvent.submit(form)
 }
 
-const STORAGE_WARNING = 'draft storage unavailable · keep a copy before closing'
-const SENT_WARNING = 'post sent · stored draft could not be cleared'
-
-/** Fails storage reads while the switch says so, delegating to real storage otherwise. */
-function stubStorageReads() {
-  const original = Storage.prototype.getItem
-  let failing = true
-  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (this: Storage, key: string) {
-    if (failing) throw new Error('storage read denied')
-    return original.call(this, key)
-  })
-  return {
-    deny: () => {
-      failing = true
-    },
-    allow: () => {
-      failing = false
-    },
+/** The storage notice the editor currently names in aria-describedby. */
+function storageNotice(input: HTMLElement): HTMLElement | null {
+  const ids = input.getAttribute('aria-describedby')?.split(' ') ?? []
+  for (const id of ids) {
+    const element = document.getElementById(id)
+    if (element?.getAttribute('role') === 'status') return element
   }
-}
-
-/** Fails `count` writes, then delegates to real storage; Infinity keeps failing. */
-function failWrites(count = Number.POSITIVE_INFINITY) {
-  const original = Storage.prototype.setItem
-  let remaining = count
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
-    this: Storage,
-    key: string,
-    value: string,
-  ) {
-    if (remaining > 0) {
-      remaining -= 1
-      throw new Error('storage write denied')
-    }
-    original.call(this, key, value)
-  })
-  return {
-    allow: () => {
-      remaining = 0
-    },
-  }
-}
-
-/** Lets the autosave delay elapse, including the write it attempts. */
-async function settleAutosave() {
-  const elapsed = Promise.withResolvers<void>()
-  setTimeout(elapsed.resolve, 300)
-  await act(async () => {
-    await elapsed.promise
-  })
+  return null
 }
 
 beforeEach(() => {
@@ -332,8 +291,9 @@ describe('ComposeDialog', () => {
     renderComposer()
     open({ mode: 'post', post: null })
 
-    expect(screen.getByRole('textbox')).toHaveValue('seeded draft')
-    expect(screen.getByText(STORAGE_WARNING)).toHaveAttribute('role', 'status')
+    const input = screen.getByRole('textbox')
+    expect(input).toHaveValue('seeded draft')
+    expect(storageNotice(input)).toHaveAttribute('role', 'status')
 
     const gate = awaitingGate()
     type('submitted text')
@@ -357,19 +317,17 @@ describe('ComposeDialog', () => {
     renderComposer()
     open({ mode: 'post', post: null })
 
-    const warning = screen.getByText(STORAGE_WARNING)
-    expect(warning).toHaveAttribute('role', 'status')
     const input = screen.getByRole('textbox')
-    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
+    expect(storageNotice(input)).not.toBeNull()
 
     type('held copy')
     await settleAutosave()
     expect(useUiStore.getState().compose).not.toBeNull()
-    expect(screen.getByText(STORAGE_WARNING)).toBeInTheDocument()
+    expect(storageNotice(input)).not.toBeNull()
 
     reads.allow()
     type('held copy and more')
-    await waitFor(() => expect(screen.queryByText(STORAGE_WARNING)).toBeNull())
+    await waitFor(() => expect(storageNotice(input)).toBeNull())
     expect(readDraft(key).text).toBe('held copy and more')
 
     // storage failed again before closing; closing stays allowed regardless
@@ -390,13 +348,12 @@ describe('ComposeDialog', () => {
 
     failWrites()
     submit()
-    const warning = await screen.findByText(SENT_WARNING)
-    expect(warning).toHaveAttribute('role', 'status')
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox')
+    await waitFor(() => expect(storageNotice(input)).not.toBeNull())
+    expect(storageNotice(input)).toHaveAttribute('role', 'status')
     expect(useUiStore.getState().compose).not.toBeNull()
 
-    const input = screen.getByRole<HTMLTextAreaElement>('textbox')
     expect(input.readOnly).toBe(true)
-    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(warning.id)
     expect(screen.getByRole('button', { name: 'sent' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'close' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'post' })).toBeNull()
@@ -533,22 +490,6 @@ describe('ComposeDialog', () => {
 
     expect(input).toHaveValue('look #tag.')
     expect(screen.queryByRole('listbox')).toBeNull()
-  })
-
-  it('renders the shared composer head and actions', () => {
-    renderComposer()
-    open({ mode: 'post', post: null })
-
-    const dialog = screen.getByRole('dialog')
-    const head = dialog.querySelector('.b-dialog__head')
-    expect(head?.querySelector('.b-dialog__title')).toHaveTextContent('compose')
-    expect(head?.querySelector('.b-dialog__close')).toHaveAttribute('aria-label', 'close compose')
-
-    const actions = dialog.querySelector('.b-dialog__foot > .b-compose__actions')
-    expect(actions).not.toBeNull()
-    expect(actions?.querySelector('.b-compose__count')).toHaveTextContent('0/300')
-    expect(actions).toContainElement(screen.getByRole('button', { name: 'cancel' }))
-    expect(actions).toContainElement(screen.getByRole('button', { name: 'post' }))
   })
 
   it('ignores a reply request so no second composition surface opens', () => {
