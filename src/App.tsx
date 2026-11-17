@@ -189,6 +189,8 @@ function AppShell() {
   // clears, the access check has nothing left to answer for
   const [refusal, setRefusal] = useState<'refused' | 'unreadable' | null>(null)
   const restoreError = useAuthStore((state) => state.restoreError)
+  const landing =
+    pathname === '/' && !authenticated && authStatus !== 'restoring' && refusal === null
 
   // an account that is not on the list is signed out through the local-first
   // path, so a reload cannot put it back inside
@@ -482,7 +484,7 @@ function AppShell() {
         skip to content
       </a>
 
-      {!authenticated || allowed ? <TopBar /> : null}
+      {!authenticated || allowed ? <TopBar landing={landing} /> : null}
       {!authenticated || allowed ? <AccountLabelers /> : null}
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
@@ -519,7 +521,7 @@ function AppShell() {
               indeterminate
             />
           </div>
-        ) : pathname === '/' ? (
+        ) : landing ? (
           <LandingView
             onSignIn={() => {
               openDialog('login')

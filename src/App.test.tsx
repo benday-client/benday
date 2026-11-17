@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuthStore } from './lib/auth'
@@ -194,7 +194,35 @@ describe('shell auth gate', () => {
       ).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'sign in to read benday' })).toBeNull()
       expect(document.querySelector('.b-view')).toBeNull()
+      const header = within(screen.getByRole('banner'))
+      expect(header.queryByRole('navigation')).toBeNull()
+      expect(header.getAllByRole('link')).toHaveLength(1)
+      expect(header.getAllByRole('button')).toHaveLength(1)
+      expect(header.getByRole('button', { name: 'settings' })).toBeEnabled()
+      const brand = header.getByRole('link', { name: 'benday home' })
+      expect(brand).toHaveAttribute('href', '/')
+      fireEvent.click(brand)
+      expect(window.location.pathname).toBe('/')
       expect(transport.calls).toHaveLength(0)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('opens working appearance settings from the landing header', async () => {
+    installTransport()
+    stubMatchMedia(false)
+    useSettings.setState({ appearance: 'light', theme: 'light' })
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    try {
+      const header = within(screen.getByRole('banner'))
+      fireEvent.click(header.getByRole('button', { name: 'settings' }))
+
+      const settings = within(await screen.findByRole('dialog', { name: 'settings' }))
+      fireEvent.click(settings.getByRole('button', { name: 'dark' }))
+      expect(useSettings.getState().appearance).toBe('dark')
+      expect(rootTheme()).toBe('dark')
     } finally {
       view.unmount()
     }

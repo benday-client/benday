@@ -12,7 +12,7 @@ const SEARCH_KEY = displayKeys(bindingFor('search'))[0] ?? ''
 const SETTINGS_KEY = displayKeys(bindingFor('settings'))[0] ?? ''
 const HELP_KEY = displayKeys(bindingFor('help'))[0] ?? ''
 
-export function TopBar() {
+export function TopBar({ landing = false }: { landing?: boolean } = {}) {
   const [pathname] = useLocation()
   const account = useAuthStore((state) => state.account)
   const status = useAuthStore((state) => state.status)
@@ -37,103 +37,109 @@ export function TopBar() {
   }
 
   return (
-    <header className="b-topbar">
-      <Link href="/feed" className="b-brand" aria-label="benday home">
+    <header className={landing ? 'b-topbar b-topbar--landing' : 'b-topbar'}>
+      <Link href={landing ? '/' : '/feed'} className="b-brand" aria-label="benday home">
         <span className="b-brand__mark" aria-hidden="true" />
         <span className="b-brand__name">benday</span>
       </Link>
 
-      <nav className="b-topbar__nav" aria-label="primary">
-        <Link
-          href="/feed"
-          className="b-topbar__link"
-          data-active={feedsActive ? 'true' : 'false'}
-          aria-current={feedsActive ? 'page' : undefined}
-        >
-          feeds
-        </Link>
-        <Link
-          href="/search"
-          className="b-topbar__link"
-          data-active={searchActive ? 'true' : 'false'}
-          aria-current={searchActive ? 'page' : undefined}
-          title={`search · ${SEARCH_KEY}`}
-          data-keyhint="search"
-        >
-          search
-        </Link>
-        <Link
-          href="/notifications"
-          className="b-topbar__link"
-          data-active={notificationsActive ? 'true' : 'false'}
-          aria-current={notificationsActive ? 'page' : undefined}
-        >
-          notifications
-        </Link>
-        {profileActive ? (
+      {landing ? null : (
+        <nav className="b-topbar__nav" aria-label="primary">
           <Link
-            href={pathname}
-            className="b-topbar__link b-topbar__link--profile"
-            data-active="true"
-            aria-current="page"
-            title={profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+            href="/feed"
+            className="b-topbar__link"
+            data-active={feedsActive ? 'true' : 'false'}
+            aria-current={feedsActive ? 'page' : undefined}
           >
-            {profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+            feeds
           </Link>
-        ) : null}
-      </nav>
+          <Link
+            href="/search"
+            className="b-topbar__link"
+            data-active={searchActive ? 'true' : 'false'}
+            aria-current={searchActive ? 'page' : undefined}
+            title={`search · ${SEARCH_KEY}`}
+            data-keyhint="search"
+          >
+            search
+          </Link>
+          <Link
+            href="/notifications"
+            className="b-topbar__link"
+            data-active={notificationsActive ? 'true' : 'false'}
+            aria-current={notificationsActive ? 'page' : undefined}
+          >
+            notifications
+          </Link>
+          {profileActive ? (
+            <Link
+              href={pathname}
+              className="b-topbar__link b-topbar__link--profile"
+              data-active="true"
+              aria-current="page"
+              title={profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+            >
+              {profileHandle.length > 0 ? `@${profileHandle}` : 'profile'}
+            </Link>
+          ) : null}
+        </nav>
+      )}
 
       <div className="b-topbar__actions">
-        {account !== null ? (
-          <Link
-            href={`/profile/${encodeURIComponent(account.handle)}`}
-            className="b-topbar__account"
-            aria-label={`profile @${account.handle}`}
-            title={account.did}
-          >
-            @{account.handle}
-          </Link>
-        ) : null}
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          disabled={status !== 'authenticated' || account === null}
-          onClick={() => {
-            openCompose({ mode: 'post', post: null })
-          }}
-          aria-label="compose"
-          title={`compose · ${COMPOSE_KEY}`}
-          data-keyhint="compose"
-        >
-          <span className="b-topbar__label">compose</span>
-        </Button>
+        {landing ? null : (
+          <>
+            {account !== null ? (
+              <Link
+                href={`/profile/${encodeURIComponent(account.handle)}`}
+                className="b-topbar__account"
+                aria-label={`profile @${account.handle}`}
+                title={account.did}
+              >
+                @{account.handle}
+              </Link>
+            ) : null}
+            <Button
+              variant="ghost"
+              className="b-topbar__icon"
+              disabled={status !== 'authenticated' || account === null}
+              onClick={() => {
+                openCompose({ mode: 'post', post: null })
+              }}
+              aria-label="compose"
+              title={`compose · ${COMPOSE_KEY}`}
+              data-keyhint="compose"
+            >
+              <span className="b-topbar__label">compose</span>
+            </Button>
 
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          disabled={status !== 'authenticated' || account === null}
-          onClick={() => {
-            openDialog('palette')
-          }}
-          aria-label="jump"
-          title={`jump · ${PALETTE_KEY}`}
-          data-keyhint="palette"
-        >
-          <span className="b-topbar__label">jump</span>
-        </Button>
+            <Button
+              variant="ghost"
+              className="b-topbar__icon"
+              disabled={status !== 'authenticated' || account === null}
+              onClick={() => {
+                openDialog('palette')
+              }}
+              aria-label="jump"
+              title={`jump · ${PALETTE_KEY}`}
+              data-keyhint="palette"
+            >
+              <span className="b-topbar__label">jump</span>
+            </Button>
 
-        <Button
-          variant="ghost"
-          className="b-topbar__icon"
-          onClick={() => {
-            openDialog('help')
-          }}
-          aria-label="keyboard help"
-          title={`keyboard help · ${HELP_KEY}`}
-          data-keyhint="help"
-        >
-          <span className="b-topbar__label">help</span>
-        </Button>
+            <Button
+              variant="ghost"
+              className="b-topbar__icon"
+              onClick={() => {
+                openDialog('help')
+              }}
+              aria-label="keyboard help"
+              title={`keyboard help · ${HELP_KEY}`}
+              data-keyhint="help"
+            >
+              <span className="b-topbar__label">help</span>
+            </Button>
+          </>
+        )}
 
         <Button
           variant="ghost"

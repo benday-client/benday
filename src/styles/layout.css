@@ -282,3 +282,21 @@
     display: none;
   }
 }
+
+/* the closed beta landing shares the page surface and needs only one row */
+.b-topbar--landing {
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.b-topbar--landing .b-topbar__actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+}
+
+.b-topbar--landing .b-brand__name {
+  display: inline;
+}

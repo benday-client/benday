@@ -25,9 +25,6 @@ export default function LandingView({ onSignIn }: LandingViewProps) {
           log in with bluesky
         </Button>
       </div>
-      <p className="b-landing__body">
-        the invitation check runs in your browser and can be bypassed
-      </p>
     </section>
   )
 }
