@@ -4,22 +4,8 @@
   min-width: 0;
 }
 
-.b-notif__bar {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--page-gutter);
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.b-notif__bar .mono-label {
-  color: var(--text-muted);
-}
-
-/* The shared deck owns the scrolling; this body only hands it the remaining
-   height under the bar, exactly like the other route-level decks. */
+/* The shared deck owns the scrolling; this body hands it the remaining height
+   under the route chrome, exactly like the other route-level decks. */
 .b-notif__stage {
   min-width: 0;
   overflow-y: auto;
@@ -41,7 +27,7 @@
   width: 100%;
   height: auto;
   border-left-width: 2px;
-  line-height: 1.5;
+  line-height: var(--leading-reading);
   transition: border-color 120ms linear;
 }
 
@@ -171,8 +157,8 @@
   border-left: 1px solid var(--line-strong);
   background: var(--panel);
   color: var(--text-muted);
-  font-size: var(--step-0);
-  line-height: 1.55;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow: hidden;
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -193,8 +179,8 @@
   border-left: 2px solid var(--line-strong);
   background: transparent;
   color: var(--ink);
-  font-size: var(--step-0);
-  line-height: 1.55;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   text-decoration: none;
 }
 
@@ -305,10 +291,6 @@
 }
 
 @media (max-width: 480px) {
-  .b-notif__bar {
-    padding: var(--space-1) var(--space-2);
-  }
-
   .b-notif__body {
     padding: var(--space-2);
   }

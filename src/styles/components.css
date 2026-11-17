@@ -58,6 +58,7 @@
   font-family: var(--font-mono);
   font-size: var(--step--1);
   letter-spacing: 0;
+  line-height: var(--leading-chrome);
 }
 
 .b-frame__body {
@@ -95,7 +96,7 @@
   font-family: var(--font-mono);
   font-size: var(--step--1);
   letter-spacing: 0;
-  line-height: 1;
+  line-height: var(--leading-chrome);
   text-transform: lowercase;
   transition:
     background-color var(--motion-dur) var(--motion-ease),
@@ -113,11 +114,22 @@
 }
 
 /* a control that announces itself busy keeps focus and its handler guard, so
-   the disabled read comes from the attribute, not from native disabling */
+   the disabled read comes from the attribute, not from native disabling.
+   one muted lane replaces the blanket opacity, which had composited the label
+   to 2.36:1 in dark and 2.03:1 in light: the muted role is 7.6:1 on the void
+   in dark and 6.6:1 in light, so the label stays above the 4.5:1 floor. */
 .b-button:disabled,
 .b-button[aria-disabled="true"] {
-  opacity: 0.45;
+  color: var(--text-muted);
   cursor: not-allowed;
+}
+
+/* the solid fill would put that muted label on the accent, so a disabled
+   solid drops back to the void and the ordinary hairline */
+.b-button--solid:disabled,
+.b-button--solid[aria-disabled="true"] {
+  border-color: var(--line);
+  background: transparent;
 }
 
 .b-button--solid {
@@ -210,9 +222,9 @@
   border-radius: 0;
   background: var(--panel);
   color: var(--text-muted);
-  font-size: var(--step--2);
+  font-size: var(--text-chrome);
   letter-spacing: 0.1em;
-  line-height: 1.6;
+  line-height: var(--leading-chrome);
   text-transform: uppercase;
 }
 
@@ -326,7 +338,9 @@
   max-height: calc(100dvh - var(--dialog-gutter));
   margin: auto;
   padding: 0;
-  border: 1px solid var(--line-strong);
+  /* one hairline weight everywhere: the dialog is raised by its paper surface
+     and the scrim, not by a heavier frame than the rest of the app */
+  border: 1px solid var(--line);
   border-radius: 0;
   background: var(--paper);
   color: var(--ink);
@@ -336,6 +350,13 @@
   /* the frame is not the scroller: its corner treatment is painted in the
      box so a scrolled body cannot drag the cuts and brackets out of place */
   overflow: hidden;
+  /* arrival is a hard step, not a 4px move quantised into 1px jumps: the lift
+     collapses and only the opacity enters, once */
+  --motion-lift: 0px;
+}
+
+.b-dialog.b-dialog {
+  transition: opacity var(--motion-dur) step-end;
 }
 
 /* the flex display above would otherwise outlive the ua hide of a closed
@@ -387,15 +408,17 @@
 
 .b-dialog__title {
   font-family: var(--font-display);
-  color: var(--ink);
-  font-size: var(--step-3);
+  color: var(--ink-heading);
+  font-size: var(--text-subtitle);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: normal;
+  line-height: var(--leading-heading);
 }
 
 .b-dialog__body {
   padding: var(--space-5);
-  font-size: var(--step-1);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   min-height: 0;
   overflow: auto;
 }
@@ -441,10 +464,10 @@
 
 .b-empty__title {
   font-family: var(--font-display);
-  color: var(--ink);
-  font-size: var(--step-3);
+  color: var(--ink-heading);
+  font-size: var(--text-subtitle);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: normal;
 }
 
 .b-empty__hint {

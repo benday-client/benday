@@ -61,7 +61,7 @@
   min-width: 0;
   border-color: var(--line);
   background-color: var(--paper);
-  line-height: 1.6;
+  line-height: var(--leading-reading);
   transition: border-color var(--motion-dur) var(--motion-ease);
 }
 
@@ -72,6 +72,34 @@
 
 .b-post-card--focused {
   border-color: var(--accent);
+}
+
+/* the signed-out card back is a reading column, not a panel ----------- */
+
+/* The page never draws a box around prose, so the gate drops the frame's
+   top and bottom hairlines and keeps the single rule between the mono label
+   and the reading block. The head sits on the same edge as the headline,
+   the rule and the note. The UA button padding (1px 6px) was the offset
+   that put the label six pixels inside everything it heads. */
+.b-card-back.b-signedout-card {
+  padding: 0;
+  border: 0;
+}
+
+.b-signedout-card > .b-card-back__head {
+  padding-inline: 0;
+}
+
+/* no accent dash under the headline: the reference spends the accent on a
+   vertical marker and on state, never on a short horizontal bar, which
+   reads as progress. */
+.b-signedout-card .b-card-back__rule {
+  display: none;
+}
+
+/* the body gap is already the 24px step; the extra 4px made 28 */
+.b-signedout-card .b-card-back__body > .b-card-back__hint {
+  margin-top: 0;
 }
 
 /* feed feedback dismissal -------------------------------------------- */
@@ -237,7 +265,7 @@
 
 .b-post-card__name {
   font-family: var(--font-display);
-  color: var(--ink);
+  color: var(--ink-heading);
   font-size: var(--step-3);
   font-weight: 400;
   overflow: hidden;
@@ -269,6 +297,7 @@
 }
 
 .b-post-card__text {
+  max-width: 40rem;
   color: var(--ink);
   font-size: var(--step-2);
   line-height: 1.4;
@@ -602,8 +631,8 @@
 
 .b-embed__quote-text {
   color: var(--text-muted);
-  font-size: var(--step-0);
-  line-height: 1.55;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 
 .b-embed__quote-actions {
@@ -791,7 +820,7 @@
 .b-profile__name {
   font-family: var(--font-display);
   min-width: 0;
-  color: var(--ink);
+  color: var(--ink-heading);
   font-size: var(--step-3);
   font-weight: 400;
   overflow: hidden;
@@ -840,11 +869,11 @@
 }
 
 .b-profile__bio {
-  max-width: 100ch;
+  max-width: 40rem;
   padding: 0 var(--space-3);
   color: var(--text-muted);
-  font-size: var(--step-0);
-  line-height: 1.6;
+  font-size: var(--step-2);
+  line-height: 1.4;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -917,8 +946,8 @@
 .b-profile__action-error {
   margin: 0 var(--space-3);
   color: var(--ink);
-  font-size: var(--step--1);
-  line-height: 1.5;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
 }
 
@@ -956,7 +985,7 @@
 
 .b-mode-card__title {
   font-family: var(--font-display);
-  color: var(--ink);
+  color: var(--ink-heading);
   font-size: var(--step-3);
   line-height: 1.15;
 }
@@ -965,8 +994,8 @@
   max-width: 32ch;
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step-0);
-  line-height: 1.5;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
 }
 
@@ -1021,10 +1050,6 @@
     overscroll-behavior: contain;
     scrollbar-color: var(--line-strong) transparent;
     scrollbar-width: thin;
-  }
-
-  .b-post-card__text {
-    max-width: 100ch;
   }
 }
 

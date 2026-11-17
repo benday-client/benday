@@ -158,11 +158,7 @@
   font: inherit;
   font-size: var(--step-0);
 }
-.b-help__search-input:focus {
-  border-color: var(--accent);
-  outline: 1px solid var(--accent);
-  outline-offset: 1px;
-}
+/* the shared :focus-visible stop is the only ring; the field never doubles it */
 .b-help__empty {
   margin: 0;
   color: var(--text-muted);
@@ -258,17 +254,22 @@
   font-size: var(--step--1);
   font-weight: 400;
   letter-spacing: 0;
+  line-height: var(--leading-chrome);
 }
 .b-settings__note {
+  /* the same reading column the deck, warnings and empty states use */
+  max-width: 52ch;
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
-  line-height: 1.5;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 .b-settings__error {
+  max-width: 52ch;
   margin: 0;
   color: var(--ink);
-  font-size: var(--step--1);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 .b-settings__row {
   display: flex;
@@ -293,20 +294,19 @@
   background: var(--void);
   color: var(--ink);
   font: inherit;
-  font-size: var(--step-0);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
-.b-settings__search-input:focus {
-  border-color: var(--accent);
-  outline: 1px solid var(--accent);
-  outline-offset: 1px;
-}
+/* focus comes from the shared :focus-visible stop (1px accent, 4px offset):
+   the field adds no second ring and no accent border of its own */
 .b-settings__section[data-hidden="true"] {
   display: none;
 }
 .b-settings__search-empty {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 .b-settings__appearance-mode {
   display: flex;
@@ -328,6 +328,7 @@
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: var(--step--1);
+  line-height: var(--leading-chrome);
   text-transform: lowercase;
 }
 .b-settings__mode:hover,
@@ -343,12 +344,21 @@
   color: var(--text-muted);
   font-size: var(--step--1);
   cursor: pointer;
+  line-height: var(--leading-chrome);
+}
+/* the label is chrome (mono, ink); the note is reading copy (sans, muted), so
+   the pair no longer parses as one sentence */
+.b-settings__toggle > span:first-of-type {
+  color: var(--ink);
+  font-family: var(--font-mono);
 }
 .b-settings__toggle input {
   accent-color: var(--accent);
 }
 .b-settings__toggle-note {
   color: var(--text-muted);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 .b-settings__account {
   display: flex;
@@ -359,7 +369,7 @@
 .b-settings__account-handle {
   min-width: 0;
   color: var(--ink);
-  font-size: var(--step-1);
+  font-size: var(--text-reading);
   overflow-wrap: anywhere;
 }
 .b-settings__account-did {

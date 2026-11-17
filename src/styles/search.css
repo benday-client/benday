@@ -69,7 +69,7 @@
 .b-search-card__name {
   font-family: var(--font-display);
   overflow: hidden;
-  color: var(--ink);
+  color: var(--ink-heading);
   font-size: var(--step-3);
   font-weight: 400;
   text-decoration: none;
@@ -93,8 +93,8 @@
 .b-search-card__description {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
-  line-height: 1.55;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }

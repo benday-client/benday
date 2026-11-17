@@ -16,10 +16,42 @@
   object-fit: cover;
 }
 
+/* the bitmap arrives held back, then lands in the same stepped motion the
+   rest of the interface uses instead of popping in */
+.dither-image[data-ready="false"] {
+  opacity: 0;
+}
+
+.dither-image[data-ready="true"] {
+  animation: b-dither-reveal var(--dither-swap) steps(3, end) both;
+}
+
+@keyframes b-dither-reveal {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dither-image[data-ready="true"] {
+    animation: none;
+  }
+}
+
 /* the user can turn the ordered dither off; the image then paints plainly */
 .dither-image[data-effect="none"] {
   filter: none;
   image-rendering: auto;
+}
+
+.dither-image[data-effect="none"][data-ready="true"] {
+  animation: none;
 }
 
 /* Each scheme owns its filter, including a scope nested in the other scheme. */

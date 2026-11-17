@@ -128,12 +128,12 @@
 .b-card-back__feed {
   max-width: 100%;
   overflow: hidden;
-  color: var(--ink);
+  color: var(--ink-heading);
   font-family: var(--font-display);
-  font-size: var(--step-4);
+  font-size: var(--text-headline);
   font-weight: 400;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  letter-spacing: normal;
+  line-height: var(--leading-display);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -156,30 +156,46 @@
 
 .b-signedout-card .b-card-back__feed {
   overflow: visible;
-  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  font-size: var(--text-headline);
   white-space: normal;
+}
+
+@media (max-width: 600px) {
+  .b-signedout-card .b-card-back__feed {
+    font-size: var(--text-title);
+  }
 }
 
 .b-signedout-card__note {
   max-width: 40ch;
   color: var(--text-muted);
-  font-size: var(--step-1);
-  line-height: 1.4;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
 }
 
 .b-card-back__hint {
   margin-top: var(--space-3);
   color: var(--ink);
-  font-size: var(--step--1);
+  font-family: var(--font-mono);
+  font-size: var(--text-chrome);
   letter-spacing: 0.08em;
+  line-height: var(--leading-chrome);
   text-transform: uppercase;
 }
 
+/* the body gap already separates the note from the CTA; a margin on top of it
+   made the gate's last gap 28px instead of a scale step */
 .b-signedout-card .b-card-back__hint {
-  margin-top: var(--space-1);
+  margin-top: 0;
 }
 
-/* the shell gate: one centered card where every route would render */
+/* the shell gate: the chrome keeps its --page-gutter origin and the reading
+   column centres in the space the gutters leave, which is the reference's
+   40rem column inside its 75rem reader frame (inset max(4rem, (100vw - 75rem)
+   / 2)): a symmetric frame puts the column on the viewport centre, so it lands
+   at x=400 at 1440 with the chrome at 56, and at x=192 at 1024. Once the 40rem
+   measure plus both gutters no longer fit, the column is the full gutter
+   width, as it is at a 390 phone. */
 .b-shell-gate {
   display: grid;
   align-content: center;
@@ -307,7 +323,7 @@
 .b-feed-card__name {
   font-family: var(--font-display);
   overflow: hidden;
-  color: var(--ink);
+  color: var(--ink-heading);
   font-size: var(--step-3);
   font-weight: 400;
   text-overflow: ellipsis;
@@ -317,8 +333,8 @@
 .b-feed-card__description {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
-  line-height: 1.55;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -416,7 +432,7 @@
 
 .b-pinned-feed {
   appearance: none;
-  padding: 2px var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--line);
   border-radius: 0;
   background: var(--void);
@@ -436,7 +452,7 @@
 
 .b-pinned-control {
   appearance: none;
-  padding: 2px var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--line-strong);
   border-radius: 0;
   background: transparent;
@@ -564,7 +580,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--line);
 }
@@ -636,8 +652,8 @@
 .b-thread__reply-text {
   max-width: 100ch;
   color: var(--text-muted);
-  font-size: var(--step--1);
-  line-height: 1.5;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -673,8 +689,8 @@
 .b-view__warning p {
   max-width: 60ch;
   color: var(--text-muted);
-  font-size: var(--step-0);
-  line-height: 1.5;
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
   overflow-wrap: anywhere;
 }
 

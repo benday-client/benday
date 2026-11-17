@@ -30,9 +30,9 @@
 .b-auth__portal-note {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
+  font-size: var(--text-reading);
   letter-spacing: 0.03em;
-  line-height: 1.5;
+  line-height: var(--leading-reading);
 }
 
 .b-auth__divider {
@@ -59,12 +59,13 @@
   align-items: center;
   gap: var(--space-1) var(--space-2);
   color: var(--text-muted);
-  font-size: var(--step--1);
+  font-size: var(--text-reading);
   letter-spacing: 0.03em;
-  line-height: 1.5;
+  line-height: var(--leading-reading);
 }
 
-.b-auth__error {
+.b-auth__error,
+.b-account__error {
   margin: 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--danger);
@@ -119,9 +120,15 @@
 .b-account__note {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--step--1);
+  font-size: var(--text-reading);
   letter-spacing: 0.03em;
-  line-height: 1.5;
+  line-height: var(--leading-reading);
+}
+
+/* a failed revocation outlives the account it was started from, so the notice
+   stands over the note that says nobody is signed in */
+.b-account__error {
+  margin-bottom: var(--space-3);
 }
 
 .b-account__actions {
@@ -170,10 +177,10 @@
   border-radius: 0;
   background: var(--void);
   color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--step-0);
+  font-family: var(--font-reading);
+  font-size: var(--text-reading);
   letter-spacing: 0.02em;
-  line-height: 1.6;
+  line-height: var(--leading-reading);
   resize: vertical;
 }
 

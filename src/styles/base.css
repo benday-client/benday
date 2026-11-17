@@ -18,9 +18,9 @@ body {
   background: var(--void);
   color: var(--ink);
   font-family: var(--font-reading);
-  font-size: var(--step-1);
+  font-size: var(--text-reading);
   font-variant-ligatures: none;
-  line-height: 1.4;
+  line-height: var(--leading-reading);
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
 }
@@ -83,8 +83,11 @@ p {
 h1,
 h2,
 h3 {
+  color: var(--ink-heading);
   font-family: var(--font-display);
   font-weight: 400;
+  letter-spacing: normal;
+  line-height: var(--leading-heading);
 }
 
 ul,
@@ -119,8 +122,9 @@ ol {
 .mono-label {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: var(--step--1);
+  font-size: var(--text-chrome);
   letter-spacing: 0;
+  line-height: var(--leading-chrome);
 }
 
 .dim {
