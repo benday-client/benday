@@ -17,6 +17,9 @@ const ROOT_URI = 'at://did:plc:test/app.bsky.feed.post/root'
 const REPLY_URI = 'at://did:plc:test/app.bsky.feed.post/reply'
 
 async function settle(): Promise<void> {
+  // the metrics these geometry assertions read belong to the loaded faces, so
+  // a late swap must not move the card after it was measured
+  await document.fonts.ready
   await new Promise<void>((done) => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {

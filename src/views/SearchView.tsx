@@ -218,8 +218,10 @@ export default function SearchView() {
   }, [])
 
   useEffect(() => {
-    if (!wide) setModeDeck(false)
-  }, [wide])
+    // an empty query deals only its quiet band, so no mode deck can stay open
+    // behind it on either width
+    if (!wide || emptyQuery) setModeDeck(false)
+  }, [wide, emptyQuery])
 
   // the mode deck closes before the app's back layer can leave search; a
   // keyboard exit from the mode cards lands on the results deck
@@ -273,9 +275,11 @@ export default function SearchView() {
     })
   }
 
+  // an empty query has nothing to scan, so the deck shows only its quiet band:
+  // neither the narrow chips nor the wide mode peek are dealt until a query
   const quietBand = <EmptyState title="quiet band" hint="type a query to scan the network" />
 
-  // one peek serves all three result branches
+  // one peek serves both result branches
   const modePeek = (
     <CardBackButton
       label="search"
@@ -433,7 +437,7 @@ export default function SearchView() {
           </div>
         ) : null}
       </search>
-      {!wide ? (
+      {!wide && !emptyQuery ? (
         <div className="b-view__tools b-view__tools--profile">
           <fieldset className="b-view__pinned">
             <legend className="mono-label">search</legend>
@@ -525,7 +529,7 @@ export default function SearchView() {
                   <EmptyState title="no posts found" hint="no posts matched this query" />
                 )
               }
-              {...(wide
+              {...(wide && !emptyQuery
                 ? {
                     onExitStart: () => {
                       switchModeDeck(true)
@@ -565,7 +569,7 @@ export default function SearchView() {
                   <EmptyState title="no users found" hint="no accounts matched this query" />
                 )
               }
-              {...(wide
+              {...(wide && !emptyQuery
                 ? {
                     onExitStart: () => {
                       switchModeDeck(true)

@@ -365,6 +365,19 @@ describe('NotificationsView cards', () => {
     expect(row).toHaveAttribute('data-unread', 'true')
     expect(row.querySelector('.b-notif__unread')?.textContent).toBe('unread')
   })
+
+  it('names the route once, in the hidden heading, with no label strip', async () => {
+    renderNotifications([REPLY])
+
+    await screen.findByText('reply author')
+
+    // the top bar already marks the route, so the view must not spend a row on
+    // a second label; the hidden h1 keeps the heading for assistive tech
+    expect(document.querySelector('.b-notif__bar')).toBeNull()
+    const labels = screen.getAllByText('notifications')
+    expect(labels).toHaveLength(1)
+    expect(labels[0]?.tagName).toBe('H1')
+  })
 })
 
 describe('NotificationsView deck navigation', () => {

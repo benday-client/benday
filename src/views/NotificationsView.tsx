@@ -211,10 +211,6 @@ export default function NotificationsView() {
   return (
     <section ref={viewRef} tabIndex={-1} className="b-view b-notif-view">
       <h1 className="visually-hidden">notifications</h1>
-      <div className="b-notif__bar">
-        <span className="mono-label">notifications</span>
-      </div>
-
       <div className="b-view__body b-notif__stage">
         {info !== null && rows.length === 0 ? (
           <div className="b-notif__state">

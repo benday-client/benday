@@ -117,6 +117,20 @@ describe('TopBar tab row', () => {
     useUiStore.setState({ dialog: null, compose: null })
   })
 
+  it.each(['/feed', '/search', '/notifications'] as const)(
+    'does not claim %s as current while the signed-out gate renders',
+    (path) => {
+      useAuthStore.setState({ status: 'anonymous', account: null })
+      const { container } = renderTopBar(path)
+      const tabs = Array.from(container.querySelectorAll<HTMLAnchorElement>('a.b-topbar__link'))
+      expect(tabs).toHaveLength(3)
+      for (const tab of tabs) {
+        expect(tab.getAttribute('aria-current')).toBeNull()
+        expect(tab.getAttribute('data-active')).toBe('false')
+      }
+    },
+  )
+
   it.each(['/feed', '/search'] as const)('orders and marks the primary tabs on %s', (path) => {
     const { container } = renderTopBar(path)
     const nav = container.querySelector('.b-topbar__nav')

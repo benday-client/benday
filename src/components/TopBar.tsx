@@ -19,10 +19,14 @@ export function TopBar() {
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
-  const feedsActive = pathname === '/' || pathname.startsWith('/feed')
-  const searchActive = pathname.startsWith('/search')
-  const notificationsActive = pathname.startsWith('/notifications')
-  const profileActive = pathname.startsWith('/profile/')
+  // the gate renders in place of every route until the store reports a session,
+  // so no tab may claim to be the page while a signed-out gate is what draws
+  const gated = status !== 'authenticated'
+
+  const feedsActive = !gated && (pathname === '/' || pathname.startsWith('/feed'))
+  const searchActive = !gated && pathname.startsWith('/search')
+  const notificationsActive = !gated && pathname.startsWith('/notifications')
+  const profileActive = !gated && pathname.startsWith('/profile/')
   let profileHandle = ''
   if (profileActive) {
     try {

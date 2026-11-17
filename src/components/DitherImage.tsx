@@ -27,6 +27,9 @@ export function DitherImage({
   height,
 }: DitherImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  // the dithered pixels arrive in steps once the bitmap decodes, the way
+  // doll.systems swaps its canvas in over the still
+  const [readySrc, setReadySrc] = useState<string | null>(null)
   const imageEffects = useSettings((state) => state.imageEffects)
   const effect = imageEffects ? undefined : 'none'
 
@@ -69,6 +72,7 @@ export function DitherImage({
     <img
       className={classes.join(' ')}
       data-effect={effect}
+      data-ready={readySrc === imageSrc ? 'true' : 'false'}
       src={imageSrc}
       alt={alt}
       {...(declaredWidth !== undefined ? { width: declaredWidth } : {})}
@@ -76,6 +80,7 @@ export function DitherImage({
       loading={loading ?? 'lazy'}
       decoding="async"
       referrerPolicy="no-referrer"
+      onLoad={() => setReadySrc(imageSrc)}
       onError={() => setFailedSrc(imageSrc)}
     />
   )

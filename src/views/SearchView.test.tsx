@@ -542,6 +542,27 @@ describe('SearchView search landmark and swap focus', () => {
   })
 })
 
+describe('SearchView empty query', () => {
+  it('deals only the quiet band without a mode switcher at both widths', async () => {
+    stubWide(true)
+    const wide = renderSearch('')
+    await screen.findByText('quiet band')
+    // the wide deck has no mode peek to open the modes deck with
+    expect(screen.queryByLabelText('change search mode, posts')).toBeNull()
+    expect(screen.queryByLabelText('search modes')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'posts' })).toBeNull()
+    wide.unmount()
+
+    stubWide(false)
+    renderSearch('')
+    await screen.findByText('quiet band')
+    // and no narrow chips either: the empty deck is alone on the surface
+    expect(screen.queryByRole('button', { name: 'posts' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'users' })).toBeNull()
+    expect(screen.queryByLabelText('change search mode, posts')).toBeNull()
+  })
+})
+
 describe('SearchView retained rows on a failed rescan', () => {
   it('announces the failure beside the user rows and recovers on retry', async () => {
     let scans = 0
