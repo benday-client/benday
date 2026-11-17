@@ -446,6 +446,11 @@ for apache hosting the build includes `dist/.htaccess` from `public/.htaccess`
 upload it with the other files and allow its directory overrides so json is
 served directly and client routes fall back to `index.html`
 
+the [deployment workflow](https://github.com/qexat/clarissep.com/actions/workflows/deploy-benday.yml)
+builds `lexa-qexat/benday` from `main` and uses the existing deployment secret
+in `qexat/clarissep.com` to upload only to `www/benday.qex.at`
+run it manually after later source pushes
+
 `/feed` is the canonical portal callback. direct requests to `/feed` must return
 the app's `index.html` and keep the callback query string intact. the other
 client routes need the same html fallback so opening or reloading a route works.
