@@ -1,10 +1,10 @@
 import { Agent } from '@atproto/api'
 import type { BrowserOAuthClient, OAuthSession } from '@atproto/oauth-client-browser'
 import { resolveHandleDid } from './identity'
+import { OAUTH_REDIRECT_PATH, OAUTH_SCOPE } from './oauthMetadata'
 import { boundedFetch } from './requestTimeout'
 
 const HANDLE_RESOLVER = 'https://public.api.bsky.app'
-const OAUTH_SCOPE = 'atproto transition:generic'
 
 export interface OAuthAccount {
   agent: Agent
@@ -27,7 +27,17 @@ function isLoopbackHost(host: string): boolean {
 }
 
 export function canUseOAuth(): boolean {
-  return typeof window !== 'undefined' && isLoopbackHost(window.location.hostname)
+  return typeof window !== 'undefined' && oauthClientId(window.location) !== null
+}
+
+export function oauthClientId(
+  location: LoopbackLocation & { origin: string },
+  hostedClientId: string | null = import.meta.env.BENDAY_OAUTH_CLIENT_ID ?? null,
+): string | null {
+  if (isLoopbackHost(location.hostname)) return loopbackClientId(location)
+  return hostedClientId !== null && new URL(hostedClientId).origin === location.origin
+    ? hostedClientId
+    : null
 }
 
 export interface LoopbackLocation {
@@ -35,12 +45,6 @@ export interface LoopbackLocation {
   port: string
   pathname: string
 }
-
-// the client id is baked into every token, so it must not follow the route:
-// signing in on /feed and then opening /notifications would present a token
-// issued to a different client and the pds answers "token was not issued to
-// this client". one canonical callback keeps the id stable across routes.
-const OAUTH_REDIRECT_PATH = '/feed'
 
 /**
  * A loopback client id must carry no path: `http://localhost/feed?...` is
@@ -56,14 +60,14 @@ export function loopbackClientId(location: LoopbackLocation): string {
 }
 
 async function getClient(): Promise<BrowserOAuthClient | null> {
-  if (!canUseOAuth()) return null
+  const clientId = typeof window === 'undefined' ? null : oauthClientId(window.location)
+  if (clientId === null) return null
 
   if (clientPromise === null) {
     clientPromise = (async () => {
       // The browser OAuth client touches window and BroadcastChannel when its
       // module loads. Keep it lazy so the auth store stays importable in tests.
       const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
-      const clientId = loopbackClientId(window.location)
       return BrowserOAuthClient.load({
         clientId,
         handleResolver: HANDLE_RESOLVER,
@@ -123,7 +127,7 @@ export function restoreOAuth(): Promise<OAuthAccount | null> {
 
 export async function signInOAuth(identifier: string): Promise<void> {
   const client = await getClient()
-  if (client === null) throw new Error('portal sign in needs a loopback address')
+  if (client === null) throw new Error('portal sign in is not configured for this origin')
 
   const did = await resolveHandleDid(identifier)
 
