@@ -178,14 +178,14 @@ open the dev server at `http://127.0.0.1:5173/` for the portal flow, or at
 only, so the dev server is never reachable from another host.
 
 the target production origin is `https://benday.qex.at`, serving `dist/` from
-the origin root. dns must resolve that hostname to the static host, with a valid
-tls certificate. deployment must serve real assets and oauth metadata before the
-html fallback; metadata is a public `application/json` response, never the app
-shell. `/feed` is the canonical oauth callback and must serve `index.html` on a
-direct request, preserving its query string. the other client routes also need
-the html fallback. verify those http responses on the deployed host; vite preview
-only proves the local bundle and cannot establish that production routing or dns
-works.
+the origin root; `BENDAY_PUBLIC_ORIGIN` overrides it for another deployment. dns
+must resolve that hostname to the static host, with a valid tls certificate.
+deployment must serve real assets and oauth metadata before the html fallback;
+metadata is a public `application/json` response, never the app shell. `/feed`
+is the canonical oauth callback and must serve `index.html` on a direct request,
+preserving its query string. the other client routes also need the html fallback.
+verify those http responses on the deployed host; vite preview only proves the
+local bundle and cannot establish that production routing or dns works.
 
 build the hosted portal configuration with:
 
@@ -193,13 +193,11 @@ build the hosted portal configuration with:
 BENDAY_PUBLIC_ORIGIN=https://benday.qex.at pnpm build
 ```
 
-the optional build-time origin must use https without a path, query, fragment,
-credentials or nondefault port. a configured build emits
-`dist/oauth-client-metadata.json` and embeds that asset's absolute url as
+an unset origin builds for `https://benday.qex.at`. the origin must use https
+without a path, query, fragment, credentials or nondefault port. every build
+emits `dist/oauth-client-metadata.json` and embeds that asset's absolute url as
 `import.meta.env.BENDAY_OAUTH_CLIENT_ID`. deploy metadata and app together.
-without this configuration, the bundle keeps loopback oauth and the password
-fallback but emits no hosted metadata. changing the host environment after the
-build does not reconfigure the bundle.
+changing the host environment after the build does not reconfigure the bundle.
 
 live deployment verification is pending: `benday.qex.at` did not resolve from the
 development environment on 2026-11-17. after dns and hosting are configured,
@@ -263,11 +261,12 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   store the sdk session in localStorage; portal sessions are managed by
   `@atproto/oauth-client-browser`.
 - portal login uses `atproto transition:generic` on `127.0.0.1` and `[::1]`
-  and on the exact https origin configured through `BENDAY_PUBLIC_ORIGIN`.
-  the hosted client id is the origin's `/oauth-client-metadata.json` url and
-  never follows the active route; tokens are bound to that identity. both client
-  types return to the canonical `/feed` callback.
-- `localhost` and unmatched or unconfigured public origins keep the password
+  and on the exact https origin baked into the build (`benday.qex.at` by
+  default, or `BENDAY_PUBLIC_ORIGIN`). the hosted client id is that origin's
+  `/oauth-client-metadata.json` url and never follows the active route; tokens
+  are bound to that identity. both client types return to the canonical `/feed`
+  callback.
+- `localhost` and every origin other than the baked one keep the password
   fallback. `localhost` deliberately avoids the oauth client's loopback rewrite,
   which would orphan that origin's stored session and settings.
 - sign-out revokes the portal session, logs out the password agent, clears
@@ -751,9 +750,9 @@ in the nearest existing file rather than creating a parallel suite.
   state.
 - there is no server proxy. reads use the fixed `https://api.bsky.app` origin;
   a self-hosted pds used for sign-in must allow browser CORS.
-- hosted portal login needs a build-configured https origin and public json
-  metadata from the same build. `localhost` and unmatched or unconfigured public
-  origins keep the password fallback.
+- hosted portal login needs the deployed origin and public json metadata from
+  the same build. `localhost` and any origin other than the baked one keep the
+  password fallback.
 - a thread is flattened to depth 3 and capped at 80 entries: root-first
   ancestors, then the focus post, then replies in pre-order.
 - notifications are a single 50-item page. there is no paging, push or polling.

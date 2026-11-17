@@ -38,9 +38,8 @@ a `localhost` origin keeps the password form, because the oauth client would
 rewrite it to the loopback IP and orphan the localhost origin's stored session
 and settings.
 
-the configured deployment uses one hosted client identity across routes and
-returns to `/feed`. other origins and unconfigured public builds keep the
-password form.
+the deployment uses one hosted client identity across routes and returns to
+`/feed`. any other origin keeps the password form.
 
 the password and app-password form remains as a fallback. this is usually an
 app password; some pds implementations do not expose app passwords and require
@@ -404,15 +403,17 @@ origin root over https; the app uses root-relative assets and routes. configure
 dns for `benday.qex.at` to reach the static host and provision a valid tls
 certificate before enabling the public portal flow.
 
-build for that exact origin:
+build for that origin, which is the default:
 
 ```sh
 BENDAY_PUBLIC_ORIGIN=https://benday.qex.at pnpm build
 ```
 
-`BENDAY_PUBLIC_ORIGIN` accepts an https origin without a path, query, fragment,
-credentials or nondefault port. the build emits `dist/oauth-client-metadata.json`
-and embeds its client id in the app. the metadata's client id is
+an unset `BENDAY_PUBLIC_ORIGIN` builds for `https://benday.qex.at`; set it
+to mint metadata for a different deployment. it accepts an https origin without
+a path, query, fragment, credentials or nondefault port. every build emits
+`dist/oauth-client-metadata.json` and embeds its client id in the app. the
+metadata's client id is
 `https://benday.qex.at/oauth-client-metadata.json` and its redirect uri is
 `https://benday.qex.at/feed`. changing the deployment origin requires rebuilding;
 setting an environment variable on an already-built static host changes nothing.
