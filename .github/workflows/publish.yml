@@ -54,4 +54,7 @@ jobs:
             ./dist/.htpasswd => ./www/benday.qex.at/
           # ENVIRON["PWD"] is resolved by awk on the server, which is the only
           # place the absolute path exists.
-          last_ssh: awk '{gsub(/__PWD__/,ENVIRON["PWD"])}1' ./www/benday.qex.at/.htaccess > ./www/benday.qex.at/.htaccess.tmp && mv ./www/benday.qex.at/.htaccess.tmp ./www/benday.qex.at/.htaccess && chmod 600 ./www/benday.qex.at/.htpasswd && test -f ./www/benday.qex.at/.htpasswd && stat -c '%a %n' ./www/benday.qex.at/.htaccess ./www/benday.qex.at/.htpasswd
+          # HOME is set in every remote session while PWD is not, and the
+          # web server user must be able to read the credential file even
+          # though the directive only lives in this file, so it is 644.
+          last_ssh: awk '{p=(ENVIRON["HOME"]!="")?ENVIRON["HOME"]:ENVIRON["PWD"]; gsub(/__PWD__/,p)}1' ./www/benday.qex.at/.htaccess > ./www/benday.qex.at/.htaccess.tmp && mv ./www/benday.qex.at/.htaccess.tmp ./www/benday.qex.at/.htaccess && chmod 644 ./www/benday.qex.at/.htpasswd && test -f ./www/benday.qex.at/.htpasswd && grep -c 'AuthUserFile /' ./www/benday.qex.at/.htaccess
