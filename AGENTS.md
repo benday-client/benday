@@ -259,14 +259,14 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   exemption because the pds fetches it during portal sign in. a client-side
   allowlist was considered and dropped, so do not add one back.
 - one bcrypt line per person lives in the `BETA_HTPASSWD` action secret and is
-  written to `dist/.htpasswd` at publish; the `.htaccess` is generated on the
-  remote so `AuthUserFile` can be absolute. the repository never holds a
+  written to `dist/.htpasswd` at publish. the repository never holds a
   credential and `dist/` stays ignored.
 - adding a person is one line in that secret; revoking is deleting their line.
   rotation is per person, which is the whole reason there is no shared password.
-- the routing rules live only in the `.htaccess` heredoc inside
-  `.github/workflows/publish.yml`. do not add `public/.htaccess` back: a local
-  copy would silently disagree with what the server actually receives.
+- `public/.htaccess` is the only source for the serving rules and the gate; it
+  ships in `dist/` and the publish step rewrites its `__PWD__` placeholder to
+  the absolute webspace path, because `AuthUserFile` takes no relative path.
+  edit that file, never a deployed copy, and never add a second one.
 - there is no first-party server. never add an endpoint that receives sessions,
   passwords, drafts or settings.
 - browser storage keys are fixed: `benday:settings` (appearance mode and keyboard shortcuts),
