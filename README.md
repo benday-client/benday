@@ -442,6 +442,10 @@ serve existing files before applying the single-page-app fallback.
 `application/json` content type, rather than returning `index.html` or a sign-in
 page. deploy the metadata and app from the same build.
 
+for apache hosting the build includes `dist/.htaccess` from `public/.htaccess`
+upload it with the other files and allow its directory overrides so json is
+served directly and client routes fall back to `index.html`
+
 `/feed` is the canonical portal callback. direct requests to `/feed` must return
 the app's `index.html` and keep the callback query string intact. the other
 client routes need the same html fallback so opening or reloading a route works.
