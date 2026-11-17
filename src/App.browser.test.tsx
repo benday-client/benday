@@ -9,6 +9,7 @@ import { Deck } from './components/Deck'
 import { PostCard } from './components/PostCard'
 import { SettingsDialog } from './components/SettingsDialog'
 import { AUTH_STORAGE_KEY, useAuthStore } from './lib/auth'
+import { inviteDigest, resetBetaInvites } from './lib/betaAccess'
 import { useUiStore } from './lib/ui'
 import { resolveSrgbColor } from './test/colors'
 import { postFixture } from './test/fixtures'
@@ -168,6 +169,13 @@ describe('portal restore notice layout', () => {
       )
       transport.route('GET', `${pds}/xrpc/app.bsky.feed.getFeed`, () =>
         jsonResponse(200, { feed: [] }),
+      )
+      // the shipped invitation list would refuse this fixture account, so the
+      // case ships its own list naming it
+      // the list is cached per page load, and this page has already loaded once
+      resetBetaInvites()
+      transport.route('GET', `${window.location.origin}/beta/invites.json`, async () =>
+        jsonResponse(200, { sha256: [await inviteDigest(session.did)] }),
       )
       await useAuthStore.getState().signIn(session.did, 'app-pass')
       useAuthStore.setState({ restoreError: 'could not reach the portal' })

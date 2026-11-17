@@ -39,3 +39,40 @@
     font-size: var(--text-title);
   }
 }
+
+/* the wall after a sign in that is not on the list: same column and type as the
+   front door, one action, no way around it. */
+.b-refusal {
+  display: grid;
+  align-content: center;
+  justify-content: center;
+  grid-template-columns: minmax(0, 40rem);
+  gap: var(--space-5);
+  padding: var(--space-8) var(--page-gutter);
+}
+
+.b-refusal__headline {
+  margin: 0;
+  max-width: 24ch;
+  color: var(--ink-heading);
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: var(--leading-display);
+}
+
+.b-refusal__body {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--ink);
+  font-family: var(--font-reading);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+.b-landing__link {
+  color: var(--text-link);
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}

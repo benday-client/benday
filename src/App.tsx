@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type ReactNode, useCallback, useEffect, useRef } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { type AroundNavHandler, Link, Route, Router, Switch, useLocation, useSearch } from 'wouter'
 import { AccountDialog } from './components/AccountDialog'
@@ -15,6 +15,7 @@ import { SignedOutCard } from './components/SignedOutCard'
 import { TopBar } from './components/TopBar'
 import { EmptyState, ErrorNotice, Progress } from './components/ui'
 import { useAccountLabelers } from './hooks/useAccountLabelers'
+import { useBetaAccess } from './hooks/useBetaAccess'
 import { isEditableTarget, useHotkeys } from './hooks/useHotkeys'
 import { useAuthStore } from './lib/auth'
 import { goBackOrFallback, THREAD_FALLBACK_VIEW, withAppHistory } from './lib/history'
@@ -28,6 +29,8 @@ import {
 import { useSettings } from './lib/store'
 import { themeColor } from './lib/themes'
 import { uiOwnsKeyboard, useUiStore } from './lib/ui'
+import AdminView from './views/AdminView'
+import BetaRefusal from './views/BetaRefusal'
 import FeedView from './views/FeedView'
 import LandingView from './views/LandingView'
 import NotificationsView from './views/NotificationsView'
@@ -133,6 +136,7 @@ function NotFound() {
  */
 function routeTitle(pathname: string, search: string): string {
   if (pathname === '/' || pathname === '/feed' || pathname.startsWith('/feed/')) return 'feeds'
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'invites'
   if (pathname === '/notifications' || pathname.startsWith('/notifications/')) {
     return 'notifications'
   }
@@ -152,6 +156,11 @@ function routeTitle(pathname: string, search: string): string {
   return 'nothing here'
 }
 
+function AccountLabelers() {
+  useAccountLabelers()
+  return null
+}
+
 function AppShell() {
   const [pathname, navigate] = useLocation()
   const search = useSearch()
@@ -169,9 +178,30 @@ function AppShell() {
   const previousPathRef = useRef<string | null>(null)
   const previousTabRef = useRef<string | null>(null)
   const authStatus = useAuthStore((state) => state.status)
+  const account = useAuthStore((state) => state.account)
+  const signOut = useAuthStore((state) => state.signOut)
   const authenticated = authStatus === 'authenticated'
+  // the shipped invitation list decides who may use the app; an unreadable list
+  // fails closed rather than letting everyone in
+  const access = useBetaAccess(authenticated ? account : null)
+  const allowed = authenticated && access === 'allowed'
+  // latched so the refusal survives the sign-out it triggers: once the account
+  // clears, the access check has nothing left to answer for
+  const [refusal, setRefusal] = useState<'refused' | 'unreadable' | null>(null)
   const restoreError = useAuthStore((state) => state.restoreError)
-  useAccountLabelers()
+
+  // an account that is not on the list is signed out through the local-first
+  // path, so a reload cannot put it back inside
+  useEffect(() => {
+    if (!authenticated) return
+    if (access === 'allowed') {
+      setRefusal(null)
+      return
+    }
+    if (access !== 'refused' && access !== 'unreadable') return
+    setRefusal(access)
+    void signOut()
+  }, [authenticated, access, signOut])
 
   const theme = useSettings((state) => state.theme)
   const appearance = useSettings((state) => state.appearance)
@@ -318,7 +348,7 @@ function AppShell() {
   const tabBinding = bindingFor('tabs')
 
   useEffect(() => {
-    if (dialog !== null || compose !== null || inlineCompose !== null) return
+    if (!allowed || dialog !== null || compose !== null || inlineCompose !== null) return
 
     const handleTabKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat) return
@@ -339,7 +369,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handleTabKey, true)
     }
-  }, [dialog, compose, inlineCompose, pathname, authStatus, tabBinding])
+  }, [dialog, compose, inlineCompose, pathname, allowed, tabBinding])
 
   // the palette chord toggles itself closed, so it is matched before the guard
   // chain that an open dialog normally arms. it is a chord, so it may fire from
@@ -350,7 +380,7 @@ function AppShell() {
       if (event.isComposing || event.keyCode === 229) return
       if (!matchesBinding(event, bindingFor('palette'))) return
       // the gate owns the keyboard while nobody is signed in
-      if (!authenticated) return
+      if (!allowed) return
 
       if (dialog === 'palette') {
         event.preventDefault()
@@ -368,7 +398,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handlePaletteToggle, true)
     }
-  }, [dialog, compose, inlineCompose, authenticated, openDialog, closeDialog])
+  }, [dialog, compose, inlineCompose, allowed, openDialog, closeDialog])
 
   const closeOrBack = () => {
     if (pathname.startsWith('/profile/')) {
@@ -398,7 +428,7 @@ function AppShell() {
   // app's own "one level up".
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat) return
+      if (!allowed || event.defaultPrevented || event.repeat) return
       // an IME owns the key that commits its composition
       if (event.isComposing || event.keyCode === 229) return
       if (!matchesBinding(event, backBinding)) return
@@ -430,7 +460,7 @@ function AppShell() {
     return () => {
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [backBinding, dialog, compose, closeDialog, closeCompose, pathname, search, navigate])
+  }, [allowed, backBinding, dialog, compose, closeDialog, closeCompose, pathname, search, navigate])
 
   const hotkeys = globalHotkeys({
     search: focusSearch,
@@ -440,10 +470,7 @@ function AppShell() {
     // dialog and a hold reveals the key badges instead
   })
 
-  useHotkeys(
-    hotkeys,
-    authenticated && dialog === null && compose === null && inlineCompose === null,
-  )
+  useHotkeys(hotkeys, allowed && dialog === null && compose === null && inlineCompose === null)
 
   // a route swap ends a hold: the badges describe the surface that was on
   // screen when the key went down
@@ -455,7 +482,8 @@ function AppShell() {
         skip to content
       </a>
 
-      <TopBar />
+      {!authenticated || allowed ? <TopBar /> : null}
+      {!authenticated || allowed ? <AccountLabelers /> : null}
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
         {restoreError === null ? null : (
@@ -463,7 +491,18 @@ function AppShell() {
             <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
           </div>
         )}
-        {authenticated ? (
+        {pathname === '/admin' ? (
+          // the invite minter sits behind the server gate like the rest of the
+          // site, so it does not wait on a bluesky session to render
+          <AdminView />
+        ) : refusal !== null ? (
+          <BetaRefusal
+            reason={refusal}
+            onSignOut={() => {
+              void signOut()
+            }}
+          />
+        ) : allowed ? (
           <Switch>
             <Route path="/" component={FeedView} />
             <Route path="/search" component={SearchView} />
@@ -473,9 +512,12 @@ function AppShell() {
             <Route path="/notifications" component={NotificationsView} />
             <Route component={NotFound} />
           </Switch>
-        ) : authStatus === 'restoring' ? (
+        ) : authenticated || authStatus === 'restoring' ? (
           <div className="b-shell-gate">
-            <Progress label="restoring session" indeterminate />
+            <Progress
+              label={authenticated ? 'checking invitation' : 'restoring session'}
+              indeterminate
+            />
           </div>
         ) : pathname === '/' ? (
           <LandingView
@@ -495,17 +537,23 @@ function AppShell() {
       </main>
 
       <CommandPalette
-        open={dialog === 'palette'}
+        open={allowed && dialog === 'palette'}
         onClose={closeDialog}
         onOpenHelp={() => openDialog('help')}
         onOpenSettings={() => openDialog('settings')}
       />
-      <HelpDialog open={dialog === 'help'} onClose={closeDialog} />
-      <SettingsDialog open={dialog === 'settings'} onClose={closeDialog} />
-      <LoginDialog open={dialog === 'login'} onClose={closeDialog} />
-      <AccountDialog open={dialog === 'account'} onClose={closeDialog} />
-      <ComposeDialog open={compose !== null} request={compose} onClose={closeCompose} />
-      <KeyHints route={route} />
+      <HelpDialog open={(!authenticated || allowed) && dialog === 'help'} onClose={closeDialog} />
+      <SettingsDialog
+        open={(!authenticated || allowed) && dialog === 'settings'}
+        onClose={closeDialog}
+      />
+      <LoginDialog open={!authenticated && dialog === 'login'} onClose={closeDialog} />
+      <AccountDialog
+        open={(!authenticated || allowed) && dialog === 'account'}
+        onClose={closeDialog}
+      />
+      <ComposeDialog open={allowed && compose !== null} request={compose} onClose={closeCompose} />
+      {!authenticated || allowed ? <KeyHints route={route} /> : null}
     </div>
   )
 }

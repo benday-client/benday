@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuthStore } from './lib/auth'
+import { inviteDigest, resetBetaInvites } from './lib/betaAccess'
 import { appHistoryDepth, withAppHistory } from './lib/history'
 import { useSettings } from './lib/store'
 import { useUiStore } from './lib/ui'
@@ -52,6 +53,14 @@ const SESSION = {
   active: true,
 }
 
+// the shipped invitation list answers for the fixture account in every shell
+// case, so a route helper can refresh the transport without locking the read out
+function allowShellDid(transport: TestTransport): void {
+  transport.route('GET', 'http://localhost:3000/beta/invites.json', async () =>
+    jsonResponse(200, { sha256: [await inviteDigest(SESSION.did)] }),
+  )
+}
+
 /**
  * The shell only renders routes for a signed-in account. These cases exercise
  * the shell rather than the reads, so the account signs in against a routed pds
@@ -81,12 +90,17 @@ async function signInShell(): Promise<TestTransport> {
       service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
     }),
   )
+  // every signed-in shell case passes the invitation list by default; the
+  // refusal cases below replace this route with their own list
+  allowShellDid(transport)
   const ok = await useAuthStore.getState().signIn(SESSION.did, 'app-pass')
   expect(ok).toBe(true)
   return transport
 }
 
 afterEach(() => {
+  // the invitation list is cached for one page load, which is one test here
+  resetBetaInvites()
   vi.useRealTimers()
   window.history.pushState({}, '', '/')
   useUiStore.setState({ dialog: null, compose: null, inlineCompose: null })
@@ -205,10 +219,14 @@ describe('shell auth gate', () => {
     window.history.pushState({}, '', '/')
     const view = render(<App />)
     try {
-      fireEvent.click(await screen.findByRole('button', { name: 'sign in' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'log in with bluesky' }))
 
       await waitFor(() => expect(useUiStore.getState().dialog).toBe('login'))
       expect(await screen.findByLabelText('handle or did')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'ask @qex.at on bluesky' })).toHaveAttribute(
+        'href',
+        'https://bsky.app/profile/qex.at',
+      )
     } finally {
       view.unmount()
     }
@@ -219,10 +237,104 @@ describe('shell auth gate', () => {
     window.history.pushState({}, '', '/')
     const view = render(<App />)
     try {
-      expect(await screen.findByRole('region', { name: /feeds/i })).toBeDefined()
+      expect(await screen.findByLabelText('posts')).toBeInTheDocument()
 
       // the front door belongs to anonymous visitors only
       expect(document.querySelector('.b-landing')).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('blocks authenticated routes and actions until the invitation response allows the account', async () => {
+    const transport = await signInShell()
+    const { promise, resolve } = Promise.withResolvers<Response>()
+    transport.route('GET', 'http://localhost:3000/beta/invites.json', () => promise)
+    resetBetaInvites()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      await waitFor(() =>
+        expect(transport.calls.some((call) => call.url.endsWith('/beta/invites.json'))).toBe(true),
+      )
+      expect(screen.queryByLabelText('posts')).toBeNull()
+      expect(document.querySelector('.b-landing')).toBeNull()
+      expect(screen.queryByRole('navigation', { name: 'primary' })).toBeNull()
+      fireEvent.keyDown(window, { key: 'c' })
+      fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+      expect(useUiStore.getState().compose).toBeNull()
+      expect(useUiStore.getState().dialog).toBeNull()
+      expect(transport.calls.some((call) => call.url.includes('/xrpc/app.bsky.feed.getFeed'))).toBe(
+        false,
+      )
+
+      await act(async () => {
+        resolve(jsonResponse(200, { sha256: [await inviteDigest(SESSION.did)] }))
+      })
+      expect(await screen.findByLabelText('posts')).toBeInTheDocument()
+      expect(screen.getByRole('navigation', { name: 'primary' })).toBeInTheDocument()
+      fireEvent.keyDown(window, { key: 'c' })
+      expect(useUiStore.getState().compose?.mode).toBe('post')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('refuses an account that is not on the list and signs it out', async () => {
+    const transport = await signInShell()
+    transport.route('GET', 'http://localhost:3000/beta/invites.json', async () =>
+      jsonResponse(200, { sha256: [await inviteDigest('did:plc:someone-else')] }),
+    )
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
+      jsonResponse(200, {}),
+    )
+    resetBetaInvites()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'this beta is invite only' }),
+      ).toBeInTheDocument()
+      await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'))
+
+      // a reload must not put the refused account back inside
+      expect(localStorage.getItem('benday:session')).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('fails closed when the invitation list cannot be read', async () => {
+    const transport = await signInShell()
+    transport.route('GET', 'http://localhost:3000/beta/invites.json', () =>
+      jsonResponse(500, { error: 'boom' }),
+    )
+    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
+      jsonResponse(200, {}),
+    )
+    resetBetaInvites()
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'the beta list could not be read' }),
+      ).toBeInTheDocument()
+      await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'))
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('serves the invite minter at slash admin without a bluesky session', async () => {
+    installTransport()
+    window.history.pushState({}, '', '/admin')
+    const view = render(<App />)
+    try {
+      expect(await screen.findByRole('heading', { name: 'invites' })).toBeInTheDocument()
+
+      // the server gate is what keeps this page private, not the client gate
+      expect(screen.queryByRole('button', { name: 'sign in to read benday' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'log in with bluesky' })).toBeNull()
     } finally {
       view.unmount()
     }
@@ -247,6 +359,7 @@ describe('global keyboard routing', () => {
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
+      await screen.findByLabelText('query')
       fireEvent.keyDown(document.body, { key: '/' })
 
       expect(useUiStore.getState().dialog).toBeNull()
@@ -286,6 +399,7 @@ describe('global keyboard routing', () => {
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
+      await screen.findByLabelText('query')
       fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })
       await waitFor(() => {
         expect(useUiStore.getState().dialog).toBe('palette')
@@ -328,11 +442,10 @@ describe('global keyboard routing', () => {
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
-      const input = document.querySelector<HTMLInputElement>('.b-view__form .b-input__control')
-      expect(input).not.toBeNull()
-      input?.focus()
+      const input = await screen.findByLabelText<HTMLInputElement>('query')
+      input.focus()
 
-      fireEvent.keyDown(input as HTMLInputElement, { key: 'ArrowRight', ctrlKey: true })
+      fireEvent.keyDown(input, { key: 'ArrowRight', ctrlKey: true })
       await waitFor(() => expect(window.location.pathname).toBe('/notifications'))
     } finally {
       view.unmount()
@@ -442,6 +555,7 @@ describe('escape precedence stack', () => {
     window.history.pushState({}, '', '/search')
     const view = render(<App />)
     try {
+      await screen.findByLabelText('query')
       fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })
       await waitFor(() => expect(useUiStore.getState().dialog).toBe('palette'))
 
@@ -580,7 +694,7 @@ describe('app history', () => {
   })
 
   it('replaces a direct-load thread with the feed and never walks foreign history', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -594,6 +708,7 @@ describe('app history', () => {
 
     const view = render(<App />)
     try {
+      await screen.findByRole('navigation', { name: 'primary' })
       fireEvent.keyDown(document.body, { key: 'Escape' })
       await waitFor(() => expect(window.location.pathname).toBe('/feed'))
       // the entry was replaced as an app-owned depth zero entry, not pushed
@@ -610,7 +725,7 @@ describe('app history', () => {
   })
 
   it('walks one real app entry back from a thread reached in-app', async () => {
-    const transport = installTransport()
+    const transport = await signInShell()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>
       jsonResponse(200, { feed: [] }),
     )
@@ -624,6 +739,7 @@ describe('app history', () => {
 
     const view = render(<App />)
     try {
+      await screen.findByRole('navigation', { name: 'primary' })
       fireEvent.keyDown(document.body, { key: 'Escape' })
       await waitFor(() => expect(window.location.pathname).toBe('/feed'))
       expect(appHistoryDepth()).toBe(0)
@@ -640,6 +756,7 @@ describe('portal restore notice', () => {
     useAuthStore.setState({ restoreError: 'could not reach the portal' })
     render(<App />)
 
+    await screen.findByLabelText('posts')
     expect(await screen.findByText('could not restore portal sign-in')).toBeInTheDocument()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getByRole('alert')).toHaveTextContent('could not reach the portal')
@@ -715,6 +832,7 @@ describe('route transitions', () => {
 
   function feedRoutes(): void {
     const transport = installTransport()
+    allowShellDid(transport)
     // the agent's fetch reads the current global, so the replaced transport
     // must also answer the account reads the shell starts on mount
     transport.route('GET', `${PDS}/xrpc/app.bsky.actor.getPreferences`, () =>

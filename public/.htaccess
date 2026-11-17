@@ -1,17 +1,12 @@
 # the app shell for every route: real files win, everything else falls back to
-# the single page bundle. the closed beta is enforced here, with the client
-# metadata left public because the pds fetches it during portal sign in.
+# the single page bundle. the public surface is the beta page, so only the invite
+# minter asks for a password.
 #
-# __PWD__ is replaced at publish time with the absolute webspace directory,
-# because AuthUserFile only accepts an absolute path and only the server knows
-# its own. the substitution happens in the last_ssh step of the workflow.
+# __HOME__ is replaced at publish time with the account home, which is where the
+# credential lives so no document root can serve it. AuthUserFile only accepts
+# an absolute path and only the server knows its own.
 DirectoryIndex index.html
 AddType application/json .json
-
-AuthType Basic
-AuthName "benday closed beta"
-AuthUserFile __PWD__/www/benday.qex.at/.htpasswd
-Require valid-user
 
 <Files "oauth-client-metadata.json">
   Require all granted
@@ -21,8 +16,25 @@ Require valid-user
   Require all denied
 </FilesMatch>
 
+# `<Location>` is not allowed in an .htaccess file, so the same intent is written
+# as an <If> on the request path. everything outside /admin stays public.
+<If "%{REQUEST_URI} =~ m#^/admin(/|$)#">
+  AuthType Basic
+  AuthName "benday admin"
+  AuthUserFile __HOME__/.benday-htpasswd
+  Require valid-user
+</If>
+
 RewriteEngine On
 RewriteBase /
+
+# no document root holds a credential, and a dotfile request is refused outright
+# rather than being handed the app shell by the fallback below. the condition
+# reads the original request uri because a per-directory RewriteRule no longer
+# sees the leading dot once the rule has been mapped into the directory.
+RewriteCond %{REQUEST_URI} (^|/)\.[^/]*$
+RewriteRule ^ - [F]
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ /index.html [L]

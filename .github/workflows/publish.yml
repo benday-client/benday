@@ -26,18 +26,18 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
-      # One bcrypt line per person lives in the BETA_HTPASSWD secret, never in
-      # the repository. An empty secret fails the run rather than publishing an
-      # open site, and revoking a person is deleting their line.
-      - name: Beta credentials
+      # The admin Basic Auth credential lives in BETA_HTPASSWD, never in the
+      # repository. An empty secret fails rather than publishing /admin open.
+      # Beta invitations are DID hashes in public/beta/invites.json instead.
+      - name: Admin credentials
         env:
           BETA_HTPASSWD: ${{ secrets.BETA_HTPASSWD }}
         run: |
           if [ -z "$BETA_HTPASSWD" ]; then
-            echo "BETA_HTPASSWD is empty: refusing to publish the beta unguarded" >&2
+            echo "BETA_HTPASSWD is empty: refusing to publish /admin unguarded" >&2
             exit 1
           fi
-          printf '%s\n' "$BETA_HTPASSWD" > dist/.htpasswd
+          printf '%s\n' "$BETA_HTPASSWD" > .benday-htpasswd
       - name: Publish
         uses: yitianyigexiangfa/ssh-scp-ssh-pipelines@v1.1.5
         with:
@@ -51,10 +51,8 @@ jobs:
           scp: |
             ./dist/* => ./www/benday.qex.at/
             ./dist/.htaccess => ./www/benday.qex.at/
-            ./dist/.htpasswd => ./www/benday.qex.at/
-          # ENVIRON["PWD"] is resolved by awk on the server, which is the only
-          # place the absolute path exists.
-          # HOME is set in every remote session while PWD is not, and the
-          # web server user must be able to read the credential file even
-          # though the directive only lives in this file, so it is 644.
-          last_ssh: awk '{p=(ENVIRON["HOME"]!="")?ENVIRON["HOME"]:ENVIRON["PWD"]; gsub(/__PWD__/,p)}1' ./www/benday.qex.at/.htaccess > ./www/benday.qex.at/.htaccess.tmp && mv ./www/benday.qex.at/.htaccess.tmp ./www/benday.qex.at/.htaccess && chmod 644 ./www/benday.qex.at/.htpasswd && test -f ./www/benday.qex.at/.htpasswd && grep -c 'AuthUserFile /' ./www/benday.qex.at/.htaccess
+            ./.benday-htpasswd => ./.benday-htpasswd
+          # ENVIRON["HOME"] is where the credential lives, so no document root can
+          # serve it, and it is the only source of the absolute path. 644 because
+          # the web server user must read it; the dotfile deny stays in the file.
+          last_ssh: awk '{p=(ENVIRON["HOME"]!="")?ENVIRON["HOME"]:ENVIRON["PWD"]; gsub(/__HOME__/,p)}1' ./www/benday.qex.at/.htaccess > ./www/benday.qex.at/.htaccess.tmp && mv ./www/benday.qex.at/.htaccess.tmp ./www/benday.qex.at/.htaccess && grep -q 'AuthUserFile /' ./www/benday.qex.at/.htaccess && chmod 644 ./.benday-htpasswd && test -f ./.benday-htpasswd && stat -c '%a %n' ./.benday-htpasswd ./www/benday.qex.at/.htaccess

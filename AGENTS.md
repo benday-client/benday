@@ -254,19 +254,29 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 
 ## auth and privacy boundaries
 
-- the closed beta is enforced by the server, not the bundle: apache basic auth
-  in front of the whole site, with `/oauth-client-metadata.json` the only
-  exemption because the pds fetches it during portal sign in. a client-side
-  allowlist was considered and dropped, so do not add one back.
-- one bcrypt line per person lives in the `BETA_HTPASSWD` action secret and is
-  written to `dist/.htpasswd` at publish. the repository never holds a
-  credential and `dist/` stays ignored.
-- adding a person is one line in that secret; revoking is deleting their line.
-  rotation is per person, which is the whole reason there is no shared password.
-- `public/.htaccess` is the only source for the serving rules and the gate; it
-  ships in `dist/` and the publish step rewrites its `__PWD__` placeholder to
-  the absolute webspace path, because `AuthUserFile` takes no relative path.
-  edit that file, never a deployed copy, and never add a second one.
+- the public surface is the beta page: apache basic auth now covers only
+  `/admin`, and `/oauth-client-metadata.json` stays public because the pds
+  fetches it during portal sign in.
+- access is the shipped list at `public/beta/invites.json`, checked after a sign
+  in commits; an unlisted account is refused and signed out locally, and an
+  unreadable list fails closed. its `sha256` array holds lowercase hex SHA-256
+  digests of exact UTF-8 DIDs, with no prefix, salt or normalization. handles
+  are never membership keys: `/admin` resolves them through `identity.ts` first.
+  hashes are obfuscation, not secrecy: a known DID's membership is guessable
+  by hashing it. this is a social door, not a security gate; the static client
+  check cannot stop a modified client. sessions remain the visitor's own pds.
+- `https://benday.qex.at/admin` mints a digest and quoted JSON entry, not a
+  password. add the entry to the shipped array and republish to invite; delete
+  it and republish to revoke. minting changes no published access. there is no
+  worker or expiry.
+- apache basic auth protects only `/admin`. `BETA_HTPASSWD` supplies its admin
+  credential file, published to the account home's `.benday-htpasswd`, outside
+  the webroot, not `dist/`. it is unrelated to beta membership.
+- `public/.htaccess` is the only source for serving rules; it ships in `dist/`.
+  publish substitutes `__HOME__` with the absolute account home (falling back
+  to the remote working directory when HOME is unset) for `AuthUserFile`.
+  dotfile requests are denied before the app fallback. edit that source, never
+  a deployed copy, and never add a second one.
 - there is no first-party server. never add an endpoint that receives sessions,
   passwords, drafts or settings.
 - browser storage keys are fixed: `benday:settings` (appearance mode and keyboard shortcuts),
