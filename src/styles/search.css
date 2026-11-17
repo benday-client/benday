@@ -70,7 +70,8 @@
   font-family: var(--font-display);
   overflow: hidden;
   color: var(--ink);
-  font-weight: 600;
+  font-size: var(--step-3);
+  font-weight: 400;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;

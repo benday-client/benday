@@ -16,7 +16,7 @@ function query<T extends Element>(root: ParentNode, selector: string): T {
 
 describe('Dialog', () => {
   beforeEach(() => {
-    document.documentElement.dataset['theme'] = 'catppuccin-mocha'
+    document.documentElement.dataset['theme'] = 'dark'
   })
 
   afterEach(() => {

@@ -176,11 +176,11 @@ it('dithers a rendered post image with the active palette', () => {
 
   const image = requireElement<HTMLElement>(container, '.b-embed__image-frame .dither-image')
 
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filterOf(image)).toContain('url(#benday-dither-dark)')
 
-  document.documentElement.dataset['theme'] = 'catppuccin-latte'
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
-  expect(filterOf(image)).not.toContain('catppuccin-mocha')
+  document.documentElement.dataset['theme'] = 'light'
+  expect(filterOf(image)).toContain('url(#benday-dither-light)')
+  expect(filterOf(image)).not.toContain('dark')
 })
 
 it('paints the post image plainly once the image effects setting is off', async () => {
@@ -204,7 +204,7 @@ it('paints the post image plainly once the image effects setting is off', async 
   const image = requireElement<HTMLElement>(container, '.b-embed__image-frame .dither-image')
   // the default setting really filters the already rendered element
   expect(image.getAttribute('data-effect')).toBeNull()
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filterOf(image)).toContain('url(#benday-dither-dark)')
 
   act(() => {
     useSettings.getState().setImageEffects(false)
@@ -246,10 +246,10 @@ it('keeps the dither on a failed post image instead of flattening it', async () 
 
   const filter = filterOf(fallback)
   expect(filter).not.toBe('none')
-  expect(filter).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filter).toContain('url(#benday-dither-dark)')
 
-  document.documentElement.dataset['theme'] = 'catppuccin-latte'
-  expect(filterOf(fallback)).toContain('url(#benday-dither-catppuccin-latte)')
+  document.documentElement.dataset['theme'] = 'light'
+  expect(filterOf(fallback)).toContain('url(#benday-dither-light)')
 })
 
 it('paints no texture or cursor token and no body overlay over the card', () => {

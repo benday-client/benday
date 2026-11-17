@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { isRecord } from './records'
 import { normalizePortableSettings } from './settingsTransfer'
-import { legacyAppearanceForTheme } from './themes'
 import type { Theme } from './types'
 
 export const SETTINGS_STORAGE_KEY = 'benday:settings'
@@ -16,24 +15,20 @@ function systemPrefersLight(): boolean {
   )
 }
 
-/**
- * Catppuccin is the fixed pair: light paints Latte, dark paints Mocha, and the
- * system mode follows the browser preference.
- */
+/** An explicit mode is fixed; system follows the browser preference. */
 export function themeForAppearance(appearance: AppearanceMode, systemLight: boolean): Theme {
-  if (appearance === 'light') return 'catppuccin-latte'
-  if (appearance === 'dark') return 'catppuccin-mocha'
-  return systemLight ? 'catppuccin-latte' : 'catppuccin-mocha'
+  if (appearance === 'light') return 'light'
+  if (appearance === 'dark') return 'dark'
+  return systemLight ? 'light' : 'dark'
 }
 
 function isAppearanceMode(value: unknown): value is AppearanceMode {
   return value === 'light' || value === 'dark' || value === 'system'
 }
 
-/** The mode a stored document names, directly or through its retired palette. */
+/** Only the stored appearance mode controls the scheme. */
 function storedAppearance(stored: Record<string, unknown>): AppearanceMode {
-  if (isAppearanceMode(stored['appearance'])) return stored['appearance']
-  return legacyAppearanceForTheme(stored['theme']) ?? 'system'
+  return isAppearanceMode(stored['appearance']) ? stored['appearance'] : 'system'
 }
 
 function storedShortcuts(stored: Record<string, unknown>, fallback: boolean): boolean {

@@ -137,7 +137,7 @@ test('the cli passes a clean file', async () => {
   assert.equal(result.code, 0, result.stderr)
 })
 
-test('with no arguments the cli scans the tracked and untracked repository', async () => {
+test('the cli scans existing tracked and untracked files and rejects explicit missing files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'benday-assertions-repo-'))
   roots.push(root)
   await writeFile(join(root, 'clean.ts'), 'export const value = 1\n')
@@ -146,6 +146,14 @@ test('with no arguments the cli scans the tracked and untracked repository', asy
 
   const clean = await runCli(root, [])
   assert.equal(clean.code, 0, clean.stderr)
+
+  await rm(join(root, 'clean.ts'))
+  const deleted = await runCli(root, [])
+  assert.equal(deleted.code, 0, deleted.stderr)
+
+  const missing = await runCli(root, ['clean.ts'])
+  assert.equal(missing.code, 1)
+  assert.match(missing.stderr, /clean\.ts: could not be read/)
 
   // an untracked source file is still a file that could be committed
   await writeFile(join(root, 'dirty.ts'), 'export const value = input as unknown as Target\n')

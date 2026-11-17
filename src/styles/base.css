@@ -17,10 +17,10 @@ body {
   margin: 0;
   background: var(--void);
   color: var(--ink);
-  font-family: var(--font-mono);
+  font-family: var(--font-reading);
   font-size: var(--step-1);
   font-variant-ligatures: none;
-  line-height: 1.55;
+  line-height: 1.4;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
 }
@@ -80,6 +80,13 @@ p {
   margin: 0;
 }
 
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
 ul,
 ol {
   margin: 0;
@@ -93,8 +100,8 @@ ol {
 }
 
 :focus-visible {
-  outline: 1px solid var(--blue);
-  outline-offset: 2px;
+  outline: 1px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .visually-hidden {
@@ -111,9 +118,9 @@ ol {
 
 .mono-label {
   color: var(--text-muted);
+  font-family: var(--font-mono);
   font-size: var(--step--1);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .dim {

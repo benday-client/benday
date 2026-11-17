@@ -1,4 +1,4 @@
-export type Theme = 'catppuccin-mocha' | 'catppuccin-latte'
+export type Theme = 'dark' | 'light'
 
 export interface StrongRefModel {
   uri: string

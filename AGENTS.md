@@ -90,11 +90,9 @@ ownership by concern:
   same-protocol destination survives, stored back as path+query+hash, so a
   protocol-relative, backslash-authority or blob: entry is ignored instead of
   becoming a route.
-- `src/lib/themes.ts` owns the two catppuccin theme ids, their meta colours and
-  the legacy palette-to-mode fallback; the settings store derives the active
-  scheme. `src/styles/tokens.css` owns the per-palette
-  values and `src/styles/theme-effects.css` owns the motion, head-wash and corner
-  consequences.
+- `src/lib/themes.ts` owns the light/dark browser chrome colours; the settings
+  store derives the active scheme from the appearance mode. `tokens.css` owns
+  colour, typography and spacing roles; `theme-effects.css` owns dialog arrivals.
 - `src/lib/settingsTransfer.ts` owns the export/import file format and
   validation; `src/lib/store.ts` owns the persisted settings store.
 - `Deck` owns focus, scroll position memory and deck-local keys. the saved
@@ -154,6 +152,9 @@ pnpm test         # vitest run, offline jsdom tests
 pnpm test:browser # vitest browser mode in real chromium
 pnpm check        # lint, quality scripts, both suites, then build
 ```
+
+`pnpm check:assertions` scans existing tracked and untracked typescript files.
+deleted tracked paths are skipped; explicitly named missing files still fail.
 
 `node scripts/check-staged.mjs` runs that same `pnpm check` against the index
 rather than the worktree: it exports the staged tree into a temporary
@@ -235,9 +236,8 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - spacing is semantic. blank lines separate input normalization, derived models,
   early returns, async boundaries and the final render; they do not decorate
   every statement.
-- palettes are source-pinned. canonical swatches cite the upstream version and
-  every accessibility or decorative derivative is labeled as an adaptation, not
-  presented as the source's own token.
+- visual references are source-backed. tokens cite the inspected source; light
+  mode and accessibility adaptations are Benday's, not upstream palette claims.
 - types are not laundered. `pnpm check:assertions` parses every tracked and
   untracked source file and rejects an outer assertion whose inner assertion
   erased the type through `unknown`, `any` or `never`, including parenthesized,
@@ -298,7 +298,7 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   generator's did (`atproto-proxy: <did>#bsky_fg`).
 - `benday-settings.json` is version 3 and contains only `version`, `exportedAt`,
   `appearance`, `keyboardShortcuts` and `imageEffects`. version-1 and version-2
-  files are still accepted and mapped through their old fields. it must never
+  files are still accepted; retired fields are ignored. it must never
   contain tokens, passwords, indexedDB state, drafts, jump history, profile
   relationships or any other auth material. unknown keys and every retired field
   are ignored; keep it that way.
@@ -512,50 +512,42 @@ still owns the surface.
 
 ## themes and surfaces
 
-the only palettes are catppuccin mocha (dark) and latte (light). `src/lib/themes.ts`
-owns the two theme ids, their meta colours and the legacy palette-to-mode
-fallback (`legacyAppearanceForTheme`); the settings store derives the active
-scheme from the appearance mode. it is not the source of truth for labels,
-groups or seasons, and there is no seasonal availability, no per-scheme
-selection, no theme preview, no effect-family choice — only the one dither,
-on or off — and no high-contrast mode.
+Benday adapts the visual language inspected on [doll.systems](https://doll.systems/),
+including its home, maintenance article, about, latest and colophon pages on
+2026-11-17. the source stylesheet is
+`https://doll.systems/_astro/LinkGraph.CdnPADRq.css`: near-black neutral surfaces,
+one violet signal, fine rules, serif headings, sans reading text and small
+monospace metadata. Benday uses its own typography stack and content, not the
+reference's brand, artwork, graph or article text. light mode is a Benday adaptation.
 
 - appearance is `light`, `dark` or `system`; system follows
   `prefers-color-scheme`. the store derives the active `theme`, a fresh state
-  starts at `system`, and `App.tsx` writes only `data-theme` and the
-  `theme-color` meta tag in one effect.
-- every static image uses the one grunge/Bayer filter defined in
-  `DitherDefs.tsx` and `dither.css`. the `imageEffects` preference (on by
-  default) gates it: on, static images and video posters carry the per-palette
-  dither; off, `DitherImage` emits `data-effect="none"` and `dither.css` drops
-  the filter and the pixelated rendering so they paint plainly. playing video
-  frames are never filtered either way.
-- surfaces keep catppuccin's pastel head wash (`--head-image`, `--head-rule`,
-  `--head-glow`), its one-pixel accent rule and four-pixel corner rounding
-  (`--theme-radius`), plus the card edge/shadow tokens. the scanline, grain and
-  surface-texture layers, painted cursors, keyboard pointer hiding and the
-  high-contrast token pass are gone; do not reintroduce them.
-- motion lives in `theme-effects.css`: `--motion-lift`, `--motion-tilt`,
-  `--motion-dur`, `--motion-ease` and `--deal-dur`. latte rises further and
-  slower than mocha; reduced motion turns the dialog transition off. route swaps,
-  the media viewer fade and deck item fades stay inside
-  `prefers-reduced-motion`.
-- the focused card keeps its inset double hairline, which survives rounded
-  corners and a clipped frame. thread replies keep their depth rail and the top
-  bar keeps the tab names — `feeds`, `search`, `notifications` — with search
-  between feeds and notifications; the active tab keeps the `//` marker. an
-  empty state keeps its solid dithered glyph; letterforms dissolve at that size.
-- settings and keyboard help both have a `/`-focused search field; settings
-  search hides nonmatching sections instead of rendering result buttons.
-  appearance's keywords include `dither`, `grunge`, `image effects` and
-  `dither effects` alongside the theme and shortcut terms.
-- the settings dialog no longer carries a theme picker, split preview, appview
-  host, labeler editor or contrast toggle. keep it to appearance mode, keyboard
-  shortcuts, the dither effects toggle, account and transfer.
-- adding a palette is out of scope for the cut product. if that changes, update
-  `Theme` in `src/lib/types.ts`, `themes.ts`, the `index.html` colour table, a
-  `[data-theme]` block in `tokens.css`, the `--dither-filter` lines in
-  `dither.css` and the theme tests together.
+  starts at `system`, and `App.tsx` writes `data-theme` and the `theme-color`
+  meta tag together. `index.html` resolves the same preference before hydration.
+  no palette picker, aliases or retired palette-to-mode map remain.
+- `tokens.css` owns the two schemes and semantic text/fill roles. muted copy
+  is deliberately brighter than the reference's decorative gray so small UI
+  text remains readable. nested scheme scopes reset their colour roles.
+- headings use a regular serif, reading text the bundled sans, and navigation,
+  timestamps, handles and action labels the bundled mono. mobile reduces body
+  scale and frame insets without changing reading order or deck behavior.
+- square surfaces use neutral hairlines, not head washes or glow. focus keeps
+  the inset double hairline on deck cards and a visible violet outline on
+  controls. the active tab uses a restrained tinted field; engaged actions keep
+  their underline so state never relies on colour alone.
+- static imagery and video posters use the one monochrome grunge/Bayer filter
+  in `DitherDefs.tsx` and `dither.css`. `imageEffects` is on by default; off,
+  `DitherImage` emits `data-effect="none"` and imagery paints plainly. playing
+  video frames are never filtered. no copied artwork or decorative texture layer.
+- route, dialog and deck arrivals use short stepped opacity transitions, not
+  springy throws or per-scheme choreography. the shared motion tokens live in
+  `tokens.css`; reduced motion disables transitions and animation. dialog
+  dismissal still owns its existing transition completion and timeout fallback.
+- settings and keyboard help keep their searchable sections. settings contains
+  only appearance mode, keyboard shortcuts, dither effects, account and transfer.
+- change `Theme`, `themes.ts`, the `index.html` colour table, `tokens.css`,
+  `DitherDefs.tsx`, `dither.css` and the real appearance/contrast contracts
+  together. do not add tests that merely pin a swatch table or visual copy.
 
 ## settings transfer
 
@@ -571,8 +563,8 @@ normalization rules to preserve:
 - version 3 is current. versions 1, 2 and 3 are accepted; anything above 3, a
   missing or non-integer version, a non-object or malformed json is rejected with
   a truthful message.
-- a valid `appearance` wins; otherwise a version-1 `theme` names the scheme it
-  painted (`legacyAppearanceForTheme`); otherwise `system`.
+- a valid `appearance` wins; missing or unusable modes become `system`. retired
+  palette names have no effect on first paint, stored settings or imported files.
 - `keyboardShortcuts` is the boolean when present, otherwise `true`; an explicit
   boolean `imageEffects` is honored, otherwise it defaults to `true`.
 - every retired field is ignored, including `theme`, `lightTheme`, `darkTheme`,
@@ -708,7 +700,7 @@ what the suite covers, and what it does not:
 
 - covered offline: facets and byte offsets, anchor composition, post/embed/profile
   mapping, label filtering, markdown limits and wire facet canonicalization,
-  thread flattening, time, dither generation, the two-palette themes, pinned-feed
+  thread flattening, time, dither generation, light/dark appearance, pinned-feed
   preferences and selection, account suggestion freshness, command parsing,
   palette precedence, auth transitions and did:web discovery, action auth gates
   and per-side action freshness, focused-card shortcuts including quoted-post

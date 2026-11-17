@@ -5,7 +5,7 @@
 // and both assertion syntaxes cannot hide or fake one.
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
@@ -97,7 +97,7 @@ function repositoryFiles() {
   return output
     .split('\0')
     .filter((path) => path.length > 0)
-    .filter((path) => /\.(?:ts|tsx|mts|cts)$/.test(path))
+    .filter((path) => /\.(?:ts|tsx|mts|cts)$/.test(path) && existsSync(path))
 }
 
 function main(filenames) {

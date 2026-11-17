@@ -1,5 +1,4 @@
 import { isRecord } from './records'
-import { legacyAppearanceForTheme } from './themes'
 
 /** Stable filename offered by the settings export control. */
 export const SETTINGS_FILE_NAME = 'benday-settings.json'
@@ -93,10 +92,7 @@ export function parseSettingsFile(value: unknown): SettingsParseResult {
     return fail(`unsupported settings file version ${version}`)
   }
 
-  // version 1 carried the retired palette fields; its mode is still explicit on
-  // later exports, otherwise the old theme's scheme names the mode it painted
-  const appearance =
-    normalizeAppearance(value['appearance']) ?? legacyAppearanceForTheme(value['theme']) ?? 'system'
+  const appearance = normalizeAppearance(value['appearance']) ?? 'system'
 
   return {
     ok: true,

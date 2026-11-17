@@ -94,19 +94,19 @@ afterEach(() => {
 })
 
 describe('live appearance on a fresh session', () => {
-  it('paints latte for light and mocha for dark', () => {
+  it('updates the document when the appearance mode changes', () => {
     stubMatchMedia(false)
-    useSettings.setState({ appearance: 'light', theme: 'catppuccin-latte' })
+    useSettings.setState({ appearance: 'light', theme: 'light' })
     window.history.pushState({}, '', '/search')
 
     const view = render(<App />)
     try {
-      expect(rootTheme()).toBe('catppuccin-latte')
+      expect(rootTheme()).toBe('light')
 
       act(() => {
         useSettings.getState().setAppearance('dark')
       })
-      expect(rootTheme()).toBe('catppuccin-mocha')
+      expect(rootTheme()).toBe('dark')
     } finally {
       view.unmount()
     }
@@ -114,19 +114,19 @@ describe('live appearance on a fresh session', () => {
 
   it('follows the system preference when the tab becomes visible again', async () => {
     stubMatchMedia(true)
-    useSettings.setState({ appearance: 'system', theme: 'catppuccin-latte' })
+    useSettings.setState({ appearance: 'system', theme: 'light' })
     window.history.pushState({}, '', '/search')
 
     const view = render(<App />)
     try {
-      expect(rootTheme()).toBe('catppuccin-latte')
+      expect(rootTheme()).toBe('light')
 
       stubMatchMedia(false)
       await act(async () => {
         document.dispatchEvent(new Event('visibilitychange'))
       })
-      expect(useSettings.getState().theme).toBe('catppuccin-mocha')
-      expect(rootTheme()).toBe('catppuccin-mocha')
+      expect(useSettings.getState().theme).toBe('dark')
+      expect(rootTheme()).toBe('dark')
     } finally {
       view.unmount()
     }

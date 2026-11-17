@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import indexHtml from '../../index.html?raw'
+import { themeColor as chromeColor } from '../lib/themes'
 
 // Deliberately not imported from the store: this file must prove the bootstrap
-// paints before any app module is evaluated.
+// paints without loading the app or its persisted store.
 const SETTINGS_STORAGE_KEY = 'benday:settings'
 
 // vite inlines the shipped document, so this executes the real bootstrap even
@@ -47,58 +48,49 @@ beforeEach(() => {
 })
 
 describe('the first-paint bootstrap', () => {
-  it('paints an explicit dark mode as mocha before React', () => {
+  it('paints an explicit dark mode before React', () => {
     storedSettings({ appearance: 'dark' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('catppuccin-mocha')
-    expect(themeColor()).toBe('#1e1e2e')
+    expect(rootTheme()).toBe('dark')
+    expect(themeColor()).toBe(chromeColor('dark'))
   })
 
-  it('paints an explicit light mode as latte', () => {
+  it('paints an explicit light mode before React', () => {
     storedSettings({ appearance: 'light' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('catppuccin-latte')
-    expect(themeColor()).toBe('#eff1f5')
+    expect(rootTheme()).toBe('light')
+    expect(themeColor()).toBe(chromeColor('light'))
   })
 
   it('reads the system preference through matchMedia', () => {
     storedSettings({ appearance: 'system' })
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('light') }))
     runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-latte')
+    expect(rootTheme()).toBe('light')
 
     delete document.documentElement.dataset['theme']
     vi.stubGlobal('matchMedia', () => ({ matches: false }))
     runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-mocha')
+    expect(rootTheme()).toBe('dark')
   })
 
-  it('derives the mode from a legacy palette', () => {
-    storedSettings({ theme: 'bone' })
+  it('ignores a retired theme and follows the system when no mode is stored', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('light') }))
+    storedSettings({ theme: 'retired' })
     runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-latte')
-
-    delete document.documentElement.dataset['theme']
-    storedSettings({ theme: 'dracula' })
-    runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-mocha')
-
-    delete document.documentElement.dataset['theme']
-    storedSettings({ theme: 'duotone' })
-    runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-mocha')
+    expect(rootTheme()).toBe('light')
   })
 
-  it('falls back to system when the mode and legacy palette are unusable', () => {
-    storedSettings({ appearance: 'void', theme: 'neon' })
+  it('falls back to system when the mode is unusable', () => {
+    storedSettings({ appearance: 'invalid' })
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('catppuccin-mocha')
+    expect(rootTheme()).toBe('dark')
   })
 
   it('ignores the retired pair and labelers', () => {
@@ -111,18 +103,7 @@ describe('the first-paint bootstrap', () => {
 
     runBootstrap()
 
-    expect(rootTheme()).toBe('catppuccin-latte')
-  })
-
-  it('uses the palette chrome colours', () => {
-    storedSettings({ appearance: 'light' })
-    runBootstrap()
-    expect(themeColor()).toBe('#eff1f5')
-
-    delete document.documentElement.dataset['theme']
-    storedSettings({ appearance: 'dark' })
-    runBootstrap()
-    expect(themeColor()).toBe('#1e1e2e')
+    expect(rootTheme()).toBe('light')
   })
 
   it('paints the system theme when stored settings cannot be read', () => {
@@ -130,8 +111,8 @@ describe('the first-paint bootstrap', () => {
 
     localStorage.setItem(SETTINGS_STORAGE_KEY, 'not json at all')
     expect(() => runBootstrap()).not.toThrow()
-    expect(rootTheme()).toBe('catppuccin-latte')
-    expect(themeColor()).toBe('#eff1f5')
+    expect(rootTheme()).toBe('light')
+    expect(themeColor()).toBe(chromeColor('light'))
 
     delete document.documentElement.dataset['theme']
     const read = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
@@ -139,15 +120,15 @@ describe('the first-paint bootstrap', () => {
     })
     expect(() => runBootstrap()).not.toThrow()
     read.mockRestore()
-    expect(rootTheme()).toBe('catppuccin-latte')
-    expect(themeColor()).toBe('#eff1f5')
+    expect(rootTheme()).toBe('light')
+    expect(themeColor()).toBe(chromeColor('light'))
 
     // an explicit stored mode still wins over the system fallback
     delete document.documentElement.dataset['theme']
     storedSettings({ appearance: 'dark' })
     runBootstrap()
-    expect(rootTheme()).toBe('catppuccin-mocha')
-    expect(themeColor()).toBe('#1e1e2e')
+    expect(rootTheme()).toBe('dark')
+    expect(themeColor()).toBe(chromeColor('dark'))
   })
 })
 

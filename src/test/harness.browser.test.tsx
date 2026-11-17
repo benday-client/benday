@@ -9,5 +9,5 @@ it('boots a real chromium with the production stylesheet', async () => {
   const probe = container.querySelector('[data-testid="probe"]')
   expect(probe).not.toBeNull()
   // the production stylesheet must be applied, not a blank document
-  expect(getComputedStyle(document.body).fontFamily).toContain('IBM Plex Mono')
+  expect(getComputedStyle(document.body).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
 })

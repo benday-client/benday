@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <title>benday</title>
-  <rect width="32" height="32" fill="#07090c"/>
-  <g fill="#7f9cff">
+  <rect width="32" height="32" fill="#090909"/>
+  <g fill="#c4c4c4">
     <rect x="8" y="5" width="3" height="3"/>
     <rect x="8" y="8" width="3" height="3"/>
     <rect x="8" y="11" width="3" height="3"/>
@@ -18,5 +18,5 @@
     <rect x="14" y="23" width="3" height="3"/>
     <rect x="17" y="23" width="3" height="3"/>
   </g>
-  <rect x="23" y="5" width="3" height="3" fill="#c05a3a"/>
+  <rect x="23" y="5" width="3" height="3" fill="#c79fef"/>
 </svg>

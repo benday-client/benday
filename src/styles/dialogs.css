@@ -17,11 +17,11 @@
   background: var(--void);
 }
 .b-palette__form:focus-within {
-  border-bottom-color: var(--blue);
+  border-bottom-color: var(--accent);
 }
 .b-palette__prompt {
   flex: 0 0 auto;
-  color: var(--blue);
+  color: var(--accent);
   font-size: var(--step-3);
   line-height: 1;
 }
@@ -33,16 +33,14 @@
   border-radius: 0;
   background: transparent;
   color: var(--ink);
-  caret-color: var(--blue);
+  caret-color: var(--accent);
   font-size: var(--step-2);
   letter-spacing: 0.02em;
 }
 .b-palette__input:focus,
 .b-palette__input:focus-visible {
-  /* the input has no border of its own, and a shadow alone vanishes under the
-     clipped corner treatments: an offset outline draws the cue in the form's
-     own void field, clear of the dialog edge */
-  outline: 1px solid var(--blue);
+  /* The borderless input keeps its own outline inside the dialog's field. */
+  outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
 .b-palette__input::placeholder {
@@ -91,7 +89,7 @@
   font-weight: 600;
 }
 .b-palette__command[data-selected="true"] .b-palette__marker {
-  color: var(--blue);
+  color: var(--accent);
 }
 .b-palette__label {
   flex: 1 1 auto;
@@ -131,7 +129,7 @@
   letter-spacing: 0.03em;
 }
 .b-palette__hint-glyph {
-  color: var(--blue);
+  color: var(--accent);
 }
 .b-palette__hint-dot {
   color: var(--line-strong);
@@ -154,15 +152,15 @@
   min-height: 30px;
   padding: 2px var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: var(--theme-radius);
+  border-radius: 0;
   background: var(--void);
   color: var(--ink);
   font: inherit;
   font-size: var(--step-0);
 }
 .b-help__search-input:focus {
-  border-color: var(--blue);
-  outline: 1px solid var(--blue);
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
 .b-help__empty {
@@ -244,7 +242,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3) 0;
+  padding: var(--space-5) 0;
   border-bottom: 1px solid var(--line);
 }
 .b-settings__section:first-child {
@@ -256,10 +254,10 @@
 .b-settings__heading {
   margin: 0;
   color: var(--ink);
+  font-family: var(--font-mono);
   font-size: var(--step--1);
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 .b-settings__note {
   margin: 0;
@@ -291,15 +289,15 @@
   min-height: 30px;
   padding: 2px var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: var(--theme-radius);
+  border-radius: 0;
   background: var(--void);
   color: var(--ink);
   font: inherit;
   font-size: var(--step-0);
 }
 .b-settings__search-input:focus {
-  border-color: var(--blue);
-  outline: 1px solid var(--blue);
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
   outline-offset: 1px;
 }
 .b-settings__section[data-hidden="true"] {
@@ -321,19 +319,20 @@
 .b-settings__mode {
   appearance: none;
   min-width: 72px;
-  padding: var(--space-1) var(--space-2);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--theme-radius);
+  border-radius: 0;
   background: var(--void);
   color: var(--text-muted);
   cursor: pointer;
-  font: inherit;
+  font-family: var(--font-mono);
   font-size: var(--step--1);
   text-transform: lowercase;
 }
 .b-settings__mode:hover,
 .b-settings__mode[data-active="true"] {
-  border-color: var(--blue);
+  border-color: var(--accent);
   color: var(--ink);
 }
 .b-settings__toggle {
@@ -346,7 +345,7 @@
   cursor: pointer;
 }
 .b-settings__toggle input {
-  accent-color: var(--blue);
+  accent-color: var(--accent);
 }
 .b-settings__toggle-note {
   color: var(--text-muted);

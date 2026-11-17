@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="catppuccin-mocha">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,40 +8,16 @@
       content="benday — a dithered, tensorpunk client for the bluesky network"
     />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#1e1e2e" />
+    <meta name="theme-color" content="#090909" />
     <link rel="icon" type="image/svg+xml" href="/benday.svg" />
     <title>benday // bluesky client</title>
     <script>
       try {
         const colors = {
-          'catppuccin-mocha': '#1e1e2e',
-          'catppuccin-latte': '#eff1f5',
+          dark: '#090909',
+          light: '#f4f2ef',
         }
-        // same rule the store merges with: an explicit mode wins, then the
-        // legacy palette's scheme, then system
-        const legacyLight = new Set([
-          'bone',
-          'catppuccin-latte',
-          'cottagecore',
-          'truth-to-materials',
-          'bluesky',
-          'github-light',
-        ])
-        const legacyDark = new Set([
-          'void',
-          'oxide',
-          'phosphor',
-          'catppuccin-mocha',
-          'dracula',
-          'atom',
-          'github-dark',
-          'cyberpunk',
-          'pumpkin-ember',
-          'toxic-midnight',
-          'candy-crypt',
-          'dead-leaves',
-          'duotone',
-        ])
+        // An explicit appearance wins; absent or unusable settings follow system.
         // denied storage or malformed json means no usable stored preference;
         // the system fallback below still decides the first paint
         let stored = null
@@ -54,26 +30,19 @@
           typeof stored === 'object' && stored !== null && typeof stored.state === 'object'
             ? stored.state
             : null
-        const legacyTheme = typeof state?.theme === 'string' ? state.theme : null
         const appearance =
           state?.appearance === 'light' ||
           state?.appearance === 'dark' ||
           state?.appearance === 'system'
             ? state.appearance
-            : legacyTheme !== null
-              ? legacyLight.has(legacyTheme)
-                ? 'light'
-                : legacyDark.has(legacyTheme)
-                  ? 'dark'
-                  : 'system'
-              : 'system'
+            : 'system'
         const prefersLight =
           typeof window.matchMedia === 'function' &&
           window.matchMedia('(prefers-color-scheme: light)').matches
         const theme =
           appearance === 'light' || (appearance === 'system' && prefersLight)
-            ? 'catppuccin-latte'
-            : 'catppuccin-mocha'
+            ? 'light'
+            : 'dark'
         document.documentElement.dataset.theme = theme
         const meta = document.querySelector('meta[name="theme-color"]')
         if (meta !== null) {

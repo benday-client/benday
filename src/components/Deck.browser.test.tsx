@@ -522,10 +522,10 @@ describe('Deck keyboard entry', () => {
   })
 
   it.each([
-    { ...WIDE, theme: 'catppuccin-mocha' },
-    { ...WIDE, theme: 'catppuccin-latte' },
-    { ...NARROW, theme: 'catppuccin-mocha' },
-    { ...NARROW, theme: 'catppuccin-latte' },
+    { ...WIDE, theme: 'dark' },
+    { ...WIDE, theme: 'light' },
+    { ...NARROW, theme: 'dark' },
+    { ...NARROW, theme: 'light' },
   ])(
     'paints an inset scroller ring at $width × $height in $theme',
     async ({ width, height, theme }) => {

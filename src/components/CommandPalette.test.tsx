@@ -72,7 +72,7 @@ describe('CommandPalette', () => {
   beforeEach(() => {
     localStorage.clear()
     pinnedState.feeds = []
-    useSettings.setState({ appearance: 'dark', theme: 'catppuccin-mocha' })
+    useSettings.setState({ appearance: 'dark', theme: 'dark' })
     useAuthStore.setState({ status: 'anonymous', account: null, pending: false, error: null })
     useUiStore.setState({ dialog: null })
   })

@@ -19,7 +19,7 @@ beforeEach(() => {
   stubSystemPreference(false)
   useSettings.setState({
     appearance: 'system',
-    theme: 'catppuccin-mocha',
+    theme: 'dark',
     keyboardShortcuts: true,
     imageEffects: true,
   })
@@ -30,41 +30,41 @@ afterEach(() => {
 })
 
 describe('themeForAppearance', () => {
-  it('maps light and dark to the cat pair', () => {
-    expect(themeForAppearance('light', false)).toBe('catppuccin-latte')
-    expect(themeForAppearance('dark', true)).toBe('catppuccin-mocha')
+  it('keeps explicit modes independent of the browser preference', () => {
+    expect(themeForAppearance('light', false)).toBe('light')
+    expect(themeForAppearance('dark', true)).toBe('dark')
   })
 
   it('follows the system preference only in system mode', () => {
-    expect(themeForAppearance('system', true)).toBe('catppuccin-latte')
-    expect(themeForAppearance('system', false)).toBe('catppuccin-mocha')
+    expect(themeForAppearance('system', true)).toBe('light')
+    expect(themeForAppearance('system', false)).toBe('dark')
   })
 })
 
 describe('appearance mode', () => {
   it('derives the theme when the mode changes', () => {
     useSettings.getState().setAppearance('light')
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().theme).toBe('light')
 
     useSettings.getState().setAppearance('dark')
-    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+    expect(useSettings.getState().theme).toBe('dark')
   })
 
   it('follows a system preference change only in system mode', () => {
     stubSystemPreference(true)
-    useSettings.setState({ appearance: 'system', theme: 'catppuccin-mocha' })
+    useSettings.setState({ appearance: 'system', theme: 'dark' })
     useSettings.getState().syncSystemTheme()
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().theme).toBe('light')
 
     stubSystemPreference(false)
     useSettings.getState().syncSystemTheme()
-    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+    expect(useSettings.getState().theme).toBe('dark')
 
     // an explicit mode is fixed, not browser-dependent
     useSettings.getState().setAppearance('light')
     stubSystemPreference(false)
     useSettings.getState().syncSystemTheme()
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().theme).toBe('light')
   })
 })
 
@@ -106,7 +106,7 @@ describe('settings persistence', () => {
     await vi.waitFor(() => {
       expect(useSettings.getState().appearance).toBe('light')
     })
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().theme).toBe('light')
     expect(useSettings.getState().imageEffects).toBe(false)
   })
 
@@ -157,28 +157,20 @@ describe('stored state migration', () => {
     })
 
     expect(useSettings.getState().appearance).toBe('light')
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
+    expect(useSettings.getState().theme).toBe('light')
   })
 
-  it('derives the mode from an old light palette', async () => {
-    await rehydrate({ theme: 'bone' })
-    expect(useSettings.getState().appearance).toBe('light')
-    expect(useSettings.getState().theme).toBe('catppuccin-latte')
-  })
-
-  it('derives the mode from an old dark palette, including duotone', async () => {
-    await rehydrate({ theme: 'cyberpunk' })
-    expect(useSettings.getState().appearance).toBe('dark')
-    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
-
-    await rehydrate({ theme: 'duotone' })
-    expect(useSettings.getState().appearance).toBe('dark')
-  })
-
-  it('falls back to system for an unknown palette and no mode', async () => {
-    await rehydrate({ theme: 'neon' })
+  it('ignores retired theme names when no appearance mode is stored', async () => {
+    stubSystemPreference(true)
+    await rehydrate({ theme: 'retired' })
     expect(useSettings.getState().appearance).toBe('system')
-    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+    expect(useSettings.getState().theme).toBe('light')
+  })
+
+  it('falls back to system for an unusable appearance mode', async () => {
+    await rehydrate({ appearance: 'invalid' })
+    expect(useSettings.getState().appearance).toBe('system')
+    expect(useSettings.getState().theme).toBe('dark')
   })
 
   it('keeps a disabled effect preference through the migration', async () => {

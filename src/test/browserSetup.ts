@@ -80,7 +80,7 @@ function clearTrackedListeners(): void {
 function resetRootChrome(): void {
   const root = document.documentElement
   // Same defaults the shipped index.html boots with.
-  root.dataset['theme'] = 'catppuccin-mocha'
+  root.dataset['theme'] = 'dark'
   document.body.removeAttribute('style')
 }
 

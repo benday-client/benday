@@ -229,11 +229,11 @@ it('dithers the viewer image with the active palette', () => {
 
   const image = requireElement<HTMLElement>(container, '.b-media-viewer__stage .dither-image')
 
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filterOf(image)).toContain('url(#benday-dither-dark)')
 
-  document.documentElement.dataset['theme'] = 'catppuccin-latte'
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-latte)')
-  expect(filterOf(image)).not.toContain('catppuccin-mocha')
+  document.documentElement.dataset['theme'] = 'light'
+  expect(filterOf(image)).toContain('url(#benday-dither-light)')
+  expect(filterOf(image)).not.toContain('dark')
 })
 
 it('paints the viewer image plainly once the image effects setting is off', async () => {
@@ -249,7 +249,7 @@ it('paints the viewer image plainly once the image effects setting is off', asyn
   const image = requireElement<HTMLElement>(container, '.b-media-viewer__stage .dither-image')
   // the default setting really filters the already rendered element
   expect(image.getAttribute('data-effect')).toBeNull()
-  expect(filterOf(image)).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filterOf(image)).toContain('url(#benday-dither-dark)')
 
   act(() => {
     useSettings.getState().setImageEffects(false)
@@ -277,20 +277,20 @@ it('keeps the dither on a failed viewer image instead of flattening it', async (
 
   const filter = filterOf(fallback)
   expect(filter).not.toBe('none')
-  expect(filter).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filter).toContain('url(#benday-dither-dark)')
 
-  document.documentElement.dataset['theme'] = 'catppuccin-latte'
-  expect(filterOf(fallback)).toContain('url(#benday-dither-catppuccin-latte)')
+  document.documentElement.dataset['theme'] = 'light'
+  expect(filterOf(fallback)).toContain('url(#benday-dither-light)')
 })
 
 it('leaves the activated video unfiltered while its poster is dithered', async () => {
   const { container } = render(<MediaViewer open items={[videoItem]} onClose={() => {}} />)
 
   const poster = requireElement<HTMLElement>(container, '.b-video-player__poster .dither-image')
-  expect(filterOf(poster)).toContain('url(#benday-dither-catppuccin-mocha)')
+  expect(filterOf(poster)).toContain('url(#benday-dither-dark)')
 
-  document.documentElement.dataset['theme'] = 'catppuccin-latte'
-  expect(filterOf(poster)).toContain('url(#benday-dither-catppuccin-latte)')
+  document.documentElement.dataset['theme'] = 'light'
+  expect(filterOf(poster)).toContain('url(#benday-dither-light)')
 
   await userEvent.click(page.getByRole('button', { name: 'play video' }))
 

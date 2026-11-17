@@ -60,8 +60,8 @@
 }
 
 .b-notif[data-unread="true"] {
-  border-left-color: var(--blue);
-  background-color: color-mix(in srgb, var(--blue) 4%, var(--paper));
+  border-left-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 4%, var(--paper));
 }
 
 .b-notif__head {
@@ -80,8 +80,8 @@
   flex: 0 0 auto;
   width: 6px;
   height: 6px;
-  background: var(--blue);
-  box-shadow: 0 0 6px -1px var(--blue);
+  background: var(--accent);
+  box-shadow: 0 0 6px -1px var(--accent);
 }
 
 /* notifications are a triage list: a row is as tall as it reads, and the
@@ -179,7 +179,7 @@
 }
 
 .b-notif__subject:hover {
-  border-left-color: var(--blue);
+  border-left-color: var(--accent);
   color: var(--ink);
   text-decoration: none;
 }
@@ -263,7 +263,7 @@
   color: var(--ink);
   font-size: var(--step--2);
   letter-spacing: 0.06em;
-  text-decoration-color: var(--blue);
+  text-decoration-color: var(--accent);
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -273,7 +273,7 @@
 
 .b-notif__open:hover {
   color: var(--ink);
-  text-decoration-color: var(--blue);
+  text-decoration-color: var(--accent);
   text-decoration-thickness: 2px;
 }
 

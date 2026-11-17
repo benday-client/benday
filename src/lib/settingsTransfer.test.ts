@@ -127,17 +127,11 @@ describe('appearance mode', () => {
     }
   })
 
-  it('derives the mode from a version 1 theme when the mode is absent', () => {
-    for (const [theme, expected] of [
-      ['bone', 'light'],
-      ['void', 'dark'],
-      ['neon', 'system'],
-    ] as const) {
-      const result = parseSettingsFile({ version: 1, theme })
-      expect(result.ok).toBe(true)
-      if (!result.ok) continue
-      expect(result.settings.appearance, theme).toBe(expected)
-    }
+  it('uses system when an old file contains no appearance mode', () => {
+    const result = parseSettingsFile({ version: 1, theme: 'retired' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.settings.appearance).toBe('system')
   })
 
   it('keeps an explicit mode over the retired palette field', () => {
@@ -303,7 +297,7 @@ describe('store settings import', () => {
     localStorage.clear()
     useSettings.setState({
       appearance: 'dark',
-      theme: 'catppuccin-mocha',
+      theme: 'dark',
       keyboardShortcuts: true,
       imageEffects: true,
     })
@@ -314,7 +308,7 @@ describe('store settings import', () => {
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       appearance: 'light',
-      theme: 'catppuccin-latte',
+      theme: 'light',
     })
   })
 
@@ -327,7 +321,7 @@ describe('store settings import', () => {
     expect(applied).toBe(true)
     expect(useSettings.getState()).toMatchObject({
       appearance: 'dark',
-      theme: 'catppuccin-mocha',
+      theme: 'dark',
       keyboardShortcuts: false,
       imageEffects: false,
     })

@@ -21,7 +21,7 @@ import { RelativeTime } from './RelativeTime'
 import { SettingsDialog } from './SettingsDialog'
 import { Button, EmptyState, ErrorNotice, Frame, Progress, Tag, TextInput } from './ui'
 
-const THEMES: readonly Theme[] = ['catppuccin-mocha', 'catppuccin-latte']
+const THEMES: readonly Theme[] = ['dark', 'light']
 
 /* colour maths -------------------------------------------------------- */
 
@@ -144,7 +144,7 @@ function renderCatalogue(theme: Theme) {
         <div
           key={token}
           data-focus-surface={token}
-          style={{ background: `var(${token})`, outline: '1px solid var(--blue)' }}
+          style={{ background: `var(${token})`, outline: '1px solid var(--accent)' }}
         >
           focus line
         </div>
@@ -216,8 +216,6 @@ for (const theme of THEMES) {
     })
   }
 }
-
-/* split preview scope ------------------------------------------------ */
 
 /* layout invariants -------------------------------------------------- */
 

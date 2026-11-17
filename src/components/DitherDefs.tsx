@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { BAYER_TILE_SIZE, buildBayerPatternDataUri } from '../lib/dither'
 import type { Theme } from '../lib/types'
 
-const THEMES = ['catppuccin-mocha', 'catppuccin-latte'] as const
+const THEMES = ['dark', 'light'] as const
 const BAYER_PATTERN_URI = buildBayerPatternDataUri()
 
 const GRAYSCALE =
@@ -16,11 +16,11 @@ interface DitherSpec {
 }
 
 const DITHER_SPECS: Record<Theme, DitherSpec> = {
-  'catppuccin-mocha': { from: [0.118, 0.118, 0.18], to: [0.537, 0.706, 0.98] },
-  'catppuccin-latte': { from: [0.298, 0.31, 0.412], to: [0.118, 0.4, 0.961] },
+  dark: { from: [0.035, 0.035, 0.035], to: [0.77, 0.77, 0.77] },
+  light: { from: [0.16, 0.15, 0.17], to: [0.96, 0.95, 0.94] },
 }
 
-// the one dither: a grungy Bayer screen painted from each palette's duotone
+// The grungy Bayer screen stays monochrome; violet belongs to interaction.
 const GRUNGE_SEED = 17
 const GRUNGE_FREQUENCY = 0.9
 

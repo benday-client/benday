@@ -1,22 +1,22 @@
-/* tokens: catppuccin mocha and latte, the one shipped pair. palette values are
-   upstream catppuccin 1.8.0; aliases, alpha and gradients stay in their own
-   notation. */
+/* Benday's adaptation of doll.systems: near-black neutral surfaces, a single
+   violet signal, serif headings, sans reading text and monospace metadata.
+   Source: https://doll.systems/_astro/LinkGraph.CdnPADRq.css (2026-11-17).
+   Light mode and readable status/muted roles are Benday adaptations. */
 
 :root {
-  color-scheme: dark;
-
   --font-mono:
     "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
-  --font-display: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-reading: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 
-  --step--2: 0.625rem;
-  --step--1: 0.6875rem;
-  --step-0: 0.75rem;
-  --step-1: 0.8125rem;
-  --step-2: 1rem;
-  --step-3: 1.375rem;
-  --step-4: 2.25rem;
-  --step-5: 3.5rem;
+  --step--2: 0.6875rem;
+  --step--1: 0.75rem;
+  --step-0: 0.8125rem;
+  --step-1: 1rem;
+  --step-2: 1.125rem;
+  --step-3: 1.75rem;
+  --step-4: 2.75rem;
+  --step-5: 4rem;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -27,181 +27,66 @@
   --space-7: 48px;
   --space-8: 64px;
 
-  /* the document fallback is catppuccin mocha, so a page without a theme
-     attribute still paints the palette the app ships */
-  --void: #1e1e2e;
-  --ink: #cdd6f4;
-  --ink-dim: #a6adc8;
-  --ink-faint: #7f849c;
-  --paper: #1e1e2e;
-  --panel: #181825;
-  --panel-raised: #313244;
-  --line: #45475a;
-  --line-strong: #585b70;
-  --blue: #89b4fa;
-  --blue-hot: #b4befe;
-  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
-  --rust: #f38ba8;
-  --acid: #a6e3a1;
-  --shadow: #11111b;
-  --selection-ink: #1e1e2e;
-
-  --topbar-height: 42px;
+  --topbar-height: 80px;
   --card-width: 100%;
   --card-min-height: 320px;
-  --deck-gap: var(--space-3);
-  --page-gutter: var(--space-4);
-  --radius: 0;
+  --deck-gap: var(--space-5);
+  --page-gutter: clamp(16px, 3vw, 48px);
+
+  --motion-lift: 4px;
+  --motion-dur: 160ms;
+  --motion-ease: steps(4, end);
+  --deal-dur: 320ms;
 
   --z-base: 1;
   --z-topbar: 20;
   --z-dialog: 100;
 }
 
-/* shared effect and signature defaults: one rule for the document and every
-   nested theme scope, placed before the individual theme blocks so a palette's
-   own values still win. root-only typography, spacing and layout stay in
-   :root above. */
+/* Explicit scopes reset all colour roles, including scopes inside the other
+   scheme. The root fallback is dark until first-paint preference resolution. */
 :root,
-[data-theme] {
-  /* a palette that names no second accent pair keeps these, and a nested scope
-     resets to them before its own block */
-  --accent-2: var(--blue);
-  --accent-3: var(--acid);
-  --accent-4: var(--blue-hot);
-  --accent-5: var(--rust);
-  --neon: transparent;
-  --neon-alt: transparent;
-
-  /* shared corner language: radius for interactive trim, clip for surfaces */
-  --theme-radius: 0px;
-  --theme-clip: none;
-
-  /* theme signature plumbing: one head hatch, one head rule, one edge style.
-     a palette restates only the tokens whose mark it changes, so a card reads
-     as itself without a second component. everything here mixes palette
-     tokens, never raw colours. */
-  --head-image: repeating-linear-gradient(
-    90deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--line) 55%, transparent) 5px 6px
-  );
-  --head-rule: 1px solid var(--line);
-  --head-glow: none;
-  --card-edge-style: solid;
-  --body-inset: none;
-  --card-shadow: 0 0 0 0 transparent;
-  --frame-rule: 1px solid var(--line);
-}
-
-/* the document fallback keeps mocha's decorations after the shared defaults */
-:root {
-  --accent-2: #cba6f7;
-  --accent-3: #f5c2e7;
-  --accent-4: #f9e2af;
-  --accent-5: #94e2d5;
-  --theme-radius: 4px;
-  --head-image: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-2) 20%, transparent),
-    color-mix(in srgb, var(--accent-3) 12%, transparent)
-  );
-  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
-}
-
-[data-theme="catppuccin-mocha"] {
+[data-theme="dark"] {
   color-scheme: dark;
-
-  /* catppuccin mocha, upstream palette 1.8.0: base is the pane and card surface,
-     mantle/crust are the recessed chrome, surface0-2 the raised trim, and
-     text/subtext0/overlay1 the three text steps. links/functions are blue,
-     the active border is lavender and the default accent pair is mauve/pink. */
-  --void: #1e1e2e;
-  --ink: #cdd6f4;
-  --ink-dim: #a6adc8;
-  --ink-faint: #7f849c;
-  --paper: #1e1e2e;
-  --panel: #181825;
-  --panel-raised: #313244;
-  --line: #45475a;
-  --line-strong: #585b70;
-  --blue: #89b4fa;
-  --blue-hot: #b4befe;
-  --blue-deep: color-mix(in srgb, var(--blue) 25%, var(--void));
-  --rust: #f38ba8;
-  --acid: #a6e3a1;
-  --accent-2: #cba6f7;
-  --accent-3: #f5c2e7;
-  --accent-4: #f9e2af;
-  --accent-5: #94e2d5;
-  --shadow: #11111b;
-
-  --selection-ink: #1e1e2e;
-
-  /* catppuccin: soft corners and a pastel head wash instead of the hatch */
-  --theme-radius: 4px;
-  --head-image: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-2) 20%, transparent),
-    color-mix(in srgb, var(--accent-3) 12%, transparent)
-  );
-  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 40%, var(--line));
+  --void: #090909;
+  --ink: #c4c4c4;
+  --ink-dim: #a0a0a0;
+  --ink-faint: #777777;
+  --paper: #0c0c0c;
+  --panel: #101010;
+  --panel-raised: #191919;
+  --line: #353535;
+  --line-strong: #646464;
+  --accent: #c79fef;
+  --accent-hover: #ddc1f7;
+  --danger: #e9a6a6;
+  --shadow: #000000;
 }
 
-[data-theme="catppuccin-latte"] {
+[data-theme="light"] {
   color-scheme: light;
-
-  /* catppuccin latte, upstream palette 1.8.0. the same roles as mocha, read
-     from the light end: text/subtext for type, blue for links, mauve for the
-     accent pair, red for errors and green for success. */
-  --void: #eff1f5;
-  --ink: #4c4f69;
-  --ink-dim: #5c5f77;
-  --ink-faint: #6c6f85;
-  --paper: #eff1f5;
-  --panel: #e6e9ef;
-  --panel-raised: #ccd0da;
-  --line: #bcc0cc;
-  --line-strong: #acb0be;
-  --blue: #1e66f5;
-  --blue-hot: #8839ef;
-  --blue-deep: color-mix(in srgb, var(--blue) 18%, var(--void));
-  --rust: #d20f39;
-  --acid: #40a02b;
-  --accent-2: #8839ef;
-  --accent-3: #ea76cb;
-  --accent-4: #df8e1d;
-  --accent-5: #179299;
-  --shadow: #8c8fa1;
-
-  --selection-ink: #eff1f5;
-
-  /* catppuccin: soft corners and a pastel head wash instead of the hatch */
-  --theme-radius: 4px;
-  --head-image: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-2) 14%, transparent),
-    color-mix(in srgb, var(--accent-3) 10%, transparent)
-  );
-  --head-rule: 1px solid color-mix(in srgb, var(--accent-2) 30%, var(--line));
+  --void: #f4f2ef;
+  --ink: #29272b;
+  --ink-dim: #59545e;
+  --ink-faint: #716a76;
+  --paper: #faf9f7;
+  --panel: #eeece9;
+  --panel-raised: #e5e1e7;
+  --line: #ccc7cd;
+  --line-strong: #817787;
+  --accent: #70428c;
+  --accent-hover: #58316f;
+  --danger: #963f46;
+  --shadow: #d6d0d8;
 }
 
-/* readable roles: one layer above the raw palettes so information-bearing text
-   and solid controls stay legible. rebinding on each theme scope matters: a
-   root alias would otherwise resolve against the wrong palette inside a nested
-   scope. */
 :root,
 [data-theme] {
+  --accent-wash: color-mix(in srgb, var(--accent) 22%, var(--void));
   --text-muted: var(--ink-dim);
-  --text-link: var(--blue);
-  --fill-solid: var(--blue);
-  --fill-solid-hover: var(--blue-hot);
+  --text-link: var(--accent);
+  --fill-solid: var(--accent);
+  --fill-solid-hover: var(--accent-hover);
   --on-accent: var(--void);
-}
-
-[data-theme="catppuccin-latte"] {
-  --text-muted: color-mix(in srgb, var(--ink) 60%, var(--ink-dim) 40%);
-  --text-link: var(--ink);
-  --fill-solid: color-mix(in srgb, var(--ink) 10%, var(--blue) 90%);
-  --fill-solid-hover: color-mix(in srgb, var(--ink) 10%, var(--blue-hot) 90%);
+  --selection-ink: var(--void);
 }

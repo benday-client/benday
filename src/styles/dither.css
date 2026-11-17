@@ -11,7 +11,7 @@
   width: 100%;
   height: 100%;
   background: var(--panel);
-  filter: var(--dither-filter, url(#benday-dither-catppuccin-mocha));
+  filter: var(--dither-filter, url(#benday-dither-dark));
   image-rendering: pixelated;
   object-fit: cover;
 }
@@ -22,18 +22,14 @@
   image-rendering: auto;
 }
 
-/* every theme scope declares the filter again, so a nested scope never
-   inherits its parent's palette */
-[data-theme] {
-  --dither-filter: url(#benday-dither-catppuccin-mocha);
+/* Each scheme owns its filter, including a scope nested in the other scheme. */
+:root,
+[data-theme="dark"] {
+  --dither-filter: url(#benday-dither-dark);
 }
 
-[data-theme="catppuccin-mocha"] {
-  --dither-filter: url(#benday-dither-catppuccin-mocha);
-}
-
-[data-theme="catppuccin-latte"] {
-  --dither-filter: url(#benday-dither-catppuccin-latte);
+[data-theme="light"] {
+  --dither-filter: url(#benday-dither-light);
 }
 
 .dither-image--fallback {

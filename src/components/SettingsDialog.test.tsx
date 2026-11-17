@@ -560,7 +560,7 @@ describe('SettingsDialog import limits', () => {
     pickFile(container, file)
 
     expect(await screen.findByText('settings imported')).toBeInTheDocument()
-    expect(useSettings.getState().theme).toBe('catppuccin-mocha')
+    expect(useSettings.getState().theme).toBe('dark')
   })
 
   it.each(['resolve', 'reject'])(

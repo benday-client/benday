@@ -32,7 +32,7 @@
   display: grid;
   width: 64px;
   height: 64px;
-  border: 1px solid var(--blue-deep);
+  border: 1px solid var(--accent-wash);
   background: var(--panel);
   color: var(--ink);
   font-size: var(--step-2);
@@ -107,7 +107,7 @@
   min-height: 24px;
   padding: 2px var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: var(--theme-radius);
+  border-radius: 0;
   background: var(--panel-raised);
   color: var(--text-muted);
   cursor: pointer;
@@ -117,7 +117,7 @@
 }
 
 .b-video-player__button:hover {
-  border-color: var(--blue);
+  border-color: var(--accent);
   color: var(--ink);
 }
 
@@ -125,7 +125,7 @@
   flex: 1 1 120px;
   min-width: 80px;
   min-height: 24px;
-  accent-color: var(--blue);
+  accent-color: var(--accent);
 }
 
 .b-video-player__time {
