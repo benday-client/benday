@@ -1,0 +1,39 @@
+name: publish
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - name: Build
+        env:
+          BENDAY_PUBLIC_ORIGIN: https://benday.qex.at
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Publish
+        uses: yitianyigexiangfa/ssh-scp-ssh-pipelines@v1.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          user: ${{ secrets.USER }}
+          pass: ${{ secrets.PASS }}
+          first_ssh: |
+            mkdir -p ./www/benday.qex.at
+          scp: |
+            ./dist/* => ./www/benday.qex.at/
+            ./dist/.htaccess => ./www/benday.qex.at/
