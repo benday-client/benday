@@ -26,14 +26,61 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+      # One bcrypt line per person lives in the BETA_HTPASSWD secret, never in
+      # the repository. An empty secret fails the run rather than publishing an
+      # open site, and revoking a person is deleting their line.
+      - name: Beta credentials
+        env:
+          BETA_HTPASSWD: ${{ secrets.BETA_HTPASSWD }}
+        run: |
+          if [ -z "$BETA_HTPASSWD" ]; then
+            echo "BETA_HTPASSWD is empty: refusing to publish the beta unguarded" >&2
+            exit 1
+          fi
+          printf '%s\n' "$BETA_HTPASSWD" > dist/.htpasswd
       - name: Publish
         uses: yitianyigexiangfa/ssh-scp-ssh-pipelines@v1.1.5
         with:
           host: ${{ secrets.HOST }}
           user: ${{ secrets.USER }}
           pass: ${{ secrets.PASS }}
+          # AuthUserFile needs the absolute deployed path and only the remote
+          # knows it, so the .htaccess is written there instead of shipped. It is
+          # regenerated on every publish, which is why the scp step below never
+          # sends a local .htaccess over it.
           first_ssh: |
             mkdir -p ./www/benday.qex.at
+            cat > ./www/benday.qex.at/.htaccess <<HTACCESS
+            DirectoryIndex index.html
+            AddType application/json .json
+
+            AuthType Basic
+            AuthName "benday closed beta"
+            AuthUserFile $PWD/www/benday.qex.at/.htpasswd
+            Require valid-user
+
+            # the pds fetches this during portal sign in, so it answers before auth
+            <Files "oauth-client-metadata.json">
+              Require all granted
+            </Files>
+
+            <FilesMatch "^\.ht">
+              Require all denied
+            </FilesMatch>
+
+            # every other path keeps the single page fallback
+            RewriteEngine On
+            RewriteBase /
+            RewriteCond %{REQUEST_FILENAME} !-f
+            RewriteCond %{REQUEST_FILENAME} !-d
+            RewriteRule ^ /index.html [L]
+            HTACCESS
           scp: |
             ./dist/* => ./www/benday.qex.at/
-            ./dist/.htaccess => ./www/benday.qex.at/
+            ./dist/.htpasswd => ./www/benday.qex.at/
+          # shared hosting can leave the upload world readable, and the file is
+          # the whole gate. a missing file is a failed publish, not a warning.
+          last_ssh: |
+            test -f ./www/benday.qex.at/.htpasswd
+            chmod 600 ./www/benday.qex.at/.htpasswd
+            stat -c '%a %n' ./www/benday.qex.at/.htpasswd

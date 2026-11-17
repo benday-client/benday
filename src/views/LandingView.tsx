@@ -17,7 +17,7 @@ export default function LandingView({ onSignIn }: LandingViewProps) {
         a card reader for your own bluesky
       </h1>
       <p className="b-landing__body">
-        accounts are limited while it is polished. benday stays a client for your own account and
+        access is by invitation while it is polished. benday stays a client for your own account and
         nothing is written without your say so.
       </p>
       <div className="b-landing__action">
