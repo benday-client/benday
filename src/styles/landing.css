@@ -70,9 +70,3 @@
   font-size: var(--text-reading);
   line-height: var(--leading-reading);
 }
-
-.b-landing__link {
-  color: var(--text-link);
-  text-decoration-color: var(--line-strong);
-  text-underline-offset: 3px;
-}

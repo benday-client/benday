@@ -17,22 +17,16 @@ export default function LandingView({ onSignIn }: LandingViewProps) {
         a card reader for your own bluesky
       </h1>
       <p className="b-landing__body">
-        access is by invitation while it is polished, so an account has to be on the list before it
-        can read. benday stays a client for your own account and nothing is written without your say
-        so.
+        access to benday is by invitation while we polish it. use your own bluesky account to log
+        in. nothing is written without your say so.
       </p>
       <div className="b-landing__action">
         <Button variant="solid" onClick={onSignIn}>
           log in with bluesky
         </Button>
       </div>
-      <p className="b-landing__body">this is a social door not a security gate</p>
       <p className="b-landing__body">
-        no invite yet? the door is the usual one,{' '}
-        <a className="b-landing__link" href="https://bsky.app/profile/qex.at">
-          ask @qex.at on bluesky
-        </a>
-        .
+        the invitation check runs in your browser and can be bypassed
       </p>
     </section>
   )

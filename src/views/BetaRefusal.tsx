@@ -20,22 +20,13 @@ export default function BetaRefusal({ reason, onSignOut }: BetaRefusalProps) {
       <p className="b-refusal__body">
         {reason === 'unreadable'
           ? 'benday could not read its own invitation list, so it will not let anyone in.'
-          : 'an invite has to come from clarisse. your account was signed out again so nothing is left signed in on this device.'}
+          : 'your account is not on the invitation list and has been signed out.'}
       </p>
       <div className="b-refusal__action">
         <Button variant="solid" onClick={onSignOut}>
           sign out
         </Button>
       </div>
-      {reason === 'unreadable' ? null : (
-        <p className="b-refusal__body">
-          the door is the usual one,{' '}
-          <a className="b-landing__link" href="https://bsky.app/profile/qex.at">
-            ask @qex.at on bluesky
-          </a>
-          .
-        </p>
-      )}
     </section>
   )
 }

@@ -223,10 +223,6 @@ describe('shell auth gate', () => {
 
       await waitFor(() => expect(useUiStore.getState().dialog).toBe('login'))
       expect(await screen.findByLabelText('handle or did')).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'ask @qex.at on bluesky' })).toHaveAttribute(
-        'href',
-        'https://bsky.app/profile/qex.at',
-      )
     } finally {
       view.unmount()
     }
