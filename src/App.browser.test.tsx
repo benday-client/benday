@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { act, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
 import App from './App'
@@ -14,7 +14,7 @@ import { resolveSrgbColor } from './test/colors'
 import { postFixture } from './test/fixtures'
 import { createTestQueryClient } from './test/queryClient'
 import { renderStage } from './test/stage'
-import { installTransport } from './test/transport'
+import { installTransport, jsonResponse } from './test/transport'
 
 async function mountApp(): Promise<() => void> {
   window.history.pushState({}, '', '/search')
@@ -135,6 +135,79 @@ function listRequests(calls: readonly { url: string }[]): string[] {
     .filter((url) => LIST_METHODS.some((method) => url.includes(method)))
 }
 
+describe('portal restore notice layout', () => {
+  it.each([
+    { width: 1280, height: 800 },
+    { width: 390, height: 844 },
+  ])(
+    'keeps the notice above the authenticated route at $width × $height',
+    async ({ width, height }) => {
+      await page.viewport(width, height)
+      const transport = installTransport()
+      const pds = 'https://pds.test'
+      const session = {
+        did: 'did:plc:shell',
+        handle: 'shell.test',
+        accessJwt: 'shell-access',
+        refreshJwt: 'shell-refresh',
+        active: true,
+      }
+      transport.route('GET', `https://plc.directory/${session.did}`, () =>
+        jsonResponse(200, {
+          id: session.did,
+          service: [
+            { id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: pds },
+          ],
+        }),
+      )
+      transport.route('POST', `${pds}/xrpc/com.atproto.server.createSession`, () =>
+        jsonResponse(200, session),
+      )
+      transport.route('GET', `${pds}/xrpc/app.bsky.actor.getPreferences`, () =>
+        jsonResponse(200, { preferences: [] }),
+      )
+      transport.route('GET', `${pds}/xrpc/app.bsky.feed.getFeed`, () =>
+        jsonResponse(200, { feed: [] }),
+      )
+      await useAuthStore.getState().signIn(session.did, 'app-pass')
+      useAuthStore.setState({ restoreError: 'could not reach the portal' })
+      window.history.pushState({}, '', '/feed')
+      let unmount = () => {}
+      await act(async () => {
+        unmount = render(<App />).unmount
+      })
+      try {
+        await vi.waitFor(() => expect(document.querySelector('.b-main > .b-view')).not.toBeNull())
+        const main = document.querySelector<HTMLElement>('.b-main')
+        const notice = document.querySelector<HTMLElement>('.b-shell-notice')
+        const route = document.querySelector<HTMLElement>('.b-main > .b-view')
+        if (main === null || notice === null || route === null) throw new Error('shell missing')
+        const bounds = main.getBoundingClientRect()
+        const noticeRect = notice.getBoundingClientRect()
+        const routeRect = route.getBoundingClientRect()
+        expect(document.querySelectorAll('.b-shell-notice [role="alert"]')).toHaveLength(1)
+        expect(noticeRect.height).toBeGreaterThan(0)
+        expect(routeRect.height).toBeGreaterThan(0)
+        expect(noticeRect.top).toBeGreaterThanOrEqual(bounds.top)
+        expect(noticeRect.bottom).toBeLessThanOrEqual(routeRect.top)
+        expect(routeRect.bottom).toBeLessThanOrEqual(bounds.bottom + 1)
+        expect(noticeRect.left).toBeGreaterThanOrEqual(bounds.left)
+        expect(noticeRect.right).toBeLessThanOrEqual(bounds.right)
+        expect(document.querySelector('dialog[open]')).toBeNull()
+
+        await act(async () => useAuthStore.getState().clearError())
+
+        expect(document.querySelector('.b-shell-notice')).toBeNull()
+        expect(route.getBoundingClientRect().height).toBeGreaterThan(routeRect.height)
+        expect(route.getBoundingClientRect().height).toBeCloseTo(bounds.height, 0)
+        expect(document.querySelector('dialog[open]')).toBeNull()
+      } finally {
+        unmount()
+      }
+    },
+  )
+})
+
 describe('shell auth gate', () => {
   it('gates an anonymous session and opens the login dialog without reading a list', async () => {
     const transport = installTransport()
@@ -171,6 +244,33 @@ describe('shell auth gate', () => {
       expect(transport.calls).toHaveLength(0)
       // nothing has asked for the dialog yet
       expect(document.querySelector('dialog[open]')).toBeNull()
+      const compose = document.querySelector<HTMLButtonElement>('button[aria-label="compose"]')
+      const jump = document.querySelector<HTMLButtonElement>('button[aria-label="jump"]')
+      const notifications = document.querySelector<HTMLAnchorElement>('a[href="/notifications"]')
+      const help = document.querySelector<HTMLButtonElement>('button[aria-label="keyboard help"]')
+      const settings = document.querySelector<HTMLButtonElement>('button[aria-label="settings"]')
+      if (
+        compose === null ||
+        jump === null ||
+        notifications === null ||
+        help === null ||
+        settings === null
+      ) {
+        throw new Error('top bar actions missing')
+      }
+      expect(compose.disabled).toBe(true)
+      expect(jump.disabled).toBe(true)
+      expect(help.disabled).toBe(false)
+      expect(settings.disabled).toBe(false)
+      notifications.focus()
+      await userEvent.keyboard('{Tab}')
+      expect(document.activeElement).toBe(help)
+      await userEvent.keyboard('{Tab}')
+      expect(document.activeElement).toBe(settings)
+      await userEvent.keyboard('{Tab}')
+      expect(document.activeElement).toBe(gate)
+      expect(useUiStore.getState()).toMatchObject({ dialog: null, compose: null })
+      expect(transport.calls).toHaveLength(0)
 
       // the whole card is the sign-in control
       await userEvent.click(gate)

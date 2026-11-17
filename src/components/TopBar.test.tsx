@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
@@ -58,6 +58,52 @@ describe('TopBar compose entry', () => {
     screen.getByRole('button', { name: 'compose' }).click()
     expect(useUiStore.getState().compose).toMatchObject({ mode: 'post', post: null })
   })
+
+  it.each([
+    { status: 'anonymous', account: null },
+    { status: 'restoring', account: { did: 'did:plc:me', handle: 'me.test' } },
+    { status: 'authenticated', account: null },
+  ] as const)(
+    'gates account actions while $status and enables them live after sign-in',
+    ({ status, account }) => {
+      useAuthStore.setState({ status, account })
+      renderTopBar()
+      const compose = screen.getByRole('button', { name: 'compose' })
+      const jump = screen.getByRole('button', { name: 'jump' })
+      expect(compose).toBeDisabled()
+      expect(jump).toBeDisabled()
+      compose.click()
+      jump.click()
+      expect(useUiStore.getState()).toMatchObject({ compose: null, dialog: null })
+
+      for (const [name, dialog] of [
+        ['keyboard help', 'help'],
+        ['settings', 'settings'],
+      ] as const) {
+        const button = screen.getByRole('button', { name })
+        expect(button).toBeEnabled()
+        button.click()
+        expect(useUiStore.getState().dialog).toBe(dialog)
+        useUiStore.getState().closeDialog()
+      }
+
+      act(() => {
+        useAuthStore.setState({
+          status: 'authenticated',
+          account: { did: 'did:plc:me', handle: 'me.test' },
+          pending: true,
+        })
+      })
+      expect(screen.getByRole('button', { name: 'compose' })).toBe(compose)
+      expect(compose).toBeEnabled()
+      expect(jump).toBeEnabled()
+      compose.click()
+      expect(useUiStore.getState().compose).toMatchObject({ mode: 'post', post: null })
+      useUiStore.getState().closeCompose()
+      jump.click()
+      expect(useUiStore.getState().dialog).toBe('palette')
+    },
+  )
 })
 
 describe('TopBar tab row', () => {

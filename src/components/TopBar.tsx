@@ -15,6 +15,7 @@ const HELP_KEY = displayKeys(bindingFor('help'))[0] ?? ''
 export function TopBar() {
   const [pathname] = useLocation()
   const account = useAuthStore((state) => state.account)
+  const status = useAuthStore((state) => state.status)
   const openDialog = useUiStore((state) => state.openDialog)
   const openCompose = useUiStore((state) => state.openCompose)
 
@@ -92,6 +93,7 @@ export function TopBar() {
         <Button
           variant="ghost"
           className="b-topbar__icon"
+          disabled={status !== 'authenticated' || account === null}
           onClick={() => {
             openCompose({ mode: 'post', post: null })
           }}
@@ -105,6 +107,7 @@ export function TopBar() {
         <Button
           variant="ghost"
           className="b-topbar__icon"
+          disabled={status !== 'authenticated' || account === null}
           onClick={() => {
             openDialog('palette')
           }}

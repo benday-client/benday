@@ -155,6 +155,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     event.target.value = ''
     if (file === undefined) return
 
+    const opening = openingRef.current
+    const transfer = ++transferRef.current
+
     setTransferError(null)
     setTransferNotice(null)
 
@@ -164,9 +167,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
       setTransferError('settings file is too large · maximum 256 kib')
       return
     }
-
-    const opening = openingRef.current
-    const transfer = ++transferRef.current
 
     let text: string
     try {

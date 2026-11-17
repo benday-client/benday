@@ -27,6 +27,29 @@ vi.mock('../lib/actions', () => ({
   sendFeedFeedback: vi.fn(),
 }))
 
+const hls = vi.hoisted(() => {
+  const handlers = new Map<string, (event: string, data: { fatal: boolean }) => void>()
+  const instances: FakeHls[] = []
+  class FakeHls {
+    static isSupported = () => true
+    static Events = { ERROR: 'hlsError', MANIFEST_PARSED: 'hlsManifestParsed' }
+    constructor() {
+      instances.push(this)
+    }
+    on = vi.fn((event: string, handler: (event: string, data: { fatal: boolean }) => void) => {
+      handlers.set(event, handler)
+    })
+    loadSource = vi.fn()
+    attachMedia = vi.fn()
+    startLoad = vi.fn()
+    stopLoad = vi.fn()
+    destroy = vi.fn()
+  }
+  return { handlers, instances, FakeHls }
+})
+
+vi.mock('hls.js', () => ({ default: hls.FakeHls }))
+
 function quoteFixture() {
   return {
     uri: 'at://did:plc:test/app.bsky.feed.post/quoted',
@@ -1571,17 +1594,90 @@ describe('PostCard shortcut opt-out', () => {
 })
 
 describe('PostCard video controls', () => {
+  beforeEach(() => {
+    hls.handlers.clear()
+    hls.instances.length = 0
+  })
+
   function renderFocusedVideo(embed: PostModel['embed']) {
     const queryClient = createTestQueryClient()
     return render(
       <QueryClientProvider client={queryClient}>
         <Router hook={memoryLocation({ path: '/' }).hook}>
-          <PostCard post={postFixture({ embed })} focused />
+          <div className="b-deck" tabIndex={-1} data-testid="video-surface">
+            <PostCard post={postFixture({ embed })} focused />
+          </div>
           <KeyHints route="/feed" />
         </Router>
       </QueryClientProvider>,
     )
   }
+
+  it.each(['bare', 'quoted'])(
+    'uses the player transport for a %s video without moving focus',
+    async (kind) => {
+      let paused = true
+      vi.spyOn(HTMLMediaElement.prototype, 'paused', 'get').mockImplementation(() => paused)
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        paused = false
+        this.dispatchEvent(new Event('play'))
+        return Promise.resolve()
+      })
+      const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        paused = true
+        this.dispatchEvent(new Event('pause'))
+      })
+      const clip = {
+        type: 'video' as const,
+        thumbnail: null,
+        alt: 'clip',
+        playlist: 'https://example.test/clip.m3u8',
+      }
+      renderFocusedVideo(
+        kind === 'quoted' ? { type: 'recordWithMedia', quote: quoteFixture(), media: clip } : clip,
+      )
+      const surface = screen.getByTestId('video-surface')
+      surface.focus()
+      fireEvent.keyDown(surface, { key: 'v' })
+      await waitFor(() => expect(hls.handlers.get('hlsManifestParsed')).toBeDefined())
+      const player = hls.instances[0]
+      if (player === undefined) throw new Error('HLS player missing')
+      expect(surface).toHaveFocus()
+      fireEvent.keyDown(surface, { key: 'v' })
+      expect(play).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'play video' })).toBeDisabled()
+
+      act(() => hls.handlers.get('hlsManifestParsed')?.('hlsManifestParsed', { fatal: false }))
+      fireEvent.keyDown(surface, { key: 'v' })
+      expect(play).toHaveBeenCalledTimes(1)
+      expect(player.startLoad).toHaveBeenCalledTimes(2)
+      expect(screen.getByRole('button', { name: 'pause video' })).toBeEnabled()
+
+      fireEvent.keyDown(surface, { key: 'v' })
+      expect(pause).toHaveBeenCalledTimes(1)
+      expect(player.stopLoad).toHaveBeenCalledTimes(1)
+      expect(document.querySelector('.b-video-player__controls button')).toHaveTextContent('play')
+
+      fireEvent.keyDown(surface, { key: 'v' })
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(player.startLoad).toHaveBeenCalledTimes(3)
+      expect(screen.getByRole('button', { name: 'pause video' })).toBeEnabled()
+      expect(surface).toHaveFocus()
+
+      act(() => hls.handlers.get('hlsError')?.('hlsError', { fatal: true }))
+      fireEvent.keyDown(surface, { key: 'v' })
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(player.startLoad).toHaveBeenCalledTimes(3)
+      expect(screen.getByRole('button', { name: 'play video' })).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'retry video' })).toBeEnabled()
+      expect(screen.getByRole('alert')).toHaveTextContent('video failed to load')
+      expect(surface).toHaveFocus()
+    },
+  )
 
   it('never activates or teaches the video key without a playlist', () => {
     vi.useFakeTimers()

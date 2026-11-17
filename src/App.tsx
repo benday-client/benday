@@ -457,6 +457,11 @@ function AppShell() {
       <TopBar />
 
       <main id="main" className="b-main" tabIndex={-1} ref={mainRef}>
+        {restoreError === null ? null : (
+          <div className="b-shell-notice">
+            <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
+          </div>
+        )}
         {authenticated ? (
           <Switch>
             <Route path="/" component={FeedView} />
@@ -473,11 +478,6 @@ function AppShell() {
           </div>
         ) : (
           <div className="b-shell-gate">
-            {/* a failed portal restore is reported above the gate, not inside
-                the login dialog the reader did not ask for */}
-            {restoreError === null ? null : (
-              <ErrorNotice title="could not restore portal sign-in" message={restoreError} />
-            )}
             <SignedOutCard
               onSignIn={() => {
                 openDialog('login')

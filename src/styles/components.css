@@ -521,6 +521,11 @@
   scrollbar-width: thin;
 }
 
+.b-deck:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: -3px;
+}
+
 .b-deck[data-axis="x"] {
   flex-direction: row;
   overflow-x: auto;

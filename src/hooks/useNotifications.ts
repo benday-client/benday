@@ -16,6 +16,7 @@ const EMPTY_PAGE: NotificationPage = { notifications: [], newestIndexedAt: null 
 
 export interface NotificationsState {
   notifications: NotificationModel[]
+  hasData: boolean
   isPending: boolean
   isFetching: boolean
   error: Error | null
@@ -66,6 +67,7 @@ export function useNotifications(): NotificationsState {
 
   return {
     notifications: page?.notifications ?? [],
+    hasData: page !== undefined,
     isPending: enabled && query.isPending,
     isFetching: enabled && query.isFetching,
     error: normalizeError(query.error),

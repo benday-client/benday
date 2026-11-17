@@ -563,6 +563,39 @@ describe('SettingsDialog import limits', () => {
     expect(useSettings.getState().theme).toBe('catppuccin-mocha')
   })
 
+  it.each(['resolve', 'reject'])(
+    'keeps the newer size error when an older read will %s',
+    async (completion) => {
+      useSettings.getState().importSettings({
+        appearance: 'light',
+        keyboardShortcuts: false,
+        imageEffects: false,
+      })
+      const { container } = renderSettings()
+      const before = useSettings.getState()
+      const pending = Promise.withResolvers<string>()
+      const slow = new File([serializeSettings(SAMPLE)], 'slow.json', { type: 'application/json' })
+      Object.defineProperty(slow, 'text', { value: () => pending.promise })
+      const oversized = new File([new Uint8Array(MAX_BYTES + 1)], 'big.json', {
+        type: 'application/json',
+      })
+
+      pickFile(container, slow)
+      pickFile(container, oversized)
+      const sizeError = await screen.findByText(/settings file is too large/)
+
+      await act(async () => {
+        if (completion === 'resolve') pending.resolve(serializeSettings(SAMPLE))
+        else pending.reject(new Error('older read failed'))
+      })
+
+      expect(useSettings.getState()).toBe(before)
+      expect(sizeError).toBeInTheDocument()
+      expect(screen.queryByText('settings imported')).toBeNull()
+      expect(screen.queryByText('could not read settings file')).toBeNull()
+    },
+  )
+
   it('keeps the newer pick when an older read resolves last', async () => {
     const { container } = renderSettings()
     const slowRead = Promise.withResolvers<string>()

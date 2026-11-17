@@ -30,6 +30,11 @@
   min-height: 0;
 }
 
+.b-main > .b-shell-notice {
+  flex: 0 0 auto;
+  margin: var(--space-2) var(--page-gutter);
+}
+
 .b-skip {
   position: absolute;
   top: calc(-1 * var(--space-8));

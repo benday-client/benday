@@ -334,14 +334,12 @@ function PostCardView({
           poster.click()
           return
         }
-        const video = cardRef.current.querySelector<HTMLVideoElement>('.b-video-player__video')
-        if (video !== null) {
+        const control = cardRef.current.querySelector<HTMLButtonElement>(
+          '.b-video-player__controls .b-video-player__button',
+        )
+        if (control !== null) {
           event.preventDefault()
-          if (video.paused) {
-            void video.play().catch(() => {})
-          } else {
-            video.pause()
-          }
+          control.click()
           return
         }
       }

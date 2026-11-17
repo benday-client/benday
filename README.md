@@ -49,6 +49,8 @@ the password is never stored. sign out clears the session and viewer state, so
 the next load returns to the gate. a successful post closes the composer and
 invalidates the loaded non-feed queries without opening a thread that may not be
 indexed yet.
+a failed portal restore stays visible above the active route even when the
+password fallback succeeds; it does not open a dialog.
 
 ## keys and gestures
 
@@ -86,6 +88,9 @@ indexed yet.
 the deck has no letter movement: `h`, `j`, `k` and `l` do nothing on a deck.
 threads still use `j` and `k` for flat reading order. the media viewer is
 arrow-only: `←` `→`, `Home`/`End` and the digit positions.
+tab gives the deck an inset keyboard focus ring and an accessible description
+of its current position. on a wide deck, right from the leading peek enters the
+first card; left from that peek leaves the deck.
 
 escape stops at the first layer it can close: an open dialog, then the composer's
 suggestion list, then the inline composer, then a mode switcher, then a search
@@ -95,7 +100,7 @@ leaves it.
 
 the top bar keeps the tab names: `feeds`, `search`, `notifications` and
 `@handle` for the open profile. the active one carries a `//` marker. every
-action on the right prints its word — `jump`, `help`, `settings` — and the
+action on the right prints its word — `compose`, `jump`, `help`, `settings` — and the
 chords stay off the bar until you hold `?`; on a phone the row wraps instead of
 dropping the words. holding `?` paints
 key badges over the top bar actions and the focused card's actions, and releasing
@@ -105,6 +110,8 @@ post's media in the viewer. clicking a quoted post opens its thread; its open
 link still navigates independently. on your own posts a two-step `delete`
 action appears beside them. `y` copies the post's bsky.app permalink, and
 `1`-`9` are 1-based positions that act only while the deck or thread owns focus.
+compose and jump stay disabled until an account is authenticated. help and
+settings remain available while signed out; the sign-in card opens login.
 
 the command palette accepts `@handle`, post `at://` uris, `#tags` and plain
 search text (enter searches when no command matches). a feed-generator `at://`
@@ -162,6 +169,10 @@ single images scale to fit the viewport while keeping their natural ratio.
 there are no scanline, grain or surface-texture layers, no painted cursors, no
 keyboard pointer hiding and no high-contrast mode; the palettes keep their
 mandatory readable baseline contrast.
+video starts from its poster and uses the same play/pause transport for clicks
+and `v`. loading or failed video cannot be played through that shortcut; a load
+failure keeps its explicit retry. seeking follows the video's duration as it
+becomes known, including in the media viewer.
 
 ## labelers
 
@@ -171,6 +182,10 @@ they are applied to that account's reads through the `accept-labelers` header,
 so `api.bsky.app` can attach their labels. there is no local labeler list,
 editor or import. malformed dids are dropped; a failed preference read applies
 no labelers and never reuses another account's list.
+the active account keeps its list during a replacement sign-in attempt and
+after a failure that retains its session. signing in again as the same account
+keeps it too; committing a different account clears it before the new
+preferences arrive.
 
 ## feed feedback
 
@@ -210,8 +225,10 @@ that row from the list; a failed seen update never disturbs the list.
 
 there is no unread/shown count in the header, no header refresh button and no
 refresh action in the empty state. the query refetches when it is stale on
-mount and after reconnecting; the error state keeps a working retry. no polling,
-filters, load-more or push.
+mount and after reconnecting. retry keeps the error and its focused button on
+screen while loading; recovery hands that lost focus to the list or empty view
+without taking it from another selected control. no polling, filters, load-more
+or push.
 
 ## profiles
 
@@ -282,6 +299,8 @@ export builds the file in memory and downloads it; import replaces the
 appearance mode, keyboard-shortcuts and dither-effects choices in a single
 update, so malformed input leaves the current settings untouched. errors are
 reported inline in the dialog. the dialog refuses files over 256 KiB.
+each new file pick supersedes any older pending read, even when the newer file
+is refused for its size. cancelling the picker leaves the pending read alone.
 
 the file is versioned and intentionally narrow:
 

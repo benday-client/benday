@@ -1,7 +1,10 @@
 import { AtpAgent, type AtpBaseClient, type AtpSessionData } from '@atproto/api'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
+import { currentAccountLabelers, setAccountLabelers } from './accountLabelers'
+import { fetchActorSearch } from './atproto'
 import { AUTH_STORAGE_KEY, getAuthAgent, useAuthStore } from './auth'
+import { applyConfiguredLabelers } from './labelers'
 import { boundedFetch } from './requestTimeout'
 
 const oauthControl = vi.hoisted(() => ({
@@ -43,6 +46,25 @@ const BOB: AtpSessionData = {
   active: true,
 }
 
+const LABELER = 'did:plc:bendayvalidlabeler'
+const OTHER_LABELER = 'did:plc:bendayotherlabeler'
+
+function customLabelers(header: string | undefined): string[] {
+  return (header ?? '').split(', ').filter((entry) => entry !== '' && !entry.endsWith(';redact'))
+}
+
+function configureAccountLabelers(session: AtpSessionData, dids: string[] = [LABELER]): void {
+  setAccountLabelers(session.did, dids)
+  const agent = getAuthAgent()
+  if (agent === null) throw new Error('no committed agent')
+  applyConfiguredLabelers(agent)
+}
+
+async function expectPublicLabelers(dids: string[]): Promise<void> {
+  await fetchActorSearch('alice')
+  expect(customLabelers(transport.calls.at(-1)?.headers['atproto-accept-labelers'])).toEqual(dids)
+}
+
 function sessionFor(identifier: string): AtpSessionData {
   if (identifier.includes('bob')) return BOB
   // a discovered identity must get a session that names it, so these fixtures
@@ -71,6 +93,11 @@ beforeEach(async () => {
   oauthControl.portalError = 'portal sign in needs a loopback address'
   oauthControl.restoreError = null
   transport = installTransport()
+  for (const host of ['https://api.bsky.app', 'https://pds.test']) {
+    transport.route('GET', `${host}/xrpc/app.bsky.actor.searchActors`, () =>
+      jsonResponse(200, { actors: [] }),
+    )
+  }
   transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
     jsonResponse(200, {}),
   )
@@ -137,6 +164,7 @@ async function signInAs(session: AtpSessionData): Promise<void> {
 describe('sign-in transitions', () => {
   it('keeps the committed account and its refresh token while a replacement is pending', async () => {
     await signInAs(ALICE)
+    configureAccountLabelers(ALICE)
     const gate = deferred<Response>()
     transport.route(
       'POST',
@@ -151,6 +179,16 @@ describe('sign-in transitions', () => {
       account: { did: 'did:plc:alice' },
     })
     expect(getAuthAgent()?.did).toBe('did:plc:alice')
+    await vi.waitFor(() =>
+      expect(
+        transport.calls.filter((call) => call.url.endsWith('/com.atproto.server.createSession')),
+      ).toHaveLength(2),
+    )
+    const candidateRequest = transport.calls.findLast((call) =>
+      call.url.endsWith('/com.atproto.server.createSession'),
+    )
+    expect(customLabelers(candidateRequest?.headers['atproto-accept-labelers'])).toEqual([])
+    await expectPublicLabelers([LABELER])
 
     routeRefresh({ ...ALICE, accessJwt: 'alice-access-2', refreshJwt: 'alice-refresh-2' })
     await passwordSession(getAuthAgent())?.refreshSession()
@@ -167,9 +205,13 @@ describe('sign-in transitions', () => {
     })
     expect(getAuthAgent()?.did).toBe('did:plc:alice')
     expect(storedSession()?.refreshJwt).toBe('alice-refresh-2')
+    await expectPublicLabelers([LABELER])
   })
 
   it('revokes a candidate that lost the race and keeps the committed account', async () => {
+    await signInAs(BOB)
+    configureAccountLabelers(BOB, [OTHER_LABELER])
+    transport.calls.length = 0
     const bobGate = deferred<Response>()
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', (request) => {
       const body: unknown = JSON.parse(request.body ?? '{}')
@@ -195,6 +237,8 @@ describe('sign-in transitions', () => {
       ).toBe(true),
     )
     await signInAs(ALICE)
+    expect(currentAccountLabelers()).toEqual([])
+    configureAccountLabelers(ALICE)
     bobGate.resolve(jsonResponse(200, BOB))
 
     await expect(stale).resolves.toBe(false)
@@ -207,10 +251,13 @@ describe('sign-in transitions', () => {
       account: { did: 'did:plc:alice' },
     })
     expect(getAuthAgent()?.did).toBe('did:plc:alice')
+    expect(currentAccountLabelers()).toEqual([LABELER])
+    await expectPublicLabelers([LABELER])
   })
 
   it('rejects a session that names a different account than discovery', async () => {
     await signInAs(ALICE)
+    configureAccountLabelers(ALICE)
     const committedRecord = localStorage.getItem(AUTH_STORAGE_KEY)
     const revocations: Array<string | undefined> = []
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', (request) => {
@@ -233,10 +280,12 @@ describe('sign-in transitions', () => {
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBe(committedRecord)
     // only the candidate session is revoked, never the committed account's
     expect(revocations).toEqual([`Bearer ${BOB.refreshJwt}`])
+    expect(currentAccountLabelers()).toEqual([LABELER])
   })
 
   it('clears an expired committed session without cancelling a newer login', async () => {
     await signInAs(ALICE)
+    configureAccountLabelers(ALICE)
     const gate = deferred<Response>()
     transport.route(
       'POST',
@@ -257,6 +306,8 @@ describe('sign-in transitions', () => {
       error: null,
     })
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    expect(currentAccountLabelers()).toEqual([])
+    await expectPublicLabelers([])
 
     gate.resolve(jsonResponse(200, BOB))
     await expect(pending).resolves.toBe(true)
@@ -272,6 +323,7 @@ describe('sign-in transitions', () => {
 
   it('clears the local session when the pds rejects the credentials', async () => {
     await signInAs(ALICE)
+    configureAccountLabelers(ALICE)
     transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.createSession', () =>
       jsonResponse(401, {
         error: 'AuthenticationRequired',
@@ -289,7 +341,31 @@ describe('sign-in transitions', () => {
     })
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
     expect(getAuthAgent()).toBeNull()
+    expect(currentAccountLabelers()).toEqual([])
+    await expectPublicLabelers([])
   })
+
+  it.each([ALICE, BOB])(
+    'applies only the committed account labelers when replacing with $did',
+    async (session) => {
+      await signInAs(ALICE)
+      configureAccountLabelers(ALICE)
+      const previous = getAuthAgent()
+
+      await signInAs(session)
+
+      const expected = session.did === ALICE.did ? [LABELER] : []
+      expect(currentAccountLabelers()).toEqual(expected)
+      const replacement = getAuthAgent()
+      if (replacement === null) throw new Error('no replacement agent')
+      expect(replacement).not.toBe(previous)
+      await replacement.app.bsky.actor.searchActors({ q: 'alice' })
+      expect(customLabelers(transport.calls.at(-1)?.headers['atproto-accept-labelers'])).toEqual(
+        expected,
+      )
+      await expectPublicLabelers(expected)
+    },
+  )
 
   it('ignores session events from a replaced agent', async () => {
     await signInAs(ALICE)
@@ -375,19 +451,26 @@ describe('sign-in transitions', () => {
     })
   })
 
-  it('leaves the committed account alone when the portal path fails', async () => {
-    await signInAs(ALICE)
+  it.each(['portal sign in needs a loopback address', null])(
+    'leaves the committed account alone after portal startup: %s',
+    async (portalError) => {
+      await signInAs(ALICE)
+      configureAccountLabelers(ALICE)
+      oauthControl.portalError = portalError
 
-    await expect(useAuthStore.getState().signInWithPortal('bob.test')).resolves.toBeUndefined()
+      await expect(useAuthStore.getState().signInWithPortal('bob.test')).resolves.toBeUndefined()
 
-    const state = useAuthStore.getState()
-    expect(state).toMatchObject({
-      status: 'authenticated',
-      account: { did: 'did:plc:alice' },
-      pending: false,
-    })
-    expect(state.error).toContain('loopback')
-  })
+      const state = useAuthStore.getState()
+      expect(state).toMatchObject({
+        status: 'authenticated',
+        account: { did: 'did:plc:alice' },
+        pending: false,
+      })
+      expect(state.error).toBe(portalError)
+      expect(currentAccountLabelers()).toEqual([LABELER])
+      await expectPublicLabelers([LABELER])
+    },
+  )
 })
 
 describe('request deadline', () => {
@@ -496,6 +579,7 @@ describe('restore', () => {
 
   it('clears the stored auth the sdk reports as expired', async () => {
     storeSession()
+    setAccountLabelers(ALICE.did, [LABELER])
     transport.route('POST', REFRESH, () =>
       jsonResponse(401, { error: 'ExpiredToken', message: 'expired' }),
     )
@@ -505,6 +589,7 @@ describe('restore', () => {
     expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', account: null })
     expect(getAuthAgent()).toBeNull()
     expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    await expectPublicLabelers([])
   })
 
   it('reports a portal restore failure without dropping the password session', async () => {

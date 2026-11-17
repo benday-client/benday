@@ -216,6 +216,7 @@ function makeAgent(service: string): AtpAgent {
         const stored = readStoredAuth()
         if (stored === null || stored.session.did === ownedDid) clearStoredAuth()
         activeAgent = null
+        clearAccountLabelers()
 
         // A newer auth operation owns the epoch while it is pending. Clearing
         // its pending flag here would cancel a login that may still succeed.
@@ -229,7 +230,6 @@ function makeAgent(service: string): AtpAgent {
       }
     },
   })
-  applyConfiguredLabelers(agent)
   return agent
 }
 
@@ -317,10 +317,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (session === undefined) {
         clearStoredAuth()
         activeAgent = null
+        clearAccountLabelers()
         set({ status: 'anonymous', account: null, pending: false, error: null })
         return
       }
 
+      applyConfiguredLabelers(candidate)
       activeAgent = candidate
       writeStoredAuth(stored.service, session)
       set({
@@ -345,8 +347,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return false
     }
 
-    // a new account must never inherit the previous account's labelers
-    clearAccountLabelers()
+    // The committed account owns its labelers until a replacement commits.
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = epoch
@@ -399,6 +400,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (epoch !== authEpoch) return discard()
 
       release()
+      if (useAuthStore.getState().account?.did !== session.did) clearAccountLabelers()
+      applyConfiguredLabelers(candidate)
       activeAgent = candidate
       writeStoredAuth(discovery.service, session)
       set({
@@ -416,6 +419,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       // account cannot be restored on the next load. Every other failure
       // leaves the committed pair untouched.
       if (info.status === 400 || info.status === 401) {
+        clearAccountLabelers()
         clearStoredAuth()
         activeAgent = null
         set({
@@ -438,8 +442,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return
     }
 
-    // the portal account replaces whatever list the previous one had
-    clearAccountLabelers()
+    // The redirect leaves the committed account and its labelers intact.
     authEpoch += 1
     const epoch = authEpoch
     pendingAuthEpoch = epoch

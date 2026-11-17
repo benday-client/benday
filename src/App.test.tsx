@@ -576,6 +576,27 @@ describe('app history', () => {
 })
 
 describe('portal restore notice', () => {
+  it('keeps a portal restore failure visible above the authenticated route', async () => {
+    await signInShell()
+    window.history.pushState({}, '', '/feed')
+    useAuthStore.setState({ restoreError: 'could not reach the portal' })
+    render(<App />)
+
+    expect(await screen.findByText('could not restore portal sign-in')).toBeInTheDocument()
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('could not reach the portal')
+    const route = document.querySelector('.b-main > .b-view')
+    expect(route).toBeInTheDocument()
+    expect(document.querySelector('dialog[open]')).toBeNull()
+
+    act(() => useAuthStore.getState().clearError())
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('.b-shell-notice')).toBeNull()
+    expect(route).toBeInTheDocument()
+    expect(document.querySelector('dialog[open]')).toBeNull()
+  })
+
   it('reports a failed portal restore outside the dialog and clears when login opens', async () => {
     const transport = installTransport()
     transport.route('GET', `${APPVIEW}/xrpc/app.bsky.feed.getFeed`, () =>

@@ -188,6 +188,11 @@ export function VideoPlayer({ video, className }: VideoPlayerProps) {
     setCurrent(value)
   }
 
+  const readDuration = (element: HTMLVideoElement): void => {
+    const next = element.duration
+    setDuration(Number.isFinite(next) && next > 0 ? next : 0)
+  }
+
   return (
     <div className={`b-video-player${className ? ` ${className}` : ''}`}>
       <div className="b-video-player__stage" aria-busy={loading ? 'true' : undefined}>
@@ -218,8 +223,10 @@ export function VideoPlayer({ video, className }: VideoPlayerProps) {
             hlsRef.current?.stopLoad()
           }}
           onLoadedMetadata={(event) => {
-            const next = event.currentTarget.duration
-            setDuration(Number.isFinite(next) ? next : 0)
+            readDuration(event.currentTarget)
+          }}
+          onDurationChange={(event) => {
+            readDuration(event.currentTarget)
           }}
           onTimeUpdate={(event) => {
             setCurrent(event.currentTarget.currentTime)

@@ -126,48 +126,68 @@ it('announces the active alt with the count and updates it while navigating', as
   expect(alt.textContent).toBe('second frame')
 })
 
-it('leaves Home, End and the arrows to the focused seek control', async () => {
-  const items = [videoItem, brokenImage('second frame', 4, 3)]
-  const { container } = render(<MediaViewer open items={items} onClose={() => {}} />)
+it.each([
+  { width: 1280, height: 800 },
+  { width: 390, height: 844 },
+])(
+  'updates late duration and leaves native seek keys alone at $width × $height',
+  async ({ width, height }) => {
+    await page.viewport(width, height)
+    const items = [videoItem, brokenImage('second frame', 4, 3)]
+    const { container } = render(<MediaViewer open items={items} onClose={() => {}} />)
 
-  await userEvent.click(page.getByRole('button', { name: 'play video' }))
+    await userEvent.click(page.getByRole('button', { name: 'play video' }))
 
-  const video = requireElement<HTMLVideoElement>(container, 'video')
-  Object.defineProperty(video, 'duration', { value: 12, configurable: true })
-  fireEvent.loadedMetadata(video)
+    const video = requireElement<HTMLVideoElement>(container, 'video')
+    Object.defineProperty(video, 'duration', { value: Number.NaN, configurable: true })
+    fireEvent.loadedMetadata(video)
 
-  await waitFor(() => {
-    expect(hls.handlers.get('hlsManifestParsed')).toBeDefined()
-  })
-  act(() => {
-    hls.handlers.get('hlsManifestParsed')?.('hlsManifestParsed', { fatal: false })
-  })
+    await waitFor(() => {
+      expect(hls.handlers.get('hlsManifestParsed')).toBeDefined()
+    })
+    act(() => {
+      hls.handlers.get('hlsManifestParsed')?.('hlsManifestParsed', { fatal: false })
+    })
 
-  const seek = requireElement<HTMLInputElement>(container, '.b-video-player__seek')
-  await waitFor(() => {
-    expect(seek.disabled).toBe(false)
-  })
-  expect(seek.max).toBe('12')
+    const seek = requireElement<HTMLInputElement>(container, '.b-video-player__seek')
+    await waitFor(() => {
+      expect(seek.disabled).toBe(false)
+    })
+    expect(seek.max).toBe('0')
+    const time = requireElement<HTMLElement>(container, '.b-video-player__time')
+    expect(time.textContent).toBe('0:00 / 0:00')
+    Object.defineProperty(video, 'duration', { value: 12, configurable: true })
+    fireEvent.durationChange(video)
+    expect(seek.max).toBe('12')
+    expect(time.textContent).toBe('0:00 / 0:12')
+    const dialog = requireElement<HTMLDialogElement>(container, 'dialog[open]')
+    expect(dialog.scrollWidth).toBeLessThanOrEqual(dialog.clientWidth)
+    expect(dialog.getBoundingClientRect().left).toBeGreaterThanOrEqual(0)
+    expect(dialog.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
 
-  seek.focus()
-  expect(document.activeElement).toBe(seek)
+    seek.focus()
+    expect(document.activeElement).toBe(seek)
 
-  const count = requireElement<HTMLElement>(container, '.b-media-viewer__count')
-  expect(count.textContent).toBe('1 / 2')
+    const count = requireElement<HTMLElement>(container, '.b-media-viewer__count')
+    expect(count.textContent).toBe('1 / 2')
 
-  // the range owns its native keys: the gallery index never moves
-  await userEvent.keyboard('{End}')
-  expect(seek.value).toBe('12')
-  expect(count.textContent).toBe('1 / 2')
+    // the range owns its native keys: the gallery index never moves
+    await userEvent.keyboard('{End}')
+    expect(seek.value).toBe('12')
+    expect(count.textContent).toBe('1 / 2')
 
-  await userEvent.keyboard('{Home}')
-  expect(seek.value).toBe('0')
-  expect(count.textContent).toBe('1 / 2')
+    await userEvent.keyboard('{Home}')
+    expect(seek.value).toBe('0')
+    expect(count.textContent).toBe('1 / 2')
 
-  await userEvent.keyboard('{ArrowRight}')
-  expect(seek.value).toBe('0.1')
-  expect(count.textContent).toBe('1 / 2')
-})
+    await userEvent.keyboard('{ArrowRight}')
+    expect(seek.value).toBe('0.1')
+    expect(count.textContent).toBe('1 / 2')
+    await userEvent.keyboard('{Home}{ArrowRight>60/}')
+    expect(video.currentTime).toBe(6)
+    expect(time.textContent).toBe('0:06 / 0:12')
+  },
+)
 
 it('stops gallery digits while the character preference is off', async () => {
   useSettings.setState({ keyboardShortcuts: false })

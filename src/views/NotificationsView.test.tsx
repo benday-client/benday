@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Router } from 'wouter'
 import { memoryLocation } from 'wouter/memory-location'
@@ -95,7 +95,7 @@ function renderNotifications(
       </Router>
     </QueryClientProvider>,
   )
-  return memory
+  return { ...memory, queryClient }
 }
 
 function avatarGlyphs(): string[] {
@@ -476,46 +476,116 @@ describe('NotificationsView states', () => {
     expect(document.querySelector('.b-deck')).toBeNull()
   })
 
-  it('refetches the page and renders the rows when the failed load is retried', async () => {
+  it.each([false, true])('retains the focused retry until recovery (empty: %s)', async (empty) => {
     const list = `${PDS}/xrpc/app.bsky.notification.listNotifications`
     transport.route('GET', list, () =>
       jsonResponse(500, { error: 'InternalServerError', message: 'nope' }),
     )
-    renderNotifications(null)
+    const { queryClient } = renderNotifications(null)
 
     await screen.findByText('internal server error', undefined, { timeout: 3000 })
     const listRequest = '/xrpc/app.bsky.notification.listNotifications'
     const before = transport.calls.filter((call) => call.url.includes(listRequest)).length
     expect(before).toBeGreaterThan(0)
 
-    transport.route('GET', list, () =>
-      jsonResponse(200, {
-        notifications: [
-          {
-            uri: 'at://did:plc:fan/app.bsky.graph.follow/1',
-            cid: 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm',
-            author: { did: 'did:plc:fan', handle: 'fan.test' },
-            reason: 'follow',
-            record: {
-              $type: 'app.bsky.graph.follow',
-              subject: VIEWER_DID,
-              createdAt: '2026-10-29T12:00:00.000Z',
+    const response = Promise.withResolvers<Response>()
+    transport.route('GET', list, () => response.promise)
+    const recovered = {
+      notifications: empty
+        ? []
+        : [
+            {
+              uri: 'at://did:plc:fan/app.bsky.graph.follow/1',
+              cid: 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm',
+              author: { did: 'did:plc:fan', handle: 'fan.test' },
+              reason: 'follow',
+              record: {
+                $type: 'app.bsky.graph.follow',
+                subject: VIEWER_DID,
+                createdAt: '2026-10-29T12:00:00.000Z',
+              },
+              isRead: true,
+              indexedAt: '2026-10-29T12:00:00.000Z',
             },
-            isRead: true,
-            indexedAt: '2026-10-29T12:00:00.000Z',
-          },
-        ],
-      }),
-    )
+          ],
+    }
     transport.route('POST', `${PDS}/xrpc/app.bsky.notification.updateSeen`, () =>
       jsonResponse(200, {}),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    const retry = screen.getByRole('button', { name: 'retry' })
+    const alert = screen.getByRole('alert')
+    retry.focus()
+    fireEvent.click(retry)
+    await waitFor(() => expect(retry).toHaveAttribute('aria-busy', 'true'))
+    expect(screen.getByRole('button', { name: 'retry' })).toBe(retry)
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(alert).toHaveTextContent('nope')
+    expect(retry).toHaveAttribute('aria-disabled', 'true')
+    expect(retry).toHaveFocus()
+    fireEvent.click(retry)
+    await waitFor(() =>
+      expect(transport.calls.filter((call) => call.url.includes(listRequest))).toHaveLength(
+        before + 1,
+      ),
+    )
 
-    await waitFor(() => expect(document.querySelectorAll('.b-deck__item')).toHaveLength(1))
-    // the click really asked the server again instead of reusing a cached error
-    expect(transport.calls.filter((call) => call.url.includes(listRequest)).length).toBe(before + 1)
-    expect(screen.getByText('followed you')).toBeInTheDocument()
+    await act(async () => response.resolve(jsonResponse(200, recovered)))
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    if (empty) {
+      expect(screen.getByText('nothing yet')).toBeInTheDocument()
+      expect(document.querySelector('.b-notif-view')).toHaveFocus()
+      const next = Promise.withResolvers<Response>()
+      transport.route('GET', list, () => next.promise)
+      act(() => {
+        void queryClient.refetchQueries({ queryKey: notificationsQueryKey(VIEWER_DID) })
+      })
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      await act(async () => next.resolve(jsonResponse(200, { notifications: [] })))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    } else {
+      await waitFor(() => expect(document.querySelector('.b-deck')).toHaveFocus())
+      expect(document.querySelectorAll('.b-deck__item')).toHaveLength(1)
+      expect(screen.getByText('followed you')).toBeInTheDocument()
+    }
+  })
+
+  it('drops the earlier viewer failure while its retry is pending', async () => {
+    const list = `${PDS}/xrpc/app.bsky.notification.listNotifications`
+    transport.route('GET', list, () =>
+      jsonResponse(500, { error: 'InternalServerError', message: 'alice failed' }),
+    )
+    renderNotifications(null)
+    await screen.findByText('alice failed', undefined, { timeout: 3000 })
+    const earlier = Promise.withResolvers<Response>()
+    transport.route('GET', list, () => earlier.promise)
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'retry' })).toHaveAttribute('aria-busy', 'true'),
+    )
+
+    const bob = { ...SESSION, did: 'did:plc:bob', handle: 'bob.test' }
+    transport.route('GET', `https://plc.directory/${bob.did}`, () =>
+      jsonResponse(200, {
+        id: bob.did,
+        service: [{ id: '#atproto_pds', type: 'AtprotoPersonalDataServer', serviceEndpoint: PDS }],
+      }),
+    )
+    transport.route('POST', `${PDS}/xrpc/com.atproto.server.createSession`, () =>
+      jsonResponse(200, bob),
+    )
+    const next = Promise.withResolvers<Response>()
+    transport.route('GET', list, () => next.promise)
+    await act(async () => {
+      await useAuthStore.getState().signIn(bob.did, 'app-pass')
+    })
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+    await act(async () => {
+      earlier.resolve(jsonResponse(500, { error: 'InternalServerError', message: 'alice failed' }))
+      next.resolve(jsonResponse(200, { notifications: [] }))
+    })
+    expect(await screen.findByText('nothing yet')).toBeInTheDocument()
+    expect(screen.queryByText('alice failed')).not.toBeInTheDocument()
   })
 })

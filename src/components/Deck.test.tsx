@@ -44,6 +44,41 @@ beforeEach(() => {
 })
 
 describe('Deck keyboard', () => {
+  it.each([0, 2])(
+    'enters card zero and exits from the interactive peek at index %s',
+    (initialIndex) => {
+      const onExitStart = vi.fn()
+      const { container, getByRole } = render(
+        <Deck
+          items={ITEMS}
+          getKey={(item) => item}
+          renderItem={(item) => <article>{item}</article>}
+          leadingPeek={<button type="button">peek</button>}
+          leadingPeekInteractive
+          initialIndex={initialIndex}
+          onExitStart={onExitStart}
+          label="cards"
+        />,
+      )
+      const peek = getByRole('button', { name: 'peek' })
+      peek.focus()
+      fireEvent.keyDown(peek, { key: 'ArrowRight' })
+      expect(focusedIndex(container)).toBe('0')
+      expect(container.querySelector('.b-deck')).toHaveFocus()
+      expect(onExitStart).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(window, { key: 'End' })
+      peek.focus()
+      fireEvent.keyDown(peek, { key: 'ArrowLeft', repeat: true })
+      expect(onExitStart).not.toHaveBeenCalled()
+      expect(focusedIndex(container)).toBe('2')
+      expect(peek).toHaveFocus()
+      fireEvent.keyDown(peek, { key: 'ArrowLeft' })
+      expect(onExitStart).toHaveBeenCalledTimes(1)
+      expect(container.querySelector('.b-deck')).toHaveFocus()
+    },
+  )
+
   it('exits with the axis-back key even when there are no cards', () => {
     const onExitStart = vi.fn()
     render(deck([], onExitStart))
@@ -687,6 +722,7 @@ describe('Deck list semantics and status', () => {
     expect(current).toHaveLength(1)
     expect(current[0]?.getAttribute('data-deck-index')).toBe('0')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('card 1 of 3')
+    expect(deck).toHaveAccessibleDescription('card 1 of 3')
   })
 
   it('announces explicit moves but not a focus change', () => {
@@ -696,6 +732,7 @@ describe('Deck list semantics and status', () => {
 
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(status()).toBe('card 2 of 3')
+    expect(container.querySelector('.b-deck')).toHaveAccessibleDescription('card 2 of 3')
 
     const third = container.querySelectorAll<HTMLButtonElement>('.b-deck__item button')[2]
     if (third === undefined) throw new Error('third card control missing')
@@ -704,6 +741,22 @@ describe('Deck list semantics and status', () => {
     expect(status()).toBe('card 2 of 3')
     const current = container.querySelector('.b-deck__item[aria-current="true"]')
     expect(current?.getAttribute('data-deck-index')).toBe('2')
+  })
+
+  it('describes loading and empty decks through distinct per-instance statuses', () => {
+    const { getByRole } = render(
+      <>
+        <Deck items={[]} getKey={String} renderItem={String} pending label="pending" />
+        <Deck items={[]} getKey={String} renderItem={String} label="empty" />
+      </>,
+    )
+    const pending = getByRole('list', { name: 'pending' })
+    const empty = getByRole('list', { name: 'empty' })
+    expect(pending).toHaveAccessibleDescription('loading cards')
+    expect(empty).toHaveAccessibleDescription('no cards')
+    expect(pending.getAttribute('aria-describedby')).not.toBe(
+      empty.getAttribute('aria-describedby'),
+    )
   })
 
   it('shows a named loading row and an alert with a guarded retry', () => {

@@ -477,6 +477,84 @@ describe('Deck geometry', () => {
   })
 })
 
+describe('Deck keyboard entry', () => {
+  it('enters the first card from the peek and exits once for a held back key', async () => {
+    const onExitStart = vi.fn()
+    const onPeek = vi.fn()
+    const { container } = appShell(
+      <Deck
+        items={[SHORT, SECOND, THIRD]}
+        getKey={(item) => item.uri}
+        renderItem={(item, index, focused) => (
+          <PostCard post={item} index={index} focused={focused} />
+        )}
+        leadingPeek={
+          <button type="button" onClick={onPeek}>
+            peek
+          </button>
+        }
+        leadingPeekInteractive
+        onExitStart={onExitStart}
+        label="cards"
+      />,
+    )
+    await settle()
+    const peek = container.querySelector<HTMLButtonElement>('.b-deck__peek button')
+    if (peek === null) throw new Error('peek control missing')
+    const deck = deckOf(container)
+    peek.focus()
+    await userEvent.keyboard('{Enter} ')
+    expect(onPeek).toHaveBeenCalledTimes(2)
+    await userEvent.keyboard('{ArrowRight}')
+    expect(cardOf(container, 0).dataset['focused']).toBe('true')
+    expect(document.activeElement).toBe(deck)
+    await userEvent.keyboard('{End}')
+    expect(cardOf(container, 2).dataset['focused']).toBe('true')
+    peek.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(cardOf(container, 0).dataset['focused']).toBe('true')
+    expect(document.activeElement).toBe(deck)
+    await userEvent.keyboard('{End}')
+    peek.focus()
+    await userEvent.keyboard('{ArrowLeft>3/}')
+    expect(onExitStart).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(deck)
+  })
+
+  it.each([
+    { ...WIDE, theme: 'catppuccin-mocha' },
+    { ...WIDE, theme: 'catppuccin-latte' },
+    { ...NARROW, theme: 'catppuccin-mocha' },
+    { ...NARROW, theme: 'catppuccin-latte' },
+  ])(
+    'paints an inset scroller ring at $width × $height in $theme',
+    async ({ width, height, theme }) => {
+      await page.viewport(width, height)
+      document.documentElement.dataset['theme'] = theme
+      const { container } = renderPostDeck([SHORT, SECOND])
+      await settle()
+      await userEvent.keyboard('{Tab}')
+      await settle()
+      const deck = deckOf(container)
+      expect(document.activeElement).toBe(deck)
+      expect(deck.matches(':focus-visible')).toBe(true)
+      const style = getComputedStyle(deck)
+      expect(style.outlineStyle).toBe('solid')
+      expect(style.outlineWidth).toBe('1px')
+      expect(style.outlineColor).not.toBe('rgba(0, 0, 0, 0)')
+      expect(style.outlineOffset).toBe('-3px')
+      const port = deck.closest('.b-view__body')?.getBoundingClientRect()
+      if (port === undefined) throw new Error('clipped port missing')
+      const rect = deck.getBoundingClientRect()
+      const inset = -Number.parseFloat(style.outlineOffset) - Number.parseFloat(style.outlineWidth)
+      expect(rect.left + inset).toBeGreaterThanOrEqual(port.left)
+      expect(rect.right - inset).toBeLessThanOrEqual(port.right)
+      expect(rect.top + inset).toBeGreaterThanOrEqual(port.top)
+      expect(rect.bottom - inset).toBeLessThanOrEqual(port.bottom)
+    },
+  )
+})
+
 describe('Deck with shared mode cards', () => {
   function renderModeDeck(domain: 'profile' | 'search', onPeek: () => void, onSelect: () => void) {
     type ModeEntry = { mode: string; name: string; description: string }

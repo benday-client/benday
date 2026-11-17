@@ -96,6 +96,42 @@ describe('VideoPlayer interrupted play', () => {
   })
 })
 
+describe('VideoPlayer duration', () => {
+  beforeEach(() => {
+    hls.handlers.clear()
+  })
+
+  it('updates seeking after late duration changes and resets unknown totals safely', async () => {
+    const { container } = render(<VideoPlayer video={video} />)
+    fireEvent.click(screen.getByRole('button', { name: 'play video' }))
+    await waitFor(() => expect(hls.handlers.get('hlsManifestParsed')).toBeDefined())
+    act(() => hls.handlers.get('hlsManifestParsed')?.('hlsManifestParsed', { fatal: false }))
+    const element = container.querySelector('video')
+    if (element === null) throw new Error('video missing')
+    const seek = screen.getByRole('slider', { name: 'seek video' })
+    const time = container.querySelector('.b-video-player__time')
+    Object.defineProperty(element, 'duration', { configurable: true, value: Number.NaN })
+    fireEvent.loadedMetadata(element)
+    expect(seek).toHaveAttribute('max', '0')
+    expect(time).toHaveTextContent('0:00 / 0:00')
+
+    Object.defineProperty(element, 'duration', { configurable: true, value: 12 })
+    fireEvent.durationChange(element)
+    expect(seek).toHaveAttribute('max', '12')
+    expect(time).toHaveTextContent('0:00 / 0:12')
+    fireEvent.change(seek, { target: { value: '6' } })
+    expect(element.currentTime).toBe(6)
+    expect(time).toHaveTextContent('0:06 / 0:12')
+
+    for (const duration of [Number.NaN, Number.POSITIVE_INFINITY, -1, 0]) {
+      Object.defineProperty(element, 'duration', { configurable: true, value: duration })
+      fireEvent.durationChange(element)
+      expect(seek).toHaveAttribute('max', '0')
+      expect(time).toHaveTextContent('0:06 / 0:00')
+    }
+  })
+})
+
 describe('VideoPlayer plate and unavailable states', () => {
   beforeEach(() => {
     hls.handlers.clear()

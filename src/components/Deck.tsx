@@ -4,6 +4,7 @@ import {
   type ReactElement,
   type ReactNode,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -211,6 +212,7 @@ export function Deck<T>({
   stateKey,
   layout = 'deck',
 }: DeckProps<T>): ReactElement {
+  const statusId = useId()
   const wide = useMediaQuery('(min-width: 900px)')
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
@@ -801,6 +803,14 @@ export function Deck<T>({
     if (!matchesBinding(event, DECK_MOVE)) return
     if (!back && !forward) return
     event.preventDefault()
+    if (
+      event.target instanceof Node &&
+      scroller?.querySelector('.b-deck__peek')?.contains(event.target)
+    ) {
+      if (forward) moveTo(0)
+      else if (backArrow && !event.repeat) exitDeck()
+      return
+    }
     if (back && focusIndex === 0) {
       // only the back arrow leaves the deck; a held key still clamps here
       if (backArrow && !event.repeat) exitDeck()
@@ -899,6 +909,7 @@ export function Deck<T>({
         data-axis={axis}
         data-layout={layout}
         aria-label={label}
+        aria-describedby={statusId}
         aria-roledescription="card deck"
         tabIndex={0}
       >
@@ -932,7 +943,13 @@ export function Deck<T>({
         ) : null}
         {hasMore ? <li ref={sentinelRef} className="b-deck__sentinel" aria-hidden="true" /> : null}
       </ol>
-      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+      <p
+        id={statusId}
+        className="visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {statusText}
       </p>
     </>

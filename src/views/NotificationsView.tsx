@@ -1,11 +1,13 @@
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import { type MouseEvent as ReactMouseEvent, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'wouter'
 import { Avatar } from '../components/Avatar'
 import { Deck } from '../components/Deck'
 import { RelativeTime } from '../components/RelativeTime'
 import { EmptyState, ErrorNotice, FrameBody, FrameHead, Progress } from '../components/ui'
-import { useNotifications } from '../hooks/useNotifications'
+import { notificationsQueryKey, useNotifications } from '../hooks/useNotifications'
+import { useRetainedError } from '../hooks/useRetainedError'
 import { useAuthStore } from '../lib/auth'
+import { focusDeckAfterSwap } from '../lib/deckFocus'
 import { errorInfo } from '../lib/errors'
 import { truncateGraphemes } from '../lib/graphemes'
 import {
@@ -15,6 +17,7 @@ import {
   notificationSubjectHref,
   postThreadHref,
 } from '../lib/notifications'
+import { uiOwnsKeyboard } from '../lib/ui'
 
 const PREVIEW_LIMIT = 220
 
@@ -177,10 +180,36 @@ export default function NotificationsView() {
   const [, navigate] = useLocation()
   const notifications = useNotifications()
   const rows = notifications.notifications
-  const info = notifications.error !== null ? errorInfo(notifications.error) : null
+  const failure = useRetainedError(
+    JSON.stringify(notificationsQueryKey(viewerDid)),
+    notifications.hasData,
+    notifications.error,
+    notifications.isFetching,
+  )
+  const info = failure.error !== null ? errorInfo(failure.error) : null
+  const viewRef = useRef<HTMLElement>(null)
+  const focusDisposerRef = useRef<(() => void) | null>(null)
+  const showingFailure = info !== null
+  const failureShownRef = useRef(showingFailure)
+
+  useEffect(() => () => focusDisposerRef.current?.(), [])
+
+  useEffect(() => {
+    const wasShowing = failureShownRef.current
+    failureShownRef.current = showingFailure
+    if (!wasShowing || showingFailure || !notifications.hasData) return
+    const active = document.activeElement
+    if (active !== null && active !== document.body) return
+    focusDisposerRef.current?.()
+    if (rows.length > 0) {
+      focusDisposerRef.current = focusDeckAfterSwap(viewRef.current)
+    } else if (!uiOwnsKeyboard() && document.querySelector('dialog[open]') === null) {
+      viewRef.current?.focus({ preventScroll: true })
+    }
+  }, [showingFailure, notifications.hasData, rows.length])
 
   return (
-    <section className="b-view b-notif-view">
+    <section ref={viewRef} tabIndex={-1} className="b-view b-notif-view">
       <h1 className="visually-hidden">notifications</h1>
       <div className="b-notif__bar">
         <span className="mono-label">notifications</span>
@@ -189,7 +218,12 @@ export default function NotificationsView() {
       <div className="b-view__body b-notif__stage">
         {info !== null && rows.length === 0 ? (
           <div className="b-notif__state">
-            <ErrorNotice title={info.title} message={info.detail} onRetry={notifications.reload} />
+            <ErrorNotice
+              title={info.title}
+              message={info.detail}
+              retrying={failure.retrying}
+              onRetry={() => failure.retry(notifications.reload)}
+            />
           </div>
         ) : notifications.isPending ? (
           <div className="b-notif__state">
@@ -209,7 +243,8 @@ export default function NotificationsView() {
                 <ErrorNotice
                   title={info.title}
                   message={info.detail}
-                  onRetry={notifications.reload}
+                  retrying={failure.retrying}
+                  onRetry={() => failure.retry(notifications.reload)}
                 />
               </div>
             ) : null}
