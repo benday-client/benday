@@ -28,15 +28,19 @@ search terms are sent to `api.bsky.app` when you search.
 
 ## access
 
-the sign-in dialog offers the bluesky portal only on the `127.0.0.1` and
-`[::1]` loopback origins. it uses the atproto loopback oauth client with
-`atproto transition:generic`, so the browser is sent to the pds authorization
-page and the password stays with the pds. open the dev server at
-`http://127.0.0.1:5173/` for this flow; a `localhost` origin keeps the
-password form, because the oauth client would rewrite it to the loopback IP
-and orphan the localhost origin's stored session and settings.
-a public deployment needs hosted oauth client metadata before the portal can
-work there.
+the sign-in dialog offers the bluesky portal on the `127.0.0.1` and `[::1]`
+loopback origins and on the https origin configured at build time (see
+[deploy](#deploy)). it requests `atproto transition:generic`, so authorization
+happens on the pds and the password stays with the pds.
+
+open the dev server at `http://127.0.0.1:5173/` for the loopback oauth client.
+a `localhost` origin keeps the password form, because the oauth client would
+rewrite it to the loopback IP and orphan the localhost origin's stored session
+and settings.
+
+the configured deployment uses one hosted client identity across routes and
+returns to `/feed`. other origins and unconfigured public builds keep the
+password form.
 
 the password and app-password form remains as a fallback. this is usually an
 app password; some pds implementations do not expose app passwords and require
@@ -46,9 +50,6 @@ the password is never stored. sign out clears the session and viewer state, so
 the next load returns to the gate. a successful post closes the composer and
 invalidates the loaded non-feed queries without opening a thread that may not be
 indexed yet.
-
-portal login is loopback-only (`127.0.0.1` and `[::1]`) in this static build.
-the password fallback works everywhere else, including `localhost`.
 
 ## keys and gestures
 
@@ -354,7 +355,7 @@ from the card, composer and help.
   `noUnusedLocals`, `noUnusedParameters`, and `moduleResolution: bundler`
 - Vite 8 and React 19
 - `@atproto/api` 0.29 for public reads, pds sessions, records and viewer state
-- `@atproto/oauth-client-browser` 0.5 for the loopback portal login
+- `@atproto/oauth-client-browser` 0.5 for loopback and deployed portal login
 - TanStack Query 5 for request state and cache keys
 - Zustand 5 for persisted settings, auth, per-post action state and dialogs
 - Wouter 3 for routes
@@ -396,6 +397,50 @@ pnpm test:browser # vitest browser mode in real chromium
 pnpm check        # lint, assertion check, both suites, then build
 ```
 
+## deploy
+
+the target deployment origin is `https://benday.qex.at`. publish `dist/` at the
+origin root over https; the app uses root-relative assets and routes. configure
+dns for `benday.qex.at` to reach the static host and provision a valid tls
+certificate before enabling the public portal flow.
+
+build for that exact origin:
+
+```sh
+BENDAY_PUBLIC_ORIGIN=https://benday.qex.at pnpm build
+```
+
+`BENDAY_PUBLIC_ORIGIN` accepts an https origin without a path, query, fragment,
+credentials or nondefault port. the build emits `dist/oauth-client-metadata.json`
+and embeds its client id in the app. the metadata's client id is
+`https://benday.qex.at/oauth-client-metadata.json` and its redirect uri is
+`https://benday.qex.at/feed`. changing the deployment origin requires rebuilding;
+setting an environment variable on an already-built static host changes nothing.
+
+serve existing files before applying the single-page-app fallback.
+`/oauth-client-metadata.json` must be publicly fetchable as json, with an
+`application/json` content type, rather than returning `index.html` or a sign-in
+page. deploy the metadata and app from the same build.
+
+`/feed` is the canonical portal callback. direct requests to `/feed` must return
+the app's `index.html` and keep the callback query string intact. the other
+client routes need the same html fallback so opening or reloading a route works.
+check both the metadata response and `/feed` after publishing; a successful
+build alone does not verify the host's routing or content types.
+
+inspect the status, content type and response body on the actual host:
+
+```sh
+curl --fail --show-error --include https://benday.qex.at/oauth-client-metadata.json
+curl --fail --show-error --include 'https://benday.qex.at/feed?deployment-check=1'
+```
+
+live verification is pending. on 2026-11-17, `benday.qex.at` did not resolve
+from the development environment. once dns and hosting are available, verify
+the public metadata response, direct `/feed` navigation, portal sign-in and
+session restore after reloading on that origin. local checks do not substitute
+for those live checks.
+
 ## layout
 
 ```text
@@ -419,7 +464,7 @@ public/         pixel favicon
 data flow is deliberately small. `atproto.ts` reads `api.bsky.app` and returns
 view models; `useBskyQueries.ts` owns request state and puts the viewer in every
 relevant query key. `auth.ts` resolves the pds, keeps the signed-in agent and
-persists the session; `oauth.ts` owns the loopback portal. `accountLabelers.ts`
+persists the session; `oauth.ts` owns the portal. `accountLabelers.ts`
 holds the current account's labeler dids and `labelers.ts` applies them to an
 agent. `actions.ts` owns likes, reposts, replies and viewer-state fetches;
 `markdown.ts` maps labelled links to facets. `Deck` owns card focus and position

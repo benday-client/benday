@@ -56,8 +56,10 @@ ownership by concern:
   and sign-in/sign-out. `src/lib/identity.ts` owns the one handle-to-did
   resolution (trim, one leading `@`, a did passes through, the public resolver
   with its timeout) used by both the password path's pds discovery and the
-  portal's login hint. `src/lib/oauth.ts` owns the loopback portal and
-  indexedDB. do not create a second session path or a second handle resolver.
+  portal's login hint. `src/lib/oauth.ts` owns the loopback and configured hosted
+  portal and indexedDB. `src/lib/oauthMetadata.ts` owns metadata, the scope and
+  the canonical callback; `vite.config.ts` embeds the hosted client id and emits
+  the metadata asset. do not create a second session path or handle resolver.
 - `src/lib/actions.ts` owns writes: like, repost, reply, post, delete and
   feed feedback. `src/lib/profileActions.ts` owns follow, mute and block.
   `src/lib/actionStore.ts` owns optimistic like/repost state through one shared
@@ -175,6 +177,35 @@ open the dev server at `http://127.0.0.1:5173/` for the portal flow, or at
 `localhost` for the password form. vite and preview bind the loopback address
 only, so the dev server is never reachable from another host.
 
+the target production origin is `https://benday.qex.at`, serving `dist/` from
+the origin root. dns must resolve that hostname to the static host, with a valid
+tls certificate. deployment must serve real assets and oauth metadata before the
+html fallback; metadata is a public `application/json` response, never the app
+shell. `/feed` is the canonical oauth callback and must serve `index.html` on a
+direct request, preserving its query string. the other client routes also need
+the html fallback. verify those http responses on the deployed host; vite preview
+only proves the local bundle and cannot establish that production routing or dns
+works.
+
+build the hosted portal configuration with:
+
+```sh
+BENDAY_PUBLIC_ORIGIN=https://benday.qex.at pnpm build
+```
+
+the optional build-time origin must use https without a path, query, fragment,
+credentials or nondefault port. a configured build emits
+`dist/oauth-client-metadata.json` and embeds that asset's absolute url as
+`import.meta.env.BENDAY_OAUTH_CLIENT_ID`. deploy metadata and app together.
+without this configuration, the bundle keeps loopback oauth and the password
+fallback but emits no hosted metadata. changing the host environment after the
+build does not reconfigure the bundle.
+
+live deployment verification is pending: `benday.qex.at` did not resolve from the
+development environment on 2026-11-17. after dns and hosting are configured,
+check the public metadata and `/feed` responses, then portal sign-in and restore
+after a reload. never report a local preview check as a live portal check.
+
 before handing off a change, run the narrowest check that covers it, then
 `pnpm check` unless the task explicitly says not to run gates. tests are offline
 and must not require a pds, appview or network.
@@ -231,11 +262,14 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - the password is passed to the api once and never persisted. password sessions
   store the sdk session in localStorage; portal sessions are managed by
   `@atproto/oauth-client-browser`.
-- portal login is available only on `127.0.0.1` and `[::1]` with the
-  `atproto transition:generic` scope. a public deployment needs hosted oauth
-  client metadata. `localhost` deliberately keeps the password fallback because
-  the oauth client would rewrite it and orphan the localhost origin's stored
-  session and settings.
+- portal login uses `atproto transition:generic` on `127.0.0.1` and `[::1]`
+  and on the exact https origin configured through `BENDAY_PUBLIC_ORIGIN`.
+  the hosted client id is the origin's `/oauth-client-metadata.json` url and
+  never follows the active route; tokens are bound to that identity. both client
+  types return to the canonical `/feed` callback.
+- `localhost` and unmatched or unconfigured public origins keep the password
+  fallback. `localhost` deliberately avoids the oauth client's loopback rewrite,
+  which would orphan that origin's stored session and settings.
 - sign-out revokes the portal session, logs out the password agent, clears
   `benday:session` and resets per-post action state. a stale restore must not
   overwrite a newer sign-in; keep the `authEpoch` guard and the action-store
@@ -717,8 +751,9 @@ in the nearest existing file rather than creating a parallel suite.
   state.
 - there is no server proxy. reads use the fixed `https://api.bsky.app` origin;
   a self-hosted pds used for sign-in must allow browser CORS.
-- portal login is loopback-only in this static build; `localhost` and deployed
-  origins keep the password fallback until hosted oauth metadata exists.
+- hosted portal login needs a build-configured https origin and public json
+  metadata from the same build. `localhost` and unmatched or unconfigured public
+  origins keep the password fallback.
 - a thread is flattened to depth 3 and capped at 80 entries: root-first
   ancestors, then the focus post, then replies in pre-order.
 - notifications are a single 50-item page. there is no paging, push or polling.
