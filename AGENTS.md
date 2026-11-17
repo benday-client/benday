@@ -184,6 +184,8 @@ deployment must serve real assets and oauth metadata before the html fallback;
 metadata is a public `application/json` response, never the app shell. `/feed`
 is the canonical oauth callback and must serve `index.html` on a direct request,
 preserving its query string. the other client routes also need the html fallback.
+the metadata response must be `200` directly, without a redirect; a redirect
+breaks client metadata resolution.
 verify those http responses on the deployed host; vite preview only proves the
 local bundle and cannot establish that production routing or dns works.
 

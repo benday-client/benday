@@ -442,6 +442,9 @@ the public metadata response, direct `/feed` navigation, portal sign-in and
 session restore after reloading on that origin. local checks do not substitute
 for those live checks.
 
+the metadata response must return `200` directly, with no redirect and no
+`location` header; a redirect breaks client metadata resolution.
+
 ## layout
 
 ```text
