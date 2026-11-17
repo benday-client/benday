@@ -47,11 +47,13 @@ jobs:
           # the action joins these lines with && so each script must stay a
           # single line: no heredoc, no comments, and no $ expansion, which it
           # resolves on the runner instead of the server.
-          first_ssh: mkdir -p ./www/benday.qex.at
+          # One-run repair for the former file-as-directory SCP target.
+          first_ssh: if test -d ./.benday-htpasswd; then chmod u+rwx ./.benday-htpasswd && test ! -e ./.benday-htpasswd-migration && test ! -L ./.benday-htpasswd-migration && test -f ./.benday-htpasswd/.benday-htpasswd && mv -n ./.benday-htpasswd/.benday-htpasswd ./.benday-htpasswd-migration && rmdir ./.benday-htpasswd && mv -n ./.benday-htpasswd-migration ./.benday-htpasswd; fi && mkdir -p ./www/benday.qex.at
+          # This action's SCP targets are directories, including the account home.
           scp: |
             ./dist/* => ./www/benday.qex.at/
             ./dist/.htaccess => ./www/benday.qex.at/
-            ./.benday-htpasswd => ./.benday-htpasswd
+            ./.benday-htpasswd => ./
           # ENVIRON["HOME"] is where the credential lives, so no document root can
           # serve it, and it is the only source of the absolute path. 644 because
           # the web server user must read it; the dotfile deny stays in the file.
