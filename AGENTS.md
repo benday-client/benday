@@ -24,9 +24,9 @@ src/
                         ModeCard, ...) plus the shared FrameHead/FrameBody
   views/                route views: FeedView, SearchView, ProfileView,
                         NotificationsView, ThreadView
-  styles/               tokens first, then base, layout, components, cards,
-                        dialogs, account, views, notifications, compose, dither,
-                        theme-effects last
+  styles/               fonts, tokens, base, layout, components, cards, dialogs,
+                        account, views, search, notifications, compose, media,
+                        dither, theme-effects, texture last
   test/                 fixtures, the jsdom setup, the browser setup and the
                         stage helper
 vitest.browser.config.ts  the native chromium project (vitest browser mode)
@@ -92,7 +92,8 @@ ownership by concern:
   becoming a route.
 - `src/lib/themes.ts` owns the light/dark browser chrome colours; the settings
   store derives the active scheme from the appearance mode. `tokens.css` owns
-  colour, typography and spacing roles; `theme-effects.css` owns dialog arrivals.
+  colour, typography and spacing roles; `theme-effects.css` owns dialog arrivals
+  and `texture.css` owns the body fringe and scanline field.
 - `src/lib/settingsTransfer.ts` owns the export/import file format and
   validation; `src/lib/store.ts` owns the persisted settings store.
 - `Deck` owns focus, scroll position memory and deck-local keys. the saved
@@ -113,8 +114,9 @@ ownership by concern:
   shapes belong in the fixtures file.
 
 views are default exports; components are named exports. keep the `components/ui`
-layer dumb and token-driven, and put theme-specific overrides in
-`theme-effects.css` rather than scattering `[data-theme]` selectors.
+layer dumb and token-driven, and put scheme overrides in the effect layers
+(`theme-effects.css`, `texture.css`) rather than scattering `[data-theme]`
+selectors.
 
 ## setup and commands
 
@@ -515,39 +517,66 @@ still owns the surface.
 Benday adapts the visual language inspected on [doll.systems](https://doll.systems/),
 including its home, maintenance article, about, latest and colophon pages on
 2026-11-17. the source stylesheet is
-`https://doll.systems/_astro/LinkGraph.CdnPADRq.css`: near-black neutral surfaces,
-one violet signal, fine rules, serif headings, sans reading text and small
-monospace metadata. Benday uses its own typography stack and content, not the
-reference's brand, artwork, graph or article text. light mode is a Benday adaptation.
+`https://doll.systems/_astro/LinkGraph.CdnPADRq.css`. Benday uses its own
+typography stack and content, not the reference's brand, artwork, graph or
+article text. light mode, the readable status roles and the calmer light texture
+are Benday adaptations.
 
 - appearance is `light`, `dark` or `system`; system follows
   `prefers-color-scheme`. the store derives the active `theme`, a fresh state
   starts at `system`, and `App.tsx` writes `data-theme` and the `theme-color`
   meta tag together. `index.html` resolves the same preference before hydration.
   no palette picker, aliases or retired palette-to-mode map remain.
-- `tokens.css` owns the two schemes and semantic text/fill roles. muted copy
-  is deliberately brighter than the reference's decorative gray so small UI
-  text remains readable. nested scheme scopes reset their colour roles.
-- headings use a regular serif, reading text the bundled sans, and navigation,
-  timestamps, handles and action labels the bundled mono. mobile reduces body
-  scale and frame insets without changing reading order or deck behavior.
+- `tokens.css` owns the two schemes and their semantic text/fill roles. both are
+  neutral, with the light tokens warm and the dark tokens near-black; violet is
+  only an accent (`--accent`, `--accent-hover`). `--ink-heading` is the elevated
+  heading ink, `--ink` the body ink and `--ink-dim`/`--ink-faint` the muted
+  roles. muted copy is deliberately brighter than the reference's decorative
+  gray so small UI text remains readable. nested scheme scopes reset their
+  colour roles.
+- type is three faces on one spine. `--font-display`, a regular serif, sets
+  headings at `--text-headline` 64, `--text-title` 36 or `--text-subtitle` 24;
+  headings carry `--ink-heading`, zero `letter-spacing` and `--leading-heading`,
+  except the gate headline which uses `--leading-display`. `--font-reading` sets
+  reading text at `--text-reading` 18 over `--leading-reading` 1.4. `--font-mono`
+  sets chrome — navigation, timestamps, handles and action labels — at
+  `--text-chrome` 12 over `--leading-chrome` 20; tracked uppercase labels are
+  the exception, never headings. below 600px reading text is 15px and the
+  gutter 1.5rem without changing reading order or deck behavior.
+- spacing is the 4/8/12/16/24/32/48/64 ramp from `--space-1` through
+  `--space-8`. `--page-gutter`, `max(2rem, (100vw - 83rem) / 2)`, is the one
+  horizontal origin for the top bar, the gate card and every route column; no
+  shell rule computes its own inset. the reading column centres at
+  `min(100%, var(--measure-reading))` (40rem) within it.
 - square surfaces use neutral hairlines, not head washes or glow. focus keeps
   the inset double hairline on deck cards and a visible violet outline on
   controls. the active tab uses a restrained tinted field; engaged actions keep
   their underline so state never relies on colour alone.
 - static imagery and video posters use the one monochrome grunge/Bayer filter
   in `DitherDefs.tsx` and `dither.css`. `imageEffects` is on by default; off,
-  `DitherImage` emits `data-effect="none"` and imagery paints plainly. playing
-  video frames are never filtered. no copied artwork or decorative texture layer.
-- route, dialog and deck arrivals use short stepped opacity transitions, not
-  springy throws or per-scheme choreography. the shared motion tokens live in
-  `tokens.css`; reduced motion disables transitions and animation. dialog
-  dismissal still owns its existing transition completion and timeout fallback.
+  `DitherImage` emits `data-effect="none"` and imagery paints plainly, and
+  playing video frames are never filtered. a decoded bitmap reveals over
+  `--dither-swap` (320ms) in `steps(3, end)`, from opacity 0 and scale 1.02,
+  and reduced motion drops the reveal.
+- motion is step-only. `--motion-ease` is `steps(4, end)`; UI transitions and
+  arrivals use `--motion-dur` (160ms), while deck deals and the dither reveal
+  use 320ms (`--deal-dur`, `--dither-swap`). route, dialog and deck arrivals
+  stay quiet, with no springs or per-scheme choreography. reduced motion
+  collapses transitions and animation in `base.css`; dialog dismissal keeps its
+  transition completion and timeout fallback.
+- `texture.css` carries the reference's CRT residue last in the cascade. every
+  body line takes a fixed 1px chromatic fringe from a warm and a cool tint;
+  display faces — headings plus card, name and dialog titles — take a stronger
+  pair. a fixed, non-interactive `body::after` scanline field sits at z-index 30:
+  above the app shell and content, below native dialogs in the top layer. light
+  mode uses calmer tints and a near-transparent scan dark. nothing here
+  animates, so the static texture survives reduced motion.
 - settings and keyboard help keep their searchable sections. settings contains
   only appearance mode, keyboard shortcuts, dither effects, account and transfer.
 - change `Theme`, `themes.ts`, the `index.html` colour table, `tokens.css`,
-  `DitherDefs.tsx`, `dither.css` and the real appearance/contrast contracts
-  together. do not add tests that merely pin a swatch table or visual copy.
+  `texture.css`, `DitherDefs.tsx`, `dither.css`, `appStyles.ts` and the real
+  appearance/contrast contracts together. do not add tests that merely pin a
+  swatch table or visual copy.
 
 ## settings transfer
 
