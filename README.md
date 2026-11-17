@@ -429,6 +429,13 @@ client routes need the same html fallback so opening or reloading a route works.
 check both the metadata response and `/feed` after publishing; a successful
 build alone does not verify the host's routing or content types.
 
+the authorization response arrives in the url fragment
+(`response_mode=fragment`), so `code` and `state` never reach the host. the
+browser client consumes and clears that fragment before routing; a rejected
+callback is still consumed and its query string is left intact. the host only
+needs the html fallback for `/feed` and must preserve ordinary query strings
+such as `/thread?uri=…`.
+
 inspect the status, content type and response body on the actual host:
 
 ```sh

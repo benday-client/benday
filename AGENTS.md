@@ -271,6 +271,12 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - `localhost` and every origin other than the baked one keep the password
   fallback. `localhost` deliberately avoids the oauth client's loopback rewrite,
   which would orphan that origin's stored session and settings.
+- the portal answers in the url fragment (`response_mode=fragment`), so `code`,
+  `state` and callback errors never reach the host. `client.init()` validates
+  and exchanges the fragment, then clears only the fragment: a query-shaped
+  `code`/`state` is not a callback and keeps its query and anchor, and a rejected
+  fragment is consumed while the query string survives. keep the fragment-mode
+  regression in `src/lib/oauth.test.ts`; a query-only probe does not exercise it.
 - sign-out revokes the portal session, logs out the password agent, clears
   `benday:session` and resets per-post action state. a stale restore must not
   overwrite a newer sign-in; keep the `authEpoch` guard and the action-store
