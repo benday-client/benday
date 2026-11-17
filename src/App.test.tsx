@@ -306,50 +306,46 @@ describe('shell auth gate', () => {
     }
   })
 
-  it('refuses an account that is not on the list and signs it out', async () => {
-    const transport = await signInShell()
-    transport.route('GET', 'http://localhost:3000/beta/invites.json', async () =>
-      jsonResponse(200, { sha256: [await inviteDigest('did:plc:someone-else')] }),
-    )
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
-      jsonResponse(200, {}),
-    )
-    resetBetaInvites()
-    window.history.pushState({}, '', '/feed')
-    const view = render(<App />)
-    try {
-      expect(
-        await screen.findByRole('heading', { name: 'this beta is invite only' }),
-      ).toBeInTheDocument()
-      await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'))
+  it.each(['refused', 'unreadable'] as const)(
+    'signs out a %s account once and returns to a usable anonymous landing page',
+    async (reason) => {
+      const transport = await signInShell()
+      transport.route('GET', 'http://localhost:3000/beta/invites.json', async () =>
+        reason === 'refused'
+          ? jsonResponse(200, { sha256: [await inviteDigest('did:plc:someone-else')] })
+          : jsonResponse(500, { error: 'boom' }),
+      )
+      const revoke = vi.fn(() => jsonResponse(200, {}))
+      transport.route('POST', `${PDS}/xrpc/com.atproto.server.deleteSession`, revoke)
+      const originalSignOut = useAuthStore.getState().signOut
+      const signOut = vi.fn(originalSignOut)
+      useAuthStore.setState({ signOut })
+      resetBetaInvites()
+      window.history.pushState({}, '', '/feed')
+      const view = render(<App />)
+      try {
+        const returnButton = await screen.findByRole('button', { name: 'back to benday' })
+        await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'))
+        await waitFor(() => expect(revoke).toHaveBeenCalledTimes(1))
 
-      // a reload must not put the refused account back inside
-      expect(localStorage.getItem('benday:session')).toBeNull()
-    } finally {
-      view.unmount()
-    }
-  })
+        // a reload must not put the refused account back inside
+        expect(localStorage.getItem('benday:session')).toBeNull()
+        fireEvent.click(returnButton)
 
-  it('fails closed when the invitation list cannot be read', async () => {
-    const transport = await signInShell()
-    transport.route('GET', 'http://localhost:3000/beta/invites.json', () =>
-      jsonResponse(500, { error: 'boom' }),
-    )
-    transport.route('POST', 'https://pds.test/xrpc/com.atproto.server.deleteSession', () =>
-      jsonResponse(200, {}),
-    )
-    resetBetaInvites()
-    window.history.pushState({}, '', '/feed')
-    const view = render(<App />)
-    try {
-      expect(
-        await screen.findByRole('heading', { name: 'the beta list could not be read' }),
-      ).toBeInTheDocument()
-      await waitFor(() => expect(useAuthStore.getState().status).toBe('anonymous'))
-    } finally {
-      view.unmount()
-    }
-  })
+        const login = await screen.findByRole('button', { name: 'log in with bluesky' })
+        expect(window.location.pathname).toBe('/')
+        expect(screen.queryByRole('button', { name: 'back to benday' })).toBeNull()
+        fireEvent.click(login)
+        expect(await screen.findByLabelText('handle or did')).toBeInTheDocument()
+        expect(useUiStore.getState().dialog).toBe('login')
+        expect(signOut).toHaveBeenCalledTimes(1)
+        expect(revoke).toHaveBeenCalledTimes(1)
+      } finally {
+        view.unmount()
+        useAuthStore.setState({ signOut: originalSignOut })
+      }
+    },
+  )
 
   it('serves the invite minter at slash admin without a bluesky session', async () => {
     installTransport()

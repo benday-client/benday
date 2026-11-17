@@ -12,8 +12,10 @@ export interface OAuthAccount {
   handle: string | null
 }
 
-let clientPromise: Promise<BrowserOAuthClient | null> | null = null
-let session: OAuthSession | null = null
+// A restored session keeps its client's storage alive until sign-out. Redirect
+// attempts own separate, short-lived clients: the SDK cannot reopen a database
+// connection after a native close/versionchange event.
+let session: { value: OAuthSession; client: BrowserOAuthClient } | null = null
 let initPromise: Promise<OAuthAccount | null> | null = null
 // Bumped whenever the portal session is cleared or replaced. An in-flight
 // restore that started under an older epoch must not repopulate `session`.
@@ -59,55 +61,51 @@ export function loopbackClientId(location: LoopbackLocation): string {
   return `http://localhost?redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(OAUTH_SCOPE)}`
 }
 
-async function getClient(): Promise<BrowserOAuthClient | null> {
+async function createClient(): Promise<BrowserOAuthClient | null> {
   const clientId = typeof window === 'undefined' ? null : oauthClientId(window.location)
   if (clientId === null) return null
 
-  if (clientPromise === null) {
-    clientPromise = (async () => {
-      // The browser OAuth client touches window and BroadcastChannel when its
-      // module loads. Keep it lazy so the auth store stays importable in tests.
-      const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
-      return BrowserOAuthClient.load({
-        clientId,
-        handleResolver: HANDLE_RESOLVER,
-        fetch: boundedFetch,
-      })
-    })().catch((error: unknown) => {
-      clientPromise = null
-      throw error
-    })
-  }
-
-  return clientPromise
+  // The browser OAuth client touches window and BroadcastChannel when its
+  // module loads. Keep it lazy so the auth store stays importable in tests.
+  const { BrowserOAuthClient } = await import('@atproto/oauth-client-browser')
+  return BrowserOAuthClient.load({
+    clientId,
+    handleResolver: HANDLE_RESOLVER,
+    fetch: boundedFetch,
+  })
 }
 
 async function restore(): Promise<OAuthAccount | null> {
   const epoch = oauthEpoch
-  const client = await getClient()
+  const client = await createClient()
   if (client === null) return null
 
-  const result = await client.init()
-  if (result === undefined) return null
-  if (epoch !== oauthEpoch) {
-    // A sign-out or a newer sign-in happened while init was resolving.
-    await result.session.signOut().catch(() => null)
-    return null
-  }
+  let retained = false
+  try {
+    const result = await client.init()
+    if (result === undefined) return null
+    if (epoch !== oauthEpoch) {
+      // A sign-out or a newer sign-in happened while init was resolving.
+      await result.session.signOut().catch(() => null)
+      return null
+    }
 
-  session = result.session
-  const agent = new Agent(result.session)
-  const profile = await agent.getProfile({ actor: result.session.sub }).catch(() => null)
-  if (epoch !== oauthEpoch) {
-    session = null
-    await result.session.signOut().catch(() => null)
-    return null
-  }
+    const agent = new Agent(result.session)
+    const profile = await agent.getProfile({ actor: result.session.sub }).catch(() => null)
+    if (epoch !== oauthEpoch) {
+      await result.session.signOut().catch(() => null)
+      return null
+    }
 
-  return {
-    agent,
-    did: result.session.sub,
-    handle: profile?.data.handle ?? null,
+    session = { value: result.session, client }
+    retained = true
+    return {
+      agent,
+      did: result.session.sub,
+      handle: profile?.data.handle ?? null,
+    }
+  } finally {
+    if (!retained) await client.dispose()
   }
 }
 
@@ -126,18 +124,23 @@ export function restoreOAuth(): Promise<OAuthAccount | null> {
 }
 
 export async function signInOAuth(identifier: string): Promise<void> {
-  const client = await getClient()
+  const client = await createClient()
   if (client === null) throw new Error('portal sign in is not configured for this origin')
 
-  const did = await resolveHandleDid(identifier)
+  try {
+    const did = await resolveHandleDid(identifier)
 
-  // A pending restore or a previous session must not answer for the account
-  // the user is signing into now; re-init once the redirect lands.
-  oauthEpoch += 1
-  session = null
-  initPromise = null
+    // A pending restore must not answer for the account being requested.
+    // The committed session keeps its own client until it is signed out: a
+    // failed account switch must not close the current agent's storage.
+    oauthEpoch += 1
+    if (session === null) initPromise = null
 
-  await client.signIn(did)
+    await client.signIn(did)
+  } finally {
+    // Disposing closes connections/listeners, not persisted callback state.
+    await client.dispose()
+  }
 }
 
 export async function signOutOAuth(): Promise<void> {
@@ -150,5 +153,11 @@ export async function signOutOAuth(): Promise<void> {
   // settles, so the local auth is gone either way. The revocation error is
   // handed back to the caller instead of being swallowed: the reader is signed
   // out locally, and a failed revoke must still be visible.
-  if (current !== null) await current.signOut()
+  if (current !== null) {
+    try {
+      await current.value.signOut()
+    } finally {
+      await current.client.dispose()
+    }
+  }
 }

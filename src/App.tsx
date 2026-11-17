@@ -508,8 +508,9 @@ function AppShell() {
         ) : refusal !== null ? (
           <BetaRefusal
             reason={refusal}
-            onSignOut={() => {
-              void signOut()
+            onReturn={() => {
+              setRefusal(null)
+              navigate('/')
             }}
           />
         ) : allowed ? (

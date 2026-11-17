@@ -2,15 +2,14 @@ import { Button } from '../components/ui'
 
 export interface BetaRefusalProps {
   reason: 'refused' | 'unreadable'
-  onSignOut: () => void
+  onReturn: () => void
 }
 
 /**
- * The wall after a sign in that is not on the list. It offers only the way out,
- * and the shell signs the account out through the local-first path so a reload
- * cannot land back inside.
+ * The shell has already signed the account out after a refused sign in or an
+ * unreadable list. Return to the anonymous landing page without signing out again.
  */
-export default function BetaRefusal({ reason, onSignOut }: BetaRefusalProps) {
+export default function BetaRefusal({ reason, onReturn }: BetaRefusalProps) {
   return (
     <section className="b-refusal" aria-labelledby="b-refusal-headline">
       <p className="mono-label">closed beta</p>
@@ -23,8 +22,8 @@ export default function BetaRefusal({ reason, onSignOut }: BetaRefusalProps) {
           : 'your account is not on the invitation list and has been signed out.'}
       </p>
       <div className="b-refusal__action">
-        <Button variant="solid" onClick={onSignOut}>
-          sign out
+        <Button variant="solid" onClick={onReturn}>
+          back to benday
         </Button>
       </div>
     </section>

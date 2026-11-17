@@ -265,6 +265,7 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   hashes are obfuscation, not secrecy: a known DID's membership is guessable
   by hashing it. this is a social door, not a security gate; the static client
   check cannot stop a modified client. sessions remain the visitor's own pds.
+  the refusal's return action goes to `/` without a second sign-out.
 - `https://benday.qex.at/admin` mints a digest and quoted JSON entry, not a
   password. add the entry to the shipped array and republish to invite; delete
   it and republish to revoke. minting changes no published access. there is no
@@ -287,6 +288,12 @@ staged gate below is local: it can be bypassed and no remote service runs it.
 - the password is passed to the api once and never persisted. password sessions
   store the sdk session in localStorage; portal sessions are managed by
   `@atproto/oauth-client-browser`.
+- never cache an anonymous oauth client across sign-in attempts. each redirect
+  attempt owns a disposable client; retain a client only with its committed
+  session. anonymous and failed restores dispose their client. a failed new
+  sign-in keeps the existing session and client, and sign-out disposes it after
+  revocation. keep the native indexedDB lifecycle regression in
+  `src/lib/oauth.browser.test.ts`.
 - portal login uses `atproto transition:generic` on `127.0.0.1` and `[::1]`
   and on the exact https origin baked into the build (`benday.qex.at` by
   default, or `BENDAY_PUBLIC_ORIGIN`). the hosted client id is that origin's
