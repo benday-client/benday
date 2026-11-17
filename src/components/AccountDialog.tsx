@@ -16,24 +16,35 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
   // completion can only close the opening it was started from.
   const openingRef = useRef(0)
   const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
 
   // resetting before paint keeps a stale completion from touching a reopened
   // dialog on the frame the reopen commits
   useLayoutEffect(() => {
     openingRef.current += 1
     setSignOutOpening(null)
+    setSignOutError(null)
   }, [open])
 
   const handleSignOut = async () => {
     if (pending || signOutOpening !== null) return
     const opening = openingRef.current
     setSignOutOpening(opening)
+    setSignOutError(null)
+    // A failed portal revocation does not reject: the reader is signed out
+    // locally, and the control that started it says why it stays that way.
+    let failed = false
     try {
       await signOut()
+      const failure = useAuthStore.getState().error
+      if (failure !== null && openingRef.current === opening) {
+        failed = true
+        setSignOutError(failure)
+      }
     } finally {
       // only the opening that started the request may be dismissed by it; the
       // token reset on the next open clears the pending control
-      if (openingRef.current === opening) onClose()
+      if (!failed && openingRef.current === opening) onClose()
     }
   }
 
@@ -51,6 +62,11 @@ export function AccountDialog({ open, onClose }: AccountDialogProps) {
         </Button>
       }
     >
+      {signOutError !== null ? (
+        <p className="b-account__error" role="alert">
+          {signOutError}
+        </p>
+      ) : null}
       {account === null ? (
         <p className="b-account__note">not signed in</p>
       ) : (

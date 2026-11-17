@@ -63,6 +63,7 @@ afterEach(() => {
     status: 'anonymous',
     account: null,
     pending: false,
+    error: null,
   })
 })
 
@@ -101,6 +102,29 @@ describe('AccountDialog', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(dialogOf(container).open).toBe(false)
+  })
+
+  it('keeps the dialog open on a failed revocation', async () => {
+    const signOut = vi.fn(async () => {
+      useAuthStore.setState({
+        status: 'anonymous',
+        account: null,
+        error: 'signed out on this device, but revocation failed: offline',
+      })
+    })
+    useAuthStore.setState({ signOut })
+
+    const { container, onClose } = renderAccount()
+    fireEvent.click(screen.getByRole('button', { name: 'sign out' }))
+    await settle()
+
+    // the local sign-out stands; the dialog says the remote revocation failed
+    // instead of closing silently
+    expect(dialogOf(container).open).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'signed out on this device, but revocation failed: offline',
+    )
   })
 
   it('ignores a completion that settles after the dialog was reopened', async () => {

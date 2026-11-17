@@ -470,6 +470,8 @@ describe('SettingsDialog sign-out ownership', () => {
       status: 'anonymous',
       account: null,
       pending: false,
+      error: null,
+      restoreError: null,
     })
   })
 
@@ -515,6 +517,28 @@ describe('SettingsDialog sign-out ownership', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(dialogElement(container).open).toBe(false)
+  })
+
+  it('keeps the account section open on a failed revocation', async () => {
+    const signOut = vi.fn(async () => {
+      useAuthStore.setState({
+        status: 'anonymous',
+        account: null,
+        error: 'signed out on this device, but revocation failed: offline',
+      })
+    })
+    useAuthStore.setState({ signOut })
+
+    const { container } = renderReopenableSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'sign out' }))
+    await settle()
+
+    // the local sign-out stands; the control that started it says the remote
+    // revocation failed instead of closing silently
+    expect(dialogElement(container).open).toBe(true)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'signed out on this device, but revocation failed: offline',
+    )
   })
 })
 

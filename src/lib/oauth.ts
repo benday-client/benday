@@ -146,11 +146,9 @@ export async function signOutOAuth(): Promise<void> {
   session = null
   initPromise = Promise.resolve(null)
 
-  if (current !== null) {
-    try {
-      await current.signOut()
-    } catch {
-      // the local auth state is cleared even if revocation fails
-    }
-  }
+  // The SDK deletes its stored session in a finally block after the revocation
+  // settles, so the local auth is gone either way. The revocation error is
+  // handed back to the caller instead of being swallowed: the reader is signed
+  // out locally, and a failed revoke must still be visible.
+  if (current !== null) await current.signOut()
 }

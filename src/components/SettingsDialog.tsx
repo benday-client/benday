@@ -71,6 +71,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   // cannot apply its settings or report into a newer opening
   const transferRef = useRef(0)
   const [signOutOpening, setSignOutOpening] = useState<number | null>(null)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
   const settingMatches = SETTING_SEARCH.filter((entry) =>
     matchesSearchTokens(`${entry.label} ${entry.keywords}`, settingQuery),
   )
@@ -84,6 +85,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   useLayoutEffect(() => {
     openingRef.current += 1
     setSignOutOpening(null)
+    setSignOutError(null)
     if (!open) return
     setSettingQuery('')
     // a fresh open starts clean; an in-flight transfer stays untouched while
@@ -115,13 +117,22 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     if (pending || signOutOpening !== null) return
     const opening = openingRef.current
     setSignOutOpening(opening)
+    setSignOutError(null)
+    // A failed portal revocation does not reject: the reader is signed out
+    // locally, and the control that started it says why it stays that way.
+    let failed = false
     try {
       await signOut()
+      const failure = useAuthStore.getState().error
+      if (failure !== null && openingRef.current === opening) {
+        failed = true
+        setSignOutError(failure)
+      }
     } finally {
       // only the opening that started the request may be dismissed by it; a
       // stale completion leaves a reopened dialog alone. The token reset on the
       // next open clears the pending control.
-      if (openingRef.current === opening) onClose()
+      if (!failed && openingRef.current === opening) onClose()
     }
   }
 
@@ -355,7 +366,14 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         data-hidden={sectionHidden('settings-account')}
       >
         <h3 className="b-settings__heading">account</h3>
-        {account === null ? null : (
+        {signOutError !== null ? (
+          <p className="b-settings__error" role="alert">
+            {signOutError}
+          </p>
+        ) : null}
+        {account === null ? (
+          <p className="b-settings__note">signed out · no account is connected</p>
+        ) : (
           <div className="b-settings__account">
             <span className="b-settings__account-handle">@{account.handle}</span>
             <span className="b-settings__account-did">{account.did}</span>

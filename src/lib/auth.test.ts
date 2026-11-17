@@ -3,13 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installTransport, jsonResponse, type TestTransport } from '../test/transport'
 import { currentAccountLabelers, setAccountLabelers } from './accountLabelers'
 import { fetchActorSearch } from './atproto'
-import { AUTH_STORAGE_KEY, getAuthAgent, useAuthStore } from './auth'
+import { AUTH_SIGNED_OUT_KEY, AUTH_STORAGE_KEY, getAuthAgent, useAuthStore } from './auth'
 import { applyConfiguredLabelers } from './labelers'
 import { boundedFetch } from './requestTimeout'
 
 const oauthControl = vi.hoisted(() => ({
   portalError: 'portal sign in needs a loopback address' as string | null,
   restoreError: null as string | null,
+  restoreDid: null as string | null,
+  signOutError: null as string | null,
 }))
 
 // the portal is external I/O: its failures are steered here, and everything the
@@ -18,12 +20,19 @@ vi.mock('./oauth', () => ({
   canUseOAuth: () => false,
   restoreOAuth: async () => {
     if (oauthControl.restoreError !== null) throw new Error(oauthControl.restoreError)
-    return null
+    if (oauthControl.restoreDid === null) return null
+    return {
+      agent: { configureLabelers: () => {} },
+      did: oauthControl.restoreDid,
+      handle: 'portal.test',
+    }
   },
   signInOAuth: async () => {
     if (oauthControl.portalError !== null) throw new Error(oauthControl.portalError)
   },
-  signOutOAuth: async () => {},
+  signOutOAuth: async () => {
+    if (oauthControl.signOutError !== null) throw new Error(oauthControl.signOutError)
+  },
 }))
 
 function deferred<T>() {
@@ -92,6 +101,8 @@ let currentRefresh: AtpSessionData = ALICE
 beforeEach(async () => {
   oauthControl.portalError = 'portal sign in needs a loopback address'
   oauthControl.restoreError = null
+  oauthControl.restoreDid = null
+  oauthControl.signOutError = null
   transport = installTransport()
   for (const host of ['https://api.bsky.app', 'https://pds.test']) {
     transport.route('GET', `${host}/xrpc/app.bsky.actor.searchActors`, () =>
@@ -147,6 +158,8 @@ beforeEach(async () => {
     )
   }
   await useAuthStore.getState().signOut()
+  // each case starts from a fresh profile, not one that just signed out
+  localStorage.removeItem(AUTH_SIGNED_OUT_KEY)
   transport.calls.length = 0
 })
 
@@ -508,7 +521,7 @@ describe('sign-out', () => {
     expect(useAuthStore.getState()).toMatchObject({
       status: 'anonymous',
       account: null,
-      pending: true,
+      pending: false,
       error: null,
     })
     expect(getAuthAgent()).toBeNull()
@@ -525,6 +538,46 @@ describe('sign-out', () => {
       error: null,
     })
     expect(getAuthAgent()?.did).toBe('did:plc:bob')
+  })
+
+  it('keeps a portal session the sdk still holds from restoring after sign-out', async () => {
+    await signInAs(ALICE)
+    // the sdk's stored session outlives the local sign-out until revocation
+    // settles; a reload in that window must still read as signed out
+    oauthControl.restoreDid = 'did:plc:portal'
+
+    const signingOut = useAuthStore.getState().signOut()
+    // read synchronously: the state, the password record and the portal marker
+    // must already agree, without waiting for any revocation
+    expect(useAuthStore.getState()).toMatchObject({ status: 'anonymous', account: null })
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(AUTH_SIGNED_OUT_KEY)).not.toBeNull()
+
+    await signingOut
+    // a reload starts from a fresh store and asks the portal to restore
+    useAuthStore.setState({ status: 'restoring', account: null })
+    await useAuthStore.getState().restore()
+
+    expect(useAuthStore.getState()).toMatchObject({
+      status: 'anonymous',
+      account: null,
+      pending: false,
+    })
+    expect(getAuthAgent()).toBeNull()
+  })
+
+  it('reports a failed revocation without signing the account back in', async () => {
+    await signInAs(ALICE)
+    oauthControl.signOutError = 'revoke unavailable'
+
+    await useAuthStore.getState().signOut()
+
+    const state = useAuthStore.getState()
+    expect(state).toMatchObject({ status: 'anonymous', account: null })
+    expect(state.error).toContain('revocation failed')
+    expect(state.error).toContain('revoke unavailable')
+    expect(getAuthAgent()).toBeNull()
+    expect(localStorage.getItem(AUTH_STORAGE_KEY)).toBeNull()
   })
 })
 

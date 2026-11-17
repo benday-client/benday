@@ -11,6 +11,11 @@ import { isRecord } from './records'
 import { boundedFetch, REQUEST_TIMEOUT_MS } from './requestTimeout'
 
 export const AUTH_STORAGE_KEY = 'benday:session'
+// The portal session lives in the SDK's own IndexedDB store, which deletes it
+// only after revocation settles. This marker is written in the same turn as the
+// sign-out, so a reload during revocation can never let the SDK restore an
+// account the reader already left.
+export const AUTH_SIGNED_OUT_KEY = 'benday:portal-signed-out'
 
 const FALLBACK_PDS = 'https://bsky.social'
 
@@ -97,6 +102,30 @@ function clearStoredAuth(): void {
     localStorage.removeItem(AUTH_STORAGE_KEY)
   } catch {
     // ignore storage failures
+  }
+}
+
+function markPortalSignedOut(): void {
+  try {
+    localStorage.setItem(AUTH_SIGNED_OUT_KEY, '1')
+  } catch {
+    // a storage failure must not keep the account looking signed in
+  }
+}
+
+function clearPortalSignedOut(): void {
+  try {
+    localStorage.removeItem(AUTH_SIGNED_OUT_KEY)
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function isPortalSignedOut(): boolean {
+  try {
+    return localStorage.getItem(AUTH_SIGNED_OUT_KEY) !== null
+  } catch {
+    return false
   }
 }
 
@@ -250,6 +279,15 @@ export function requireViewerAgent(viewerDid: string): AtpAgent | Agent {
   return agent
 }
 
+/**
+ * A failed portal revocation leaves the local sign-out standing: signOut
+ * resolves and reports the failure through the store. Every account surface
+ * shows this one sentence, so the explanation cannot drift between them.
+ */
+export function signOutRevocationMessage(reason: unknown): string {
+  return `signed out on this device, but revocation failed: ${errorInfo(reason).detail}`
+}
+
 export const useAuthStore = create<AuthState>()((set) => ({
   status: 'anonymous',
   account: null,
@@ -272,26 +310,31 @@ export const useAuthStore = create<AuthState>()((set) => ({
     restorePromise = (async () => {
       set({ status: 'restoring', error: null })
 
-      try {
-        const oauth = await restoreOAuth()
-        if (epoch !== authEpoch) return
-        if (oauth !== null) {
-          applyConfiguredLabelers(oauth.agent)
-          activeAgent = oauth.agent
-          clearStoredAuth()
-          set({
-            status: 'authenticated',
-            account: { did: oauth.did, handle: oauth.handle ?? oauth.did },
-            pending: false,
-            error: null,
-          })
-          return
+      // A portal session the SDK still holds is not the reader's answer after
+      // they signed out of it. The marker is synchronous, so an immediate
+      // reload sees it even while the revocation is still in flight.
+      if (!isPortalSignedOut()) {
+        try {
+          const oauth = await restoreOAuth()
+          if (epoch !== authEpoch) return
+          if (oauth !== null) {
+            applyConfiguredLabelers(oauth.agent)
+            activeAgent = oauth.agent
+            clearStoredAuth()
+            set({
+              status: 'authenticated',
+              account: { did: oauth.did, handle: oauth.handle ?? oauth.did },
+              pending: false,
+              error: null,
+            })
+            return
+          }
+        } catch (caught) {
+          // portal sessions are optional and the password path continues, but the
+          // portal failure is reported rather than silently dropped
+          if (epoch !== authEpoch) return
+          set({ restoreError: errorInfo(caught).detail })
         }
-      } catch (caught) {
-        // portal sessions are optional and the password path continues, but the
-        // portal failure is reported rather than silently dropped
-        if (epoch !== authEpoch) return
-        set({ restoreError: errorInfo(caught).detail })
       }
 
       const stored = readStoredAuth()
@@ -324,6 +367,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
       applyConfiguredLabelers(candidate)
       activeAgent = candidate
+      clearPortalSignedOut()
       writeStoredAuth(stored.service, session)
       set({
         status: 'authenticated',
@@ -395,14 +439,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
       }
 
       // A password sign-in owns the account now: drop any portal session so a
-      // later restore cannot quietly switch back to the previous account.
-      await signOutOAuth()
+      // later restore cannot quietly switch back to the previous account. A
+      // failed portal revocation must not fail the password sign-in the reader
+      // can already use.
+      await signOutOAuth().catch(() => null)
       if (epoch !== authEpoch) return discard()
 
       release()
       if (useAuthStore.getState().account?.did !== session.did) clearAccountLabelers()
       applyConfiguredLabelers(candidate)
       activeAgent = candidate
+      clearPortalSignedOut()
       writeStoredAuth(discovery.service, session)
       set({
         status: 'authenticated',
@@ -453,6 +500,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (pendingAuthEpoch === epoch) pendingAuthEpoch = null
     }
 
+    // Starting a portal redirect is the reader asking for a session again, so
+    // the sign-out marker must not block the callback. If the redirect never
+    // starts, the marker comes back and the old session stays unusable.
+    const wasSignedOut = isPortalSignedOut()
+    clearPortalSignedOut()
+
     try {
       // starting the redirect never settles into a signed-in state; the portal
       // owns the rest of the flow
@@ -462,6 +515,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       set({ pending: false })
     } catch (error) {
       if (epoch !== authEpoch) return
+      if (wasSignedOut) markPortalSignedOut()
       release()
       set({ pending: false, error: errorInfo(error).detail })
     }
@@ -475,27 +529,27 @@ export const useAuthStore = create<AuthState>()((set) => ({
     const current = activeAgent
 
     // Local auth ends before the network does: a failed revocation must never
-    // leave the account looking signed in.
+    // leave the account looking signed in. The marker is the portal's half of
+    // that promise, because its stored session is only deleted once revocation
+    // settles.
     activeAgent = null
     clearStoredAuth()
-    set({ status: 'anonymous', account: null, pending: true, error: null, restoreError: null })
+    markPortalSignedOut()
+    set({ status: 'anonymous', account: null, pending: false, error: null, restoreError: null })
 
     // Revoke both mechanisms when present, not only whichever one is active.
-    try {
-      await signOutOAuth()
-    } catch {
-      // the local auth state is cleared even if revocation fails
-    }
-
-    if (current instanceof AtpAgent) {
-      try {
-        await current.logout()
-      } catch {
-        // clearing the local session is the source of truth
-      }
-    }
+    // The local state is already final, so the reader can move on; a failure is
+    // reported once the attempts settle instead of being swallowed.
+    const revocations: Array<Promise<void>> = [signOutOAuth()]
+    if (current instanceof AtpAgent) revocations.push(current.logout())
+    const outcomes = await Promise.allSettled(revocations)
 
     if (epoch !== authEpoch) return
-    set({ pending: false, error: null })
+    const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+    if (rejected === undefined) {
+      set({ error: null })
+      return
+    }
+    set({ error: signOutRevocationMessage(rejected.reason) })
   },
 }))
