@@ -44,43 +44,14 @@ jobs:
           host: ${{ secrets.HOST }}
           user: ${{ secrets.USER }}
           pass: ${{ secrets.PASS }}
-          # AuthUserFile needs the absolute deployed path and only the remote
-          # knows it, so the .htaccess is written there instead of shipped. It is
-          # regenerated on every publish, which is why the scp step below never
-          # sends a local .htaccess over it.
-          first_ssh: |
-            mkdir -p ./www/benday.qex.at
-            cat > ./www/benday.qex.at/.htaccess <<HTACCESS
-            DirectoryIndex index.html
-            AddType application/json .json
-
-            AuthType Basic
-            AuthName "benday closed beta"
-            AuthUserFile $PWD/www/benday.qex.at/.htpasswd
-            Require valid-user
-
-            # the pds fetches this during portal sign in, so it answers before auth
-            <Files "oauth-client-metadata.json">
-              Require all granted
-            </Files>
-
-            <FilesMatch "^\.ht">
-              Require all denied
-            </FilesMatch>
-
-            # every other path keeps the single page fallback
-            RewriteEngine On
-            RewriteBase /
-            RewriteCond %{REQUEST_FILENAME} !-f
-            RewriteCond %{REQUEST_FILENAME} !-d
-            RewriteRule ^ /index.html [L]
-            HTACCESS
+          # the action joins these lines with && so each script must stay a
+          # single line: no heredoc, no comments, and no $ expansion, which it
+          # resolves on the runner instead of the server.
+          first_ssh: mkdir -p ./www/benday.qex.at
           scp: |
             ./dist/* => ./www/benday.qex.at/
+            ./dist/.htaccess => ./www/benday.qex.at/
             ./dist/.htpasswd => ./www/benday.qex.at/
-          # shared hosting can leave the upload world readable, and the file is
-          # the whole gate. a missing file is a failed publish, not a warning.
-          last_ssh: |
-            test -f ./www/benday.qex.at/.htpasswd
-            chmod 600 ./www/benday.qex.at/.htpasswd
-            stat -c '%a %n' ./www/benday.qex.at/.htpasswd
+          # ENVIRON["PWD"] is resolved by awk on the server, which is the only
+          # place the absolute path exists.
+          last_ssh: awk '{gsub(/__PWD__/,ENVIRON["PWD"])}1' ./www/benday.qex.at/.htaccess > ./www/benday.qex.at/.htaccess.tmp && mv ./www/benday.qex.at/.htaccess.tmp ./www/benday.qex.at/.htaccess && chmod 600 ./www/benday.qex.at/.htpasswd && test -f ./www/benday.qex.at/.htpasswd && stat -c '%a %n' ./www/benday.qex.at/.htaccess ./www/benday.qex.at/.htpasswd

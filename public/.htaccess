@@ -1,0 +1,28 @@
+# the app shell for every route: real files win, everything else falls back to
+# the single page bundle. the closed beta is enforced here, with the client
+# metadata left public because the pds fetches it during portal sign in.
+#
+# __PWD__ is replaced at publish time with the absolute webspace directory,
+# because AuthUserFile only accepts an absolute path and only the server knows
+# its own. the substitution happens in the last_ssh step of the workflow.
+DirectoryIndex index.html
+AddType application/json .json
+
+AuthType Basic
+AuthName "benday closed beta"
+AuthUserFile __PWD__/www/benday.qex.at/.htpasswd
+Require valid-user
+
+<Files "oauth-client-metadata.json">
+  Require all granted
+</Files>
+
+<FilesMatch "^\.ht">
+  Require all denied
+</FilesMatch>
+
+RewriteEngine On
+RewriteBase /
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ /index.html [L]
