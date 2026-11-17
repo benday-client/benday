@@ -1,0 +1,41 @@
+/* the anonymous front door. the column is the shell gate's measure so `/`
+   keeps the same reader width as every other surface, and only the type
+   changes: one display line, one paragraph, one action. */
+.b-landing {
+  display: grid;
+  align-content: center;
+  justify-content: center;
+  grid-template-columns: minmax(0, 40rem);
+  gap: var(--space-5);
+  padding: var(--space-8) var(--page-gutter);
+}
+
+.b-landing__headline {
+  margin: 0;
+  max-width: 28ch;
+  color: var(--ink-heading);
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: var(--leading-display);
+}
+
+.b-landing__body {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--ink);
+  font-family: var(--font-reading);
+  font-size: var(--text-reading);
+  line-height: var(--leading-reading);
+}
+
+@media (max-width: 640px) {
+  .b-landing {
+    padding: var(--space-7) var(--page-gutter);
+  }
+
+  .b-landing__headline {
+    font-size: var(--text-title);
+  }
+}

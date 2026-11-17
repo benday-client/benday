@@ -29,6 +29,7 @@ import { useSettings } from './lib/store'
 import { themeColor } from './lib/themes'
 import { uiOwnsKeyboard, useUiStore } from './lib/ui'
 import FeedView from './views/FeedView'
+import LandingView from './views/LandingView'
 import NotificationsView from './views/NotificationsView'
 import ProfileView from './views/ProfileView'
 import SearchView from './views/SearchView'
@@ -476,6 +477,12 @@ function AppShell() {
           <div className="b-shell-gate">
             <Progress label="restoring session" indeterminate />
           </div>
+        ) : pathname === '/' ? (
+          <LandingView
+            onSignIn={() => {
+              openDialog('login')
+            }}
+          />
         ) : (
           <div className="b-shell-gate">
             <SignedOutCard

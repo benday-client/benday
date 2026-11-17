@@ -170,6 +170,64 @@ describe('shell auth gate', () => {
     }
   })
 
+  it('shows the closed beta page at the root instead of the gate', async () => {
+    const transport = installTransport()
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    try {
+      expect(
+        await screen.findByRole('heading', { name: 'a card reader for your own bluesky' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'sign in to read benday' })).toBeNull()
+      expect(document.querySelector('.b-view')).toBeNull()
+      expect(transport.calls).toHaveLength(0)
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('keeps the gate on every other anonymous route', async () => {
+    installTransport()
+    window.history.pushState({}, '', '/notifications')
+    const view = render(<App />)
+    try {
+      expect(
+        await screen.findByRole('button', { name: 'sign in to read benday' }),
+      ).toBeInTheDocument()
+      expect(document.querySelector('.b-landing')).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('opens the existing sign in dialog from the closed beta page', async () => {
+    installTransport()
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    try {
+      fireEvent.click(await screen.findByRole('button', { name: 'sign in' }))
+
+      await waitFor(() => expect(useUiStore.getState().dialog).toBe('login'))
+      expect(await screen.findByLabelText('handle or did')).toBeInTheDocument()
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('keeps the reading surface at the root for a signed in visitor', async () => {
+    await signInShell()
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    try {
+      expect(await screen.findByRole('region', { name: /feeds/i })).toBeDefined()
+
+      // the front door belongs to anonymous visitors only
+      expect(document.querySelector('.b-landing')).toBeNull()
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('renders the route for an authenticated session', async () => {
     await signInShell()
     window.history.pushState({}, '', '/search')
