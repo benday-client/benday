@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { HOLD_PAINT_MS, HOLD_THRESHOLD_MS } from './components/KeyHints'
 import { useAuthStore } from './lib/auth'
 import { inviteDigest, resetBetaInvites } from './lib/betaAccess'
 import { appHistoryDepth, withAppHistory } from './lib/history'
+import { bindingFor } from './lib/keymap'
 import { useSettings } from './lib/store'
 import { useUiStore } from './lib/ui'
 import { installTransport, jsonResponse, type TestTransport } from './test/transport'
@@ -378,6 +380,96 @@ describe('shell auth gate', () => {
 })
 
 describe('global keyboard routing', () => {
+  it('offers only the settings shortcut on the anonymous landing page', async () => {
+    const transport = installTransport()
+    useSettings.setState({ keyboardShortcuts: true })
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    try {
+      await screen.findByRole('button', { name: 'log in with bluesky' })
+      vi.useFakeTimers()
+
+      fireEvent.keyDown(document.body, { key: '?' })
+      fireEvent.keyUp(document.body, { key: '?' })
+      expect(useUiStore.getState().dialog).toBeNull()
+
+      fireEvent.keyDown(document.body, { key: '?' })
+      act(() => {
+        vi.advanceTimersByTime(HOLD_THRESHOLD_MS + HOLD_PAINT_MS)
+      })
+      expect(document.querySelector('[data-keyhint-layer]')).toBeNull()
+      fireEvent.keyUp(document.body, { key: '?' })
+      expect(useUiStore.getState().dialog).toBeNull()
+
+      for (const key of ['/', 's', 'c']) fireEvent.keyDown(document.body, { key })
+      fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })
+      fireEvent.keyDown(document.body, { key: 'ArrowRight', ctrlKey: true })
+      expect(window.location.pathname).toBe('/')
+      expect(useUiStore.getState().compose).toBeNull()
+      expect(useUiStore.getState().dialog).toBeNull()
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(transport.calls).toHaveLength(0)
+
+      fireEvent.keyDown(document.body, { key: bindingFor('settings').chords[0]?.key })
+      expect(screen.getByRole('dialog', { name: 'settings' })).toBeVisible()
+      expect(useUiStore.getState().dialog).toBe('settings')
+    } finally {
+      view.unmount()
+    }
+  })
+
+  it('respects the landing shortcut preference, composition and login modal ownership', async () => {
+    installTransport()
+    useSettings.setState({ keyboardShortcuts: false })
+    window.history.pushState({}, '', '/')
+    const view = render(<App />)
+    const key = bindingFor('settings').chords[0]?.key
+    try {
+      await screen.findByRole('button', { name: 'log in with bluesky' })
+      fireEvent.keyDown(document.body, { key })
+      expect(useUiStore.getState().dialog).toBeNull()
+
+      act(() => {
+        useSettings.setState({ keyboardShortcuts: true })
+      })
+      fireEvent.keyDown(document.body, { key, isComposing: true })
+      expect(useUiStore.getState().dialog).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'log in with bluesky' }))
+      const field = await screen.findByLabelText('handle or did')
+      fireEvent.keyDown(field, { key })
+      fireEvent.keyDown(document.body, { key })
+      expect(useUiStore.getState().dialog).toBe('login')
+      expect(screen.queryByRole('dialog', { name: 'settings' })).toBeNull()
+    } finally {
+      view.unmount()
+      useSettings.setState({ keyboardShortcuts: true })
+    }
+  })
+
+  it('releases an open help dialog when navigation returns to the landing page', async () => {
+    installTransport()
+    useSettings.setState({ keyboardShortcuts: true })
+    window.history.pushState({}, '', '/feed')
+    const view = render(<App />)
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'keyboard help' }))
+      expect(useUiStore.getState().dialog).toBe('help')
+
+      act(() => {
+        window.history.pushState({}, '', '/')
+      })
+      await screen.findByRole('button', { name: 'log in with bluesky' })
+      expect(useUiStore.getState().dialog).toBeNull()
+      expect(screen.queryByRole('dialog')).toBeNull()
+
+      fireEvent.keyDown(document.body, { key: bindingFor('settings').chords[0]?.key })
+      expect(await screen.findByRole('dialog', { name: 'settings' })).toBeVisible()
+    } finally {
+      view.unmount()
+    }
+  })
+
   it('sends / to search instead of the command palette', async () => {
     await signInShell()
     window.history.pushState({}, '', '/search')

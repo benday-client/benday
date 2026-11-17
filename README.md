@@ -21,7 +21,7 @@ Use **Node.js 24.15.0 or newer within the 24.x LTS line** and **pnpm 12.16.1**.
 The supported Node ranges are `^22.22.2 || ^24.15.0 || >=26.0.0`.
 
 ```sh
-git clone https://github.com/lexa-qexat/benday.git
+git clone https://github.com/benday-client/benday.git
 cd benday
 pnpm install
 pnpm dev
@@ -52,7 +52,7 @@ before running browser tests or `pnpm check`. For contributions, run
 Deployment runs from **this repository** through
 [`.github/workflows/publish.yml`](.github/workflows/publish.yml), using the
 `HOST`, `USER` and `PASS` GitHub Actions secrets configured in
-[`lexa-qexat/benday`](https://github.com/lexa-qexat/benday). The workflow builds
+[`benday-client/benday`](https://github.com/benday-client/benday). The workflow builds
 the app and uploads it using the existing `ssh-scp-ssh` action pattern.
 
 For a manual build:

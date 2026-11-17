@@ -652,6 +652,9 @@ there are five key layers, and they must not fight:
    hold-to-reveal overlay in `src/components/KeyHints.tsx` owns it (tap opens
    help). settings and help each own a `/`-focused search field. escape is not
    one of these; it has its own listener in `AppShell` (see 6).
+   on the closed-beta landing page only the registry-backed settings shortcut
+   is enabled. tap/hold `?` and app commands stay off; the same preference,
+   editable-field, modal and IME guards still apply.
 2. tab switching is a separate capture listener in `App.tsx` for the platform
    primary modifier + left/right (meta on macOS, ctrl elsewhere); the chord may
    fire while a field has focus. tabs are `/feed`, `/search` and `/notifications`,

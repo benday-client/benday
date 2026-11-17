@@ -191,6 +191,11 @@ function AppShell() {
   const restoreError = useAuthStore((state) => state.restoreError)
   const landing =
     pathname === '/' && !authenticated && authStatus !== 'restoring' && refusal === null
+  const helpAvailable = !landing && (!authenticated || allowed)
+
+  useEffect(() => {
+    if (landing && dialog === 'help') closeDialog()
+  }, [landing, dialog, closeDialog])
 
   // an account that is not on the list is signed out through the local-first
   // path, so a reload cannot put it back inside
@@ -465,14 +470,17 @@ function AppShell() {
   }, [allowed, backBinding, dialog, compose, closeDialog, closeCompose, pathname, search, navigate])
 
   const hotkeys = globalHotkeys({
-    search: focusSearch,
-    compose: startCompose,
+    search: allowed ? focusSearch : undefined,
+    compose: allowed ? startCompose : undefined,
     settings: () => openDialog('settings'),
     // `?` is not a plain hotkey: KeyHints owns it so a tap still opens the help
     // dialog and a hold reveals the key badges instead
   })
 
-  useHotkeys(hotkeys, allowed && dialog === null && compose === null && inlineCompose === null)
+  useHotkeys(
+    hotkeys,
+    (allowed || landing) && dialog === null && compose === null && inlineCompose === null,
+  )
 
   // a route swap ends a hold: the badges describe the surface that was on
   // screen when the key went down
@@ -544,7 +552,7 @@ function AppShell() {
         onOpenHelp={() => openDialog('help')}
         onOpenSettings={() => openDialog('settings')}
       />
-      <HelpDialog open={(!authenticated || allowed) && dialog === 'help'} onClose={closeDialog} />
+      <HelpDialog open={helpAvailable && dialog === 'help'} onClose={closeDialog} />
       <SettingsDialog
         open={(!authenticated || allowed) && dialog === 'settings'}
         onClose={closeDialog}
@@ -555,7 +563,7 @@ function AppShell() {
         onClose={closeDialog}
       />
       <ComposeDialog open={allowed && compose !== null} request={compose} onClose={closeCompose} />
-      {!authenticated || allowed ? <KeyHints route={route} /> : null}
+      {helpAvailable ? <KeyHints route={route} /> : null}
     </div>
   )
 }
