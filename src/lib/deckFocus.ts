@@ -70,8 +70,7 @@ export function focusDeckAfterSwap(viewRoot: HTMLElement | null): () => void {
       active !== originFocus &&
       active instanceof HTMLElement &&
       active !== document.body &&
-      active !== viewRoot &&
-      viewRoot.contains(active)
+      active !== viewRoot
     ) {
       dispose()
       return
