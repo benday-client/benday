@@ -1,0 +1,31 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # the browser suite runs in real chromium; a missing browser is a
+      # failure, never a skipped check.
+      - name: Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Gate
+        run: pnpm check

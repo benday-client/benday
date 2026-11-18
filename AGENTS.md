@@ -158,23 +158,9 @@ pnpm check        # lint, quality scripts, both suites, then build
 `pnpm check:assertions` scans existing tracked and untracked typescript files.
 deleted tracked paths are skipped; explicitly named missing files still fail.
 
-`node scripts/check-staged.mjs` runs that same `pnpm check` against the index
-rather than the worktree: it exports the staged tree into a temporary
-repository, installs from the frozen lockfile and gates that copy, so an
-unstaged dependency cannot make a partial commit look green. it refuses
-unmerged entries and intent-to-add paths, reads the original repository with
-`GIT_OPTIONAL_LOCKS=0`, and never resets, stashes or borrows `node_modules`.
-`.pre-commit-config.yaml` installs it as the `benday-check` hook through
-pre-commit's native node support:
-
-```sh
-python3 -m venv ~/.local/share/benday-pre-commit
-~/.local/share/benday-pre-commit/bin/pip install pre-commit
-~/.local/share/benday-pre-commit/bin/pre-commit install
-```
-
-the hook is local and bypassable; it is not remote enforcement, and no forge
-runs `pnpm check` for this repository.
+`pnpm check` runs in ci. `.github/workflows/check.yml` gates every pull request
+and every push to `main`. no local hook runs the suite, and a local run is not
+the gate and never stands in for one.
 
 open the dev server at `http://127.0.0.1:5173/` for the portal flow, or at
 `localhost` for the password form. vite and preview bind the loopback address
@@ -204,20 +190,21 @@ emits `dist/oauth-client-metadata.json` and embeds that asset's absolute url as
 `import.meta.env.BENDAY_OAUTH_CLIENT_ID`. deploy metadata and app together.
 changing the host environment after the build does not reconfigure the bundle.
 
-live deployment verification is pending: `benday.qex.at` did not resolve from the
-development environment on 2026-11-17. after dns and hosting are configured,
-check the public metadata and `/feed` responses, then portal sign-in and restore
-after a reload. never report a local preview check as a live portal check.
+live verification: `benday.qex.at` serves the built app and the portal sign-in,
+restore after reload and sign-out were proven there on 2026-11-18. after a
+deploy, check the public metadata and `/feed` responses, then portal sign-in and
+restore after a reload. never report a local preview check as a live portal
+check.
 
-before handing off a change, run the narrowest check that covers it, then
-`pnpm check` unless the task explicitly says not to run gates. tests are offline
-and must not require a pds, appview or network.
+before handing off a change, push a branch and open a pull request. ci runs the
+full gate there; do not run the suite locally unless the task asks for it. tests
+are offline and must not require a pds, appview or network.
 
 ## quality contract
 
 these rules are enforced where a check can enforce them and reviewed where it
 cannot. human review still owns design, intent and semantic readability, and the
-staged gate below is local: it can be bypassed and no remote service runs it.
+gate runs in ci on every pull request.
 
 - render stays pure. components and hooks derive values during render and push
   effects to browser, network and storage boundaries (subscriptions, storage
@@ -247,10 +234,9 @@ staged gate below is local: it can be bypassed and no remote service runs it.
   error. there is no suppression comment, no unchecked generic conversion
   helper and no fake-agent object standing in for a typed boundary; narrow with
   `isRecord` or a named predicate and construct the real SDK object instead.
-- the gate is the staged snapshot. `pnpm check` (biome, the assertion gate, the
-  quality scripts, both suites and the build) must pass, and the committed tree
-  is the indexed tree, verified through `scripts/check-staged.mjs` as described
-  in setup.
+- the gate is ci. `pnpm check` (biome, the assertion gate, the quality scripts,
+  both suites and the build) must pass on the pull request, and `main` only
+  takes merges whose check is green.
 
 ## auth and privacy boundaries
 
@@ -756,7 +742,7 @@ gives them the definite-height app shell. `@vitest/browser-playwright@5.0.5`,
 `playwright@1.64.1` and the chromium download are the only browser
 prerequisites; a missing browser is a failure, never a skip. `pnpm check` runs
 biome, `scripts/` under node's own runner, jsdom, browser and build in that
-order, and `scripts/check-staged.mjs` runs the same chain against the index.
+order, and ci runs it through `.github/workflows/check.yml`.
 
 what the suite covers, and what it does not:
 
@@ -787,6 +773,8 @@ in the nearest existing file rather than creating a parallel suite.
 - commit subjects follow the log: `feat: add …`, `fix: stop …`,
   `test: cover …`, `docs: …`, `refactor: …`. one concern per commit, imperative
   and specific.
+- work on a branch and open a pull request. `main` takes merges, not direct
+  pushes; name the branch for its change.
 - prefer editing the existing file that already owns the concern. do not create
   a second helper, store, query key, theme token or CSS convention beside an
   existing one. remove code made obsolete by a cutover instead of leaving an
