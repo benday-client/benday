@@ -21,26 +21,27 @@ export async function inviteDigest(did: string): Promise<string> {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/** Validates an invitation body. Malformed data fails closed to `null`. */
+export function parseBetaInvites(body: unknown): BetaInvites | null {
+  if (
+    !isRecord(body) ||
+    !Array.isArray(body['sha256']) ||
+    !body['sha256'].every(
+      (entry: unknown) => typeof entry === 'string' && /^[0-9a-f]{64}$/.test(entry),
+    )
+  ) {
+    return null
+  }
+  return { sha256: body['sha256'] }
+}
+
 /** Resolves to `null` when the list cannot be read at all, which fails closed. */
 export function loadBetaInvites(): Promise<BetaInvites | null> {
   if (loaded === null) {
     // absolute, because a bare path is not a valid Request outside a browser
     const url = new URL(INVITES_PATH, window.location.href)
     loaded = fetch(url, { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) return null
-        const body: unknown = await response.json()
-        if (
-          !isRecord(body) ||
-          !Array.isArray(body['sha256']) ||
-          !body['sha256'].every(
-            (entry: unknown) => typeof entry === 'string' && /^[0-9a-f]{64}$/.test(entry),
-          )
-        ) {
-          return null
-        }
-        return { sha256: body['sha256'] }
-      })
+      .then(async (response) => (response.ok ? parseBetaInvites(await response.json()) : null))
       .catch(() => null)
   }
   return loaded

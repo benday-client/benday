@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { betaAccess, inviteDigest, loadBetaInvites, resetBetaInvites } from './betaAccess'
+import invites from '../../public/beta/invites.json'
+import {
+  betaAccess,
+  inviteDigest,
+  loadBetaInvites,
+  parseBetaInvites,
+  resetBetaInvites,
+} from './betaAccess'
 
 const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto')
-const LISTED = 'd804bbafd805d3011c0c0365f423940442d1dcd527287cabc7b9a154e88454c8'
 const DID = 'did:plc:ym6n47hhl23xcx3hi7qncbh4'
+// computed here so a change to the shipped list cannot break this test
+const LISTED = Array.from(
+  new Uint8Array(await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(DID))),
+  (byte) => byte.toString(16).padStart(2, '0'),
+).join('')
 
 beforeEach(() => {
   resetBetaInvites()
@@ -19,11 +30,7 @@ describe('betaAccess', () => {
   it('hashes the exact DID without normalization or a prefix', async () => {
     await expect(inviteDigest(DID)).resolves.toBe(LISTED)
     for (const did of [DID.toUpperCase(), ` ${DID}`, `${DID} `]) {
-      const bytes = await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(did))
-      const expected = Array.from(new Uint8Array(bytes), (byte) =>
-        byte.toString(16).padStart(2, '0'),
-      ).join('')
-      await expect(inviteDigest(did)).resolves.toBe(expected)
+      await expect(inviteDigest(did)).resolves.not.toBe(LISTED)
       await expect(betaAccess({ sha256: [LISTED] }, { did })).resolves.toBe('refused')
     }
   })
@@ -74,5 +81,11 @@ describe('loadBetaInvites', () => {
   ])('fails closed on an unreadable response', async (fetch) => {
     vi.stubGlobal('fetch', fetch)
     await expect(loadBetaInvites()).resolves.toBeNull()
+  })
+})
+
+describe('shipped invitations', () => {
+  it('reads the one list the app ships', () => {
+    expect(parseBetaInvites(invites)).not.toBeNull()
   })
 })
