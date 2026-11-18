@@ -1,12 +1,19 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { betaAccess } from '../lib/betaAccess'
 import { installTransport, jsonResponse } from '../test/transport'
 import AdminView from './AdminView'
 
+const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto')
+vi.stubGlobal('crypto', webcrypto)
+
 const RESOLVE = 'https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle'
 const DID = 'did:plc:ym6n47hhl23xcx3hi7qncbh4'
-const DIGEST = 'd804bbafd805d3011c0c0365f423940442d1dcd527287cabc7b9a154e88454c8'
+// the digest is derived, never copied from public/beta/invites.json
+const DIGEST = Array.from(
+  new Uint8Array(await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(DID))),
+  (byte) => byte.toString(16).padStart(2, '0'),
+).join('')
 
 beforeEach(() => {
   localStorage.clear()
