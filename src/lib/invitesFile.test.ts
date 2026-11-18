@@ -6,6 +6,8 @@ const { webcrypto } = await vi.importActual<{ webcrypto: Crypto }>('node:crypto'
 const SEEDS = [
   { did: 'did:plc:ym6n47hhl23xcx3hi7qncbh4', handle: 'clarisse.bsky.social' },
   { did: 'did:plc:vozlebyxjnieupdvt6kevsb2', handle: 'lexa.bsky.social' },
+  { did: 'did:plc:z4xvwyl7cf2bgpsph6ypmxky', handle: 'netbub.com' },
+  { did: 'did:plc:jwdk5e6rj6hmkd2rmhkq4cnd', handle: 'texoport.in' },
 ]
 
 beforeEach(() => {
